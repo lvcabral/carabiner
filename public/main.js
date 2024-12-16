@@ -6,19 +6,56 @@ const {
   Notification,
   systemPreferences,
 } = require("electron");
-const os = require("node:os");
+const fs = require("fs");
+
+const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
+
+function saveSettings(settings) {
+  fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+}
+
+function loadSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(settingsFilePath));
+  } catch (error) {
+    return {};
+  }
+}
+
+function createWindow(name, options) {
+  const settings = loadSettings();
+  const windowState = settings[name] || {
+    width: options.width || 800,
+    height: options.height || 600,
+    x: undefined,
+    y: undefined,
+  };
+
+  const win = new BrowserWindow({
+    ...options,
+    ...windowState,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: true,
+    },
+  });
+
+  win.on("close", () => {
+    const bounds = win.getBounds();
+    settings[name] = bounds;
+    saveSettings(settings);
+  });
+
+  return win;
+}
 
 function createMainWindow() {
-  const win = new BrowserWindow({
+  const win = createWindow("main", {
     height: 670,
     width: 600,
     maximizable: false,
     resizable: false,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload: __dirname + "/preload.js",
-      nodeIntegration: true,
-    },
   });
   const loadURL =
     process.env.NODE_ENV === "development"
@@ -31,7 +68,7 @@ function createMainWindow() {
 }
 
 function createDisplayWindow() {
-  const win = new BrowserWindow({
+  const win = createWindow("display", {
     width: 505,
     height: 295,
     maxWidth: 1945,
@@ -43,9 +80,6 @@ function createDisplayWindow() {
     hasShadow: false,
     frame: false,
     alwaysOnTop: true,
-    webPreferences: {
-      preload: __dirname + "/preload.js",
-    },
   });
   win.loadFile("public/display.html");
   return win;
@@ -120,10 +154,14 @@ app.whenReady().then(async () => {
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    }
   });
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
