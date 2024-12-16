@@ -1,7 +1,7 @@
 const video = document.querySelector("video");
 const videoPlayer = document.getElementById("video-player");
 
-function handleSetCameraResolution(style) {
+function handleSetResolution(style) {
   videoPlayer.style.width = style.width;
   videoPlayer.style.height = style.height;
 }
@@ -19,7 +19,7 @@ function handleSetBorderColor(borderColor) {
 }
 
 function handleSetVideoStream(constraints) {
-  renderCamera(constraints);
+  renderDisplay(constraints);
 }
 
 function handleSetVideoFilter(data) {
@@ -28,7 +28,7 @@ function handleSetVideoFilter(data) {
 }
 
 const eventHandlers = {
-  "set-camera-resolution": handleSetCameraResolution,
+  "set-resolution": handleSetResolution,
   "set-border-width": handleSetBorderWidth,
   "set-border-style": handleSetBorderStyle,
   "set-border-color": handleSetBorderColor,
@@ -36,7 +36,7 @@ const eventHandlers = {
   "set-video-filter": handleSetVideoFilter,
 };
 
-function renderCamera(constraints) {
+function renderDisplay(constraints) {
   if (video.srcObject) {
     video.srcObject.getTracks().forEach((track) => track.stop());
   }
@@ -69,9 +69,9 @@ window.addEventListener("DOMContentLoaded", function () {
           height: 720,
         },
       };
-      renderCamera(constraints);
+      renderDisplay(constraints);
     } else {
-      console.log("No camera found");
+      console.log("No camera/capture card found");
     }
   });
 

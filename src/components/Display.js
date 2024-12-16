@@ -5,7 +5,7 @@ import Alert from "react-bootstrap/Alert";
 
 const { electronAPI } = window;
 
-const Camera = () => {
+const Display = () => {
   const [errorOccurred, setErrorOccurred] = useState(false);
 
   const [webcams, setWebcams] = React.useState([
@@ -77,4 +77,4 @@ const Camera = () => {
   );
 };
 
-export default Camera;
+export default Display;

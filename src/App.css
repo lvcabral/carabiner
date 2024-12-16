@@ -15,8 +15,8 @@ body {
   background-color: #f1f1f1;
   border: 1px solid #d3d3d3;
   text-align: center;
-  height: 400px;
-  width: 400px;
+  height: 480px;
+  width: 270px;
   bottom: 25px;
   right: 25px;
 }
@@ -31,4 +31,10 @@ body {
 
 .card-text {
   margin-bottom: 10px !important;
+}
+
+.tab-content-container {
+  background-color: white;
+  padding: 10px; /* Optional: Add some padding for better appearance */
+  border-radius: 5px; /* Optional: Add border radius for rounded corners */
 }
