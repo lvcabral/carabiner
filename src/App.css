@@ -1,0 +1,34 @@
+@font-face {
+  font-family: 'ABeeZee-Regular';
+  src: local('ABeeZee-Regular'), 
+      url('./fonts/ABeeZee-Regular.woff2') format('woff2')
+      url('./fonts/ABeeZee-Italic.woff2') format('woff2');
+}
+
+body {
+  font-family: 'ABeeZee-Regular';
+}
+
+#preview {
+  position: fixed;
+  z-index: 9;
+  background-color: #f1f1f1;
+  border: 1px solid #d3d3d3;
+  text-align: center;
+  height: 400px;
+  width: 400px;
+  bottom: 25px;
+  right: 25px;
+}
+
+#preview-header {
+  padding: 10px;
+  cursor: move;
+  z-index: 10;
+  background-color: #4e54c8;;
+  color: #fff;
+}
+
+.card-text {
+  margin-bottom: 10px !important;
+}
