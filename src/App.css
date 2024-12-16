@@ -1,14 +1,3 @@
-@font-face {
-  font-family: 'ABeeZee-Regular';
-  src: local('ABeeZee-Regular'), 
-      url('./fonts/ABeeZee-Regular.woff2') format('woff2')
-      url('./fonts/ABeeZee-Italic.woff2') format('woff2');
-}
-
-body {
-  font-family: 'ABeeZee-Regular';
-}
-
 #preview {
   position: fixed;
   z-index: 9;
@@ -36,5 +25,8 @@ body {
 .tab-content-container {
   background-color: white;
   padding: 10px; /* Optional: Add some padding for better appearance */
-  border-radius: 5px; /* Optional: Add border radius for rounded corners */
+  border-left: 1px solid #ddd; /* Add a border to the left */
+  border-right: 1px solid #ddd; /* Add a border to the right */
+  border-bottom: 1px solid #ddd; /* Add a border to the bottom */
+  border-radius: 0 0 5px 5px; /* Optional: Add border radius for rounded corners */
 }
