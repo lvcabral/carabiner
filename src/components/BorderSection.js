@@ -19,7 +19,6 @@ function BorderSection() {
     <Container className="p-3">
       <Card>
         <Card.Body>
-          <Card.Title>Border</Card.Title>
           <SelectBorderWidth />
           <SelectBorderStyle />
 

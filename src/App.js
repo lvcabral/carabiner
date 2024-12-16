@@ -3,17 +3,26 @@ import "./App.css";
 import logo from "./carabiner-icon.png";
 
 import Container from "react-bootstrap/Container";
-import Form from "react-bootstrap/Form";
+import Tabs from "react-bootstrap/Tabs";
+import Tab from "react-bootstrap/Tab";
 
-import CamSection from "./components/CamSection";
+import DisplaySection from "./components/DisplaySection";
 import BorderSection from "./components/BorderSection";
 
 function SettingsScreen() {
   return (
-    <Form>
-      <CamSection />
-      <BorderSection />
-    </Form>
+    <Tabs defaultActiveKey="display" id="settings-tabs" className="custom-tabs">
+      <Tab eventKey="display" title="Display">
+        <div className="tab-content-container">
+          <DisplaySection />
+        </div>
+      </Tab>
+      <Tab eventKey="border" title="Border">
+        <div className="tab-content-container">
+          <BorderSection />
+        </div>
+      </Tab>
+    </Tabs>
   );
 }
 

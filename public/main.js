@@ -10,6 +10,7 @@ const os = require("node:os");
 
 function createMainWindow() {
   const win = new BrowserWindow({
+    height: 670,
     width: 600,
     maximizable: false,
     resizable: false,
@@ -29,7 +30,7 @@ function createMainWindow() {
   return win;
 }
 
-function createCameraWindow() {
+function createDisplayWindow() {
   const win = new BrowserWindow({
     width: 505,
     height: 295,
@@ -46,7 +47,7 @@ function createCameraWindow() {
       preload: __dirname + "/preload.js",
     },
   });
-  win.loadFile("public/cam.html");
+  win.loadFile("public/display.html");
   return win;
 }
 
@@ -72,7 +73,7 @@ app.whenReady().then(async () => {
   }
 
   const mainWindow = createMainWindow();
-  const camWindow = createCameraWindow();
+  const camWindow = createDisplayWindow();
   camWindow.setAlwaysOnTop(true, "floating", 1);
 
   let borderSize = 0;
@@ -82,7 +83,7 @@ app.whenReady().then(async () => {
     if (arg.type && arg.type === "set-webcams") {
       mainWindow.webContents.send("shared-window-channel", arg);
     }
-    if (arg.type && arg.type === "set-camera-resolution") {
+    if (arg.type && arg.type === "set-resolution") {
       let { width, height } = arg.payload;
       // adding 25 just to make sure the window is not too small to fit the camera
       width = Number(width.replace("px", "")) + 25;

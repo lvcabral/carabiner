@@ -3,7 +3,7 @@ import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
 
 import SelectResolution from "./select/Resolution";
-import SelectCamera from "./Camera";
+import SelectDevice from "./Display";
 import Transparency from "./Transparency";
 
 const { electronAPI } = window;
@@ -35,7 +35,7 @@ const rectangleResolutionOptions = [
   },
 ];
 
-function CamSection() {
+function DisplaySection() {
   const [resolutionOptions, setResolutionOptions] = useState(
     rectangleResolutionOptions
   );
@@ -44,7 +44,7 @@ function CamSection() {
     const size = e.target.value;
     const [width, height] = size.split("|");
     electronAPI.sendSync("shared-window-channel", {
-      type: "set-camera-resolution",
+      type: "set-resolution",
       payload: { width, height },
     });
   };
@@ -53,9 +53,7 @@ function CamSection() {
     <Container className="p-3">
       <Card>
         <Card.Body>
-          <Card.Title>Display</Card.Title>
-
-          <SelectCamera />
+          <SelectDevice />
           <SelectResolution
             resolutions={resolutionOptions}
             onChange={handleResolutionChange}
@@ -67,4 +65,4 @@ function CamSection() {
   );
 }
 
-export default CamSection;
+export default DisplaySection;
