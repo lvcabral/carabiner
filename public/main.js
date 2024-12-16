@@ -9,9 +9,12 @@ const {
 const fs = require("fs");
 
 const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
+const settings = loadSettings();
 
 function saveSettings(settings) {
-  fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+  const strSettings = JSON.stringify(settings, null, 2);
+  console.log("Saving settings", settingsFilePath, strSettings);
+  fs.writeFileSync(settingsFilePath, strSettings);
 }
 
 function loadSettings() {
@@ -23,7 +26,6 @@ function loadSettings() {
 }
 
 function createWindow(name, options) {
-  const settings = loadSettings();
   const windowState = settings[name] || {
     width: options.width || 800,
     height: options.height || 600,
@@ -107,13 +109,13 @@ app.whenReady().then(async () => {
   }
 
   const mainWindow = createMainWindow();
-  const camWindow = createDisplayWindow();
-  camWindow.setAlwaysOnTop(true, "floating", 1);
+  const displayWindow = createDisplayWindow();
+  displayWindow.setAlwaysOnTop(true, "floating", 1);
 
   let borderSize = 0;
   let lastSizeWith = [505, 295];
   ipcMain.on("shared-window-channel", (event, arg) => {
-    camWindow.webContents.send("shared-window-channel", arg);
+    displayWindow.webContents.send("shared-window-channel", arg);
     if (arg.type && arg.type === "set-webcams") {
       mainWindow.webContents.send("shared-window-channel", arg);
     }
@@ -123,7 +125,7 @@ app.whenReady().then(async () => {
       width = Number(width.replace("px", "")) + 25;
       height = Number(height.replace("px", "")) + 25;
       lastSizeWith = [width, height];
-      camWindow.setSize(width, height);
+      displayWindow.setSize(width, height);
     } else if (arg.type && arg.type === "set-border-width") {
       switch (arg.payload) {
         case "0": {
@@ -145,7 +147,7 @@ app.whenReady().then(async () => {
       }
 
       // Resize window with count borders
-      camWindow.setSize(
+      displayWindow.setSize(
         lastSizeWith[0] + borderSize,
         lastSizeWith[1] + borderSize
       );
