@@ -2,12 +2,12 @@ import React from "react";
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
 
-function Resolution({ resolutions, onChange }) {
+function Resolution({ resolutions, value, onChange }) {
   return (
     <Card.Text as="div">
       <Form.Group controlId="formVideoResolution">
         <Form.Label>Resolution</Form.Label>
-        <Form.Control as="select" onChange={onChange}>
+        <Form.Control as="select" value={value} onChange={onChange}>
           {resolutions.map((resolution) => (
             <option key={resolution.value} value={resolution.value}>
               {resolution.label}

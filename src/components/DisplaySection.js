@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
 
@@ -8,7 +8,7 @@ import Transparency from "./Transparency";
 
 const { electronAPI } = window;
 
-const rectangleResolutionOptions = [
+const resolutionOptions = [
   {
     value: "480px|270px",
     label: "480 x 270",
@@ -36,17 +36,27 @@ const rectangleResolutionOptions = [
 ];
 
 function DisplaySection() {
-  const [resolutionOptions, setResolutionOptions] = useState(
-    rectangleResolutionOptions
-  );
+  const [resolution, setResolution] = useState("480px|270px");
+
+  useEffect(() => {
+    // Load settings from main process
+    electronAPI.invoke("load-settings").then((settings) => {
+      if (settings.display && settings.display.resolution) {
+        setResolution(settings.display.resolution);
+        notifyResolutionChange(settings.display.resolution);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    // Save settings to main process
+    const displaySettings = { resolution };
+    electronAPI.send("save-display-settings", displaySettings);
+  }, [resolution]);
 
   const handleResolutionChange = (e) => {
-    const size = e.target.value;
-    const [width, height] = size.split("|");
-    electronAPI.sendSync("shared-window-channel", {
-      type: "set-resolution",
-      payload: { width, height },
-    });
+    setResolution(e.target.value);
+    notifyResolutionChange(e.target.value);
   };
 
   return (
@@ -56,6 +66,7 @@ function DisplaySection() {
           <SelectDevice />
           <SelectResolution
             resolutions={resolutionOptions}
+            value={resolution}
             onChange={handleResolutionChange}
           />
           <Transparency />
@@ -63,6 +74,14 @@ function DisplaySection() {
       </Card>
     </Container>
   );
+}
+
+function notifyResolutionChange(size) {
+  const [width, height] = size.split("|");
+  electronAPI.sendSync("shared-window-channel", {
+    type: "set-resolution",
+    payload: { width, height },
+  });
 }
 
 export default DisplaySection;

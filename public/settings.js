@@ -6,6 +6,7 @@ const settingsFilePath = path.join(app.getPath('userData'), 'settings.json');
 
 function saveSettings(settings) {
   fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+  console.log(settingsFilePath, JSON.stringify(settings, null, 2));
 }
 
 function loadSettings() {
