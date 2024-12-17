@@ -3,7 +3,7 @@ import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
 
 import SelectResolution from "./select/Resolution";
-import SelectDevice from "./Display";
+import SelectCapture from "./Capture";
 import Transparency from "./Transparency";
 
 const { electronAPI } = window;
@@ -48,12 +48,6 @@ function DisplaySection() {
     });
   }, []);
 
-  useEffect(() => {
-    // Save settings to main process
-    const displaySettings = { resolution };
-    electronAPI.send("save-display-settings", displaySettings);
-  }, [resolution]);
-
   const handleResolutionChange = (e) => {
     setResolution(e.target.value);
     notifyResolutionChange(e.target.value);
@@ -63,7 +57,7 @@ function DisplaySection() {
     <Container className="p-3">
       <Card>
         <Card.Body>
-          <SelectDevice />
+          <SelectCapture />
           <SelectResolution
             resolutions={resolutionOptions}
             value={resolution}

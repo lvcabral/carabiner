@@ -103,10 +103,16 @@ app.whenReady().then(async () => {
     displayWindow.webContents.send("shared-window-channel", arg);
     if (arg.type && arg.type === "set-webcams") {
       mainWindow.webContents.send("shared-window-channel", arg);
-    }
-    if (arg.type && arg.type === "set-resolution") {
+    } else if (arg.type && arg.type === "set-video-stream") {
+      if (arg.payload?.video?.deviceId?.exact) {
+        settings.display.deviceId = arg.payload.video.deviceId.exact;
+        saveSettings(settings);
+      }
+    } else if (arg.type && arg.type === "set-resolution") {
       let { width, height } = arg.payload;
-      // adding 25 just to make sure the window is not too small to fit the camera
+      settings.display.resolution = `${width}|${height}`;
+      saveSettings(settings);
+       // adding 25 just to make sure the window is not too small to fit the camera
       width = Number(width.replace("px", "")) + 25;
       height = Number(height.replace("px", "")) + 25;
       lastSizeWith = [width, height];
@@ -138,11 +144,6 @@ app.whenReady().then(async () => {
       );
     }
     event.returnValue = true;
-  });
-
-  ipcMain.on('save-display-settings', (event, displaySettings) => {
-    settings.display = displaySettings;
-    saveSettings(settings);
   });
 
   ipcMain.handle('load-settings', async () => {
