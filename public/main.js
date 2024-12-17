@@ -43,7 +43,7 @@ function createWindow(name, options) {
 
 function createMainWindow() {
   const win = createWindow("mainWindow", {
-    height: 670,
+    height: 600,
     width: 600,
     maximizable: false,
     resizable: false,

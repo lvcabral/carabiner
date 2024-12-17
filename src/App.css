@@ -22,7 +22,13 @@
   margin-bottom: 10px !important;
 }
 
+.custom-container {
+  padding: 5px;
+  min-width: 550px;
+}
+
 .tab-content-container {
+  min-width: 400px;
   background-color: white;
   padding: 10px; /* Optional: Add some padding for better appearance */
   border-left: 1px solid #ddd; /* Add a border to the left */
