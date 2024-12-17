@@ -5,7 +5,8 @@ import Alert from "react-bootstrap/Alert";
 
 const { electronAPI } = window;
 
-const Display = () => {
+const Capture = () => {
+  const [deviceId, setDeviceId] = useState("");
   const [errorOccurred, setErrorOccurred] = useState(false);
 
   const [webcams, setWebcams] = React.useState([
@@ -16,25 +17,19 @@ const Display = () => {
     electronAPI.onMessageReceived("shared-window-channel", (_, message) => {
       if (message.type === "set-webcams") {
         setWebcams(JSON.parse(message.payload));
+        electronAPI.invoke("load-settings").then((settings) => {
+          if (settings.display && settings.display.deviceId) {
+            setDeviceId(settings.display.deviceId);
+            notifyCaptureChange(settings.display.deviceId);
+          }
+        });
       }
     });
   }, []);
 
   const handleChange = (event) => {
-    const videoSource = event.target.value;
-    const constraints = {
-      video: {
-        deviceId: {
-          exact: videoSource,
-        },
-        width: 1280,
-        height: 720,
-      },
-    };
-    electronAPI.sendSync("shared-window-channel", {
-      type: "set-video-stream",
-      payload: constraints,
-    });
+    setDeviceId(event.target.value)
+    notifyCaptureChange(event.target.value);
   };
 
   return (
@@ -64,7 +59,7 @@ const Display = () => {
       <Card.Text as="div">
         <Form.Group controlId="formCameraSource">
           <Form.Label>Capture Device</Form.Label>
-          <Form.Control as="select" onChange={handleChange}>
+          <Form.Control as="select" value={deviceId} onChange={handleChange}>
             {webcams.map((webcam) => (
               <option key={webcam.deviceId} value={webcam.deviceId}>
                 {webcam.label}
@@ -77,4 +72,21 @@ const Display = () => {
   );
 };
 
-export default Display;
+function notifyCaptureChange(videoSource) {
+  const constraints = {
+    video: {
+      deviceId: {
+        exact: videoSource,
+      },
+      width: 1280,
+      height: 720,
+    },
+  };
+  electronAPI.sendSync("shared-window-channel", {
+    type: "set-video-stream",
+    payload: constraints,
+  });
+}
+
+
+export default Capture;
