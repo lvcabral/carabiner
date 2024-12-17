@@ -65,7 +65,11 @@ Next, clone the repository and install the dependencies.
 git clone https://github.com/lvcabral/carabiner.git && cd carabiner && yarn install
 ```
 
-To start the app, you'd need to run `yarn build && yarn forge`.
+To start the app, you'd need to run:
+
+```console
+yarn build && yarn forge
+```
 
 ## Reference Repositories
 
