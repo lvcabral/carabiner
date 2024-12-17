@@ -2,6 +2,12 @@ const video = document.querySelector("video");
 const videoPlayer = document.getElementById("video-player");
 let currentColor =  "#662D91";
 
+window.electronAPI.invoke("load-settings").then((settings) => {
+  if (settings.control && settings.control.deviceId) {
+    handleControlSelected(settings.control.deviceId);
+  }
+});
+
 function handleSetResolution(style) {
   videoPlayer.style.width = style.width;
   videoPlayer.style.height = style.height;
