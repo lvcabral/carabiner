@@ -30,7 +30,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 [Carabiner](https://github.com/lvcabral/Carabiner) features a wide range of settings for:
 
-- Changing the size of the floating window
+- Changing the dimensions of the floating window
 - Changing the transparency of the floating window
 - Adding a border to the window
 - Create a list of streaming devices to connect
@@ -39,8 +39,9 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ### Future Improvements
 
-- Freely resizable display window including fullscreen support
-- Record captured video
+- Freely resizable floating window including fullscreen support
+- Configurable global shortcut to show/hide the floating window
+- Record captured video to mp4/mkv file
 - Detect list streaming devices in the network (SSDP)
 - Link capture devices with streaming devices
 
