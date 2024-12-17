@@ -28,7 +28,7 @@ function BorderSection() {
               <Form.Control
                 type="color"
                 id="video-border-color"
-                defaultValue="#499979"
+                defaultValue="#662D91"
                 onChange={handleColorChange}
               />
             </Form.Group>

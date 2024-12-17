@@ -13,7 +13,6 @@ const settings = loadSettings();
 
 function saveSettings(settings) {
   const strSettings = JSON.stringify(settings, null, 2);
-  console.log("Saving settings", settingsFilePath, strSettings);
   fs.writeFileSync(settingsFilePath, strSettings);
 }
 
@@ -128,7 +127,7 @@ app.whenReady().then(async () => {
       displayWindow.setSize(width, height);
     } else if (arg.type && arg.type === "set-border-width") {
       switch (arg.payload) {
-        case "0": {
+        case "0.1px": {
           borderSize = 0;
           break;
         }

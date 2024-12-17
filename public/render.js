@@ -1,5 +1,6 @@
 const video = document.querySelector("video");
 const videoPlayer = document.getElementById("video-player");
+let currentColor =  "#662D91";
 
 function handleSetResolution(style) {
   videoPlayer.style.width = style.width;
@@ -7,6 +8,11 @@ function handleSetResolution(style) {
 }
 
 function handleSetBorderWidth(borderWidth) {
+  if (borderWidth === "0.1px") {
+    videoPlayer.style.borderColor = "rgba(0, 0, 0, 0.1)";
+  } else {
+    videoPlayer.style.borderColor = currentColor;
+  }
   videoPlayer.style.borderWidth = borderWidth;
 }
 
@@ -15,6 +21,7 @@ function handleSetBorderStyle(borderStyle) {
 }
 
 function handleSetBorderColor(borderColor) {
+  currentColor = borderColor;
   videoPlayer.style.borderColor = borderColor;
 }
 

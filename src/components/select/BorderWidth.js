@@ -7,7 +7,7 @@ const { electronAPI } = window;
 function BorderWidth() {
   const borderWidths = [
     {
-      value: "0",
+      value: "0.1px",
       label: "None",
     },
     {
