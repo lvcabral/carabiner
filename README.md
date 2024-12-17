@@ -16,7 +16,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 <img  src="./images/network-streaming.png" height="125px" alt="Code Fest">
 </p>
 
-**Carabiner** is a project created during the **Paramount Network Streaming - Code Fest 2024**, and its name was inspired by one essential tool for anyone that aims to climb mountains!
+**Carabiner** project was created during the **Paramount Network Streaming - Code Fest 2024**, and its name was inspired by one essential tool for anyone that aims to climb mountains!
 
 ## Features
 
@@ -38,9 +38,9 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Installation
 
-Carabiner is available on macOS, Windows and Linux. You can download it from the [releases](https://github.com/lvcabral/Carabiner/releases) page.
+Carabiner is available on macOS, Windows and Linux. You can download it from the [releases](https://github.com/lvcabral/carabiner/releases) page.
 
-> **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/Carabiner/issues/new). Also, we don't have a code signing certificate yet, so you might have to allow the app to run on your system.
+> **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we don't have a code signing certificate yet, so you might have to allow the app to run on your system.
 
 ## Usage
 
@@ -66,8 +66,8 @@ First ensure you have the correct version of Node.js installed. If you are using
 
 Next, clone the repository and install the dependencies.
 
-```bash
-git clone https://github.com/lvcabral/Carabiner.git && cd Carabiner && yarn install
+```console
+git clone https://github.com/lvcabral/carabiner.git && cd carabiner && yarn install
 ```
 
 To start the app, you'd need to run `yarn build && yarn forge`.
