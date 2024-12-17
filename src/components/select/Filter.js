@@ -2,9 +2,7 @@ import React from "react";
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
 
-const { electronAPI } = window;
-
-function Filter() {
+function Filter({value, onChange}) {
   const filters = [
     {
       value: "none",
@@ -24,22 +22,11 @@ function Filter() {
     },
   ];
 
-  const handleChange = (e) => {
-    let filter = e.target.value;
-    const style = {};
-    style.filter = filter;
-    style["-webkit-filter"] = `-webkit-${filter}`;
-    electronAPI.sendSync("shared-window-channel", {
-      type: "set-video-filter",
-      payload: style,
-    });
-  };
-
   return (
     <Card.Text as="div">
       <Form.Group controlId="formVideoFilter">
         <Form.Label>Transparency</Form.Label>
-        <Form.Control as="select" onChange={handleChange}>
+        <Form.Control as="select" value={value} onChange={onChange}>
           {filters.map((filter) => (
             <option key={filter.value} value={filter.value}>
               {filter.label}

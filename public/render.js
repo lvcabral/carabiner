@@ -29,7 +29,7 @@ function handleSetVideoStream(constraints) {
   renderDisplay(constraints);
 }
 
-function handleSetVideoFilter(data) {
+function handleSetTransparency(data) {
   videoPlayer.style.filter = data.filter;
   videoPlayer.style["-webkit-filter"] = `-webkit-${data.filter}`;
 }
@@ -40,7 +40,7 @@ const eventHandlers = {
   "set-border-style": handleSetBorderStyle,
   "set-border-color": handleSetBorderColor,
   "set-video-stream": handleSetVideoStream,
-  "set-video-filter": handleSetVideoFilter,
+  "set-transparency": handleSetTransparency,
 };
 
 function renderDisplay(constraints) {

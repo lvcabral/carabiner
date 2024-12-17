@@ -108,6 +108,11 @@ app.whenReady().then(async () => {
         settings.display.deviceId = arg.payload.video.deviceId.exact;
         saveSettings(settings);
       }
+    } else if (arg.type && arg.type === "set-transparency") {
+      if (arg.payload?.filter) {
+        settings.display.filter = arg.payload.filter;
+        saveSettings(settings);
+      }
     } else if (arg.type && arg.type === "set-resolution") {
       let { width, height } = arg.payload;
       settings.display.resolution = `${width}|${height}`;
