@@ -123,6 +123,9 @@ app.whenReady().then(async () => {
       lastSizeWith = [width, height];
       displayWindow.setSize(width, height);
     } else if (arg.type && arg.type === "set-border-width") {
+      settings.border.width = arg.payload;
+      saveSettings(settings);
+
       switch (arg.payload) {
         case "0.1px": {
           borderSize = 0;
@@ -147,6 +150,12 @@ app.whenReady().then(async () => {
         lastSizeWith[0] + borderSize,
         lastSizeWith[1] + borderSize
       );
+    } else if (arg.type && arg.type === "set-border-style") {
+      settings.border.style = arg.payload;
+      saveSettings(settings);
+    } else if (arg.type && arg.type === "set-border-color") {
+      settings.border.color = arg.payload;
+      saveSettings(settings);
     }
     event.returnValue = true;
   });
