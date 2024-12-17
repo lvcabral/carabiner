@@ -58,12 +58,7 @@ If you want to contribute to Carabiner, you can do so by:
 
 ## Building from source
 
-If you want to build Carabiner from source, you can do so by cloning the repository and use electron-forge to build it.
-
-## Developing locally
-
-First ensure you have the correct version of Node.js installed. If you are using [nvm](https://github.com/nvm-sh/nvm) you can run `nvm use` to switch to the correct version.
-
+If you want to build Carabiner from source, first ensure you have the Node.js installed (v18.0+).
 Next, clone the repository and install the dependencies.
 
 ```console
