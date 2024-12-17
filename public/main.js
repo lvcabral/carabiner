@@ -6,23 +6,9 @@ const {
   Notification,
   systemPreferences,
 } = require("electron");
-const fs = require("fs");
+const { saveSettings, loadSettings } = require("./settings");
 
-const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
 const settings = loadSettings();
-
-function saveSettings(settings) {
-  const strSettings = JSON.stringify(settings, null, 2);
-  fs.writeFileSync(settingsFilePath, strSettings);
-}
-
-function loadSettings() {
-  try {
-    return JSON.parse(fs.readFileSync(settingsFilePath));
-  } catch (error) {
-    return {};
-  }
-}
 
 function createWindow(name, options) {
   const windowState = settings[name] || {
