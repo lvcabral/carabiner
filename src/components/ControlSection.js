@@ -1,10 +1,12 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
+
+const { electronAPI } = window;
 
 function ControlSection() {
   const [ipAddress, setIpAddress] = useState("");
@@ -13,24 +15,43 @@ function ControlSection() {
   const [selectedDevice, setSelectedDevice] = useState("");
   const ipAddressRef = useRef(null);
 
+  useEffect(() => {
+    // Load settings from main process
+    electronAPI.invoke("load-settings").then((settings) => {
+      if (settings.control && settings.control.deviceList) {
+        setDeviceList(settings.control.deviceList);
+      }
+      if (settings.control && settings.control.deviceId) {
+        setSelectedDevice(settings.control.deviceId);
+      }
+    });
+  }, []);
+
   const handleAddDevice = () => {
     if (ipAddress && deviceType) {
       const type = deviceType === "ecp" ? "Roku" : "Fire TV / Google TV";
       const newDevice = { id: `${ipAddress}|${deviceType}`, ipAddress: ipAddress, type: type };
-      setDeviceList([...deviceList, newDevice]);
+      const newDeviceList = [...deviceList, newDevice];
+      setDeviceList(newDeviceList);
+      notifyControlChange("set-control-list", newDeviceList);
       setIpAddress("");
       setSelectedDevice(newDevice.id);
+      notifyControlChange("set-control-selected", newDevice.id);
       ipAddressRef.current.focus();
     }
   };
 
-    const handleDeviceSelect = (e) => {
+  const handleDeviceSelect = (e) => {
     setSelectedDevice(e.target.value);
+    notifyControlChange("set-control-selected", e.target.value);
   };
 
   const handleDeleteDevice = () => {
-    setDeviceList(deviceList.filter(device => device.id !== selectedDevice));
+    const newDeviceList = deviceList.filter(device => device.id !== selectedDevice);
+    setDeviceList(newDeviceList);
+    notifyControlChange("set-control-list", newDeviceList);
     setSelectedDevice("");
+    notifyControlChange("set-control-selected", "");
   };
 
   return (
@@ -104,6 +125,13 @@ function ControlSection() {
       </Card>
     </Container>
   );
+}
+
+function notifyControlChange(type, payload) {
+  electronAPI.sendSync("shared-window-channel", {
+    type: type,
+    payload: payload,
+  });
 }
 
 export default ControlSection;

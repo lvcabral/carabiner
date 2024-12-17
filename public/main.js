@@ -161,6 +161,12 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-border-color") {
       settings.border.color = arg.payload;
       saveSettings(settings);
+    } else if (arg.type && arg.type === "set-control-list") {
+      settings.control.deviceList = arg.payload;
+      saveSettings(settings);
+    } else if (arg.type && arg.type === "set-control-selected") {
+      settings.control.deviceId = arg.payload;
+      saveSettings(settings);
     }
     event.returnValue = true;
   });
