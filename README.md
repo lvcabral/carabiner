@@ -79,6 +79,14 @@ To start the app, you'd need to run:
 yarn build && yarn forge
 ```
 
+To create an installer in the platform you are running, just use:
+
+```console
+yarn make
+```
+
+The installer will be created inside the folder `./out/make`
+
 ## Reference Repositories
 
 This app was developed borrowing ideas and code from the following repositories:
