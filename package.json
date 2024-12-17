@@ -1,6 +1,6 @@
 {
   "name": "carabiner",
-  "description": "Carabiner - Screen Capture and Remote Control",
+  "description": "Carabiner - Screen Capture and Remote Control for Streaming Devices",
   "version": "0.1.0",
   "private": true,
   "main": "public/main.js",
