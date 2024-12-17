@@ -36,3 +36,7 @@
   border-bottom: 1px solid #ddd; /* Add a border to the bottom */
   border-radius: 0 0 5px 5px; /* Optional: Add border radius for rounded corners */
 }
+
+.form-group-spacing {
+  margin-bottom: 10px;
+}
