@@ -31,6 +31,11 @@ function createWindow(name, options) {
     const bounds = win.getBounds();
     settings[name] = bounds;
     saveSettings(settings);
+    if (name === "displayWindow") {
+      // TODO: Only to prevent a crash on Main Window when this window is closed
+      // This should be removed when the main window is able to handle the display window close
+      app.quit();
+    }
   });
 
   return win;
