@@ -22,7 +22,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 - [JavaScript Language](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 - [Electron Framework](https://www.electronjs.org/)
-- [React Web UI Interface](https://react.dev/)
+- [React Web UI Library](https://react.dev/)
 - [Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)
 - [Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)
 
