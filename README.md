@@ -18,6 +18,14 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 **Carabiner** project was created during the **Paramount Network Streaming - Code Fest 2024**, and its name was inspired by one essential tool for anyone that aims to climb mountains!
 
+### Tech Stack
+
+- JavaScript Language - [https://developer.mozilla.org/en-US/docs/Web/JavaScript]
+- Electron Framework - [https://www.electronjs.org/]
+- React Web UI Interface - [https://react.dev/]
+- Roku External Control Protocol (ECP) - [https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md]
+- Android Debug Bridge (ADB) - [https://developer.android.com/tools/adb]
+
 ## Features
 
 [Carabiner](https://github.com/lvcabral/Carabiner) features a wide range of settings for:
