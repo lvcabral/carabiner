@@ -32,8 +32,8 @@ function createWindow(name, options) {
     settings[name] = bounds;
     saveSettings(settings);
     if (name === "displayWindow") {
-      // TODO: Only to prevent a crash on Main Window when this window is closed
-      // This should be removed when the main window is able to handle the display window close
+      // TODO: Only to prevent a crash on Main Window when display window is closed
+      // This should be removed when the main window is able to re-open display window
       app.quit();
     }
   });
