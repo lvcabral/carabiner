@@ -10,7 +10,7 @@ function saveSettings(settings) {
 }
 
 function loadSettings() {
-  const defaultSettings = { display: {} };
+  const defaultSettings = { display: {}, border: {} };
   try {
     return Object.assign( defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath)));
   } catch (error) {

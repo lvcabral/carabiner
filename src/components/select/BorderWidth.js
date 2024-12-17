@@ -2,9 +2,7 @@ import React from "react";
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
 
-const { electronAPI } = window;
-
-function BorderWidth() {
+function BorderWidth({ value, onChange }) {
   const borderWidths = [
     {
       value: "0.1px",
@@ -24,18 +22,11 @@ function BorderWidth() {
     },
   ];
 
-  const handleChange = (event) => {
-    electronAPI.sendSync("shared-window-channel", {
-      type: "set-border-width",
-      payload: event.target.value,
-    });
-  };
-
   return (
     <Card.Text as="div">
       <Form.Group controlId="formVideoBorderWidth">
         <Form.Label>Width</Form.Label>
-        <Form.Control as="select" onChange={handleChange}>
+        <Form.Control as="select" value={value} onChange={onChange}>
           {borderWidths.map((borderWidth) => (
             <option key={borderWidth.value} value={borderWidth.value}>
               {borderWidth.label}
