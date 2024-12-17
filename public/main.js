@@ -37,7 +37,7 @@ function createWindow(name, options) {
 }
 
 function createMainWindow() {
-  const win = createWindow("main", {
+  const win = createWindow("mainWindow", {
     height: 670,
     width: 600,
     maximizable: false,
@@ -55,7 +55,7 @@ function createMainWindow() {
 }
 
 function createDisplayWindow() {
-  const win = createWindow("display", {
+  const win = createWindow("displayWindow", {
     width: 505,
     height: 295,
     maxWidth: 1945,
@@ -138,6 +138,15 @@ app.whenReady().then(async () => {
       );
     }
     event.returnValue = true;
+  });
+
+  ipcMain.on('save-display-settings', (event, displaySettings) => {
+    settings.display = displaySettings;
+    saveSettings(settings);
+  });
+
+  ipcMain.handle('load-settings', async () => {
+    return settings;
   });
 
   app.on("activate", () => {
