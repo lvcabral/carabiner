@@ -8,6 +8,7 @@ import Tab from "react-bootstrap/Tab";
 
 import DisplaySection from "./components/DisplaySection";
 import BorderSection from "./components/BorderSection";
+import ControlSection from "./components/ControlSection";
 
 function SettingsScreen() {
   return (
@@ -22,14 +23,19 @@ function SettingsScreen() {
           <BorderSection />
         </div>
       </Tab>
+      <Tab eventKey="control" title="Control">
+        <div className="tab-content-container">
+          <ControlSection />
+        </div>
+      </Tab>
     </Tabs>
   );
 }
 
 function App() {
   return (
-    <Container className="p-3">
-      <Container className="p-5 mb-4 bg-light rounded-3">
+    <Container className="p-3 custom-container">
+      <Container className="p-3 bg-light rounded-3">
         <h1 className="header" style={{ textAlign: "center" }}>
           <img
             src={logo}
