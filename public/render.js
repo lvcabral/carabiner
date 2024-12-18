@@ -1,6 +1,6 @@
 const video = document.querySelector("video");
 const videoPlayer = document.getElementById("video-player");
-let currentColor =  "#662D91";
+let currentColor = "#662D91";
 
 window.electronAPI.invoke("load-settings").then((settings) => {
   if (settings.control && settings.control.deviceId) {
@@ -98,6 +98,47 @@ window.addEventListener("DOMContentLoaded", function () {
       }
     }
   );
+
+  // Create the ellipsis button
+  const ellipsisButton = document.createElement("button");
+  ellipsisButton.innerHTML = "&#x22ef;"; // Ellipsis character
+  ellipsisButton.style.position = "fixed";
+  ellipsisButton.style.top = "20px";
+  ellipsisButton.style.right = "20px";
+  ellipsisButton.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+  ellipsisButton.style.color = "rgba(255, 255, 255, 0.5)";
+  ellipsisButton.style.border = "none";
+  ellipsisButton.style.borderRadius = "5px";
+  ellipsisButton.style.padding = "10px";
+  ellipsisButton.style.cursor = "pointer";
+  ellipsisButton.style.opacity = "0";
+  ellipsisButton.style.transition = "opacity 0.3s";
+  ellipsisButton.style.fontWeight = "bold";
+  ellipsisButton.style.fontSize = "20px";
+  ellipsisButton.style.zIndex = "1000"; // Ensure the button is on top
+  document.body.appendChild(ellipsisButton);
+
+
+  // Show the button when the mouse is in the top right quarter of the screen
+  document.body.addEventListener("mousemove", (event) => {
+    const { clientX, clientY } = event;
+    const { innerWidth, innerHeight } = window;
+    if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
+      ellipsisButton.style.opacity = "1";
+    } else {
+      ellipsisButton.style.opacity = "0";
+    }
+  });
+
+  document.body.addEventListener("mouseleave", () => {
+    ellipsisButton.style.opacity = "0";
+  });
+
+  // Handle button click
+  ellipsisButton.addEventListener("click", () => {
+    window.electronAPI.showSettings();
+  });
+
 });
 
 // Remote Control
@@ -114,46 +155,6 @@ function handleControlSelected(data) {
 // Keyboard Events
 document.addEventListener("keydown", keyDownHandler);
 document.addEventListener("keyup", keyUpHandler);
-
-// Create the ellipsis button
-const ellipsisButton = document.createElement("button");
-ellipsisButton.innerHTML = "&#x22ef;"; // Ellipsis character
-ellipsisButton.style.position = "fixed";
-ellipsisButton.style.top = "20px";
-ellipsisButton.style.right = "20px";
-ellipsisButton.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-ellipsisButton.style.color = "rgba(255, 255, 255, 0.5)";
-ellipsisButton.style.border = "none";
-ellipsisButton.style.borderRadius = "5px";
-ellipsisButton.style.padding = "10px";
-ellipsisButton.style.cursor = "pointer";
-ellipsisButton.style.opacity = "0";
-ellipsisButton.style.transition = "opacity 0.3s";
-ellipsisButton.style.fontWeight = "bold";
-ellipsisButton.style.fontSize = "20px";
-ellipsisButton.style.zIndex = "1000"; // Ensure the button is on top
-document.body.appendChild(ellipsisButton);
-
-
-// Show the button when the mouse is in the top right quarter of the screen
-document.body.addEventListener("mousemove", (event) => {
-  const { clientX, clientY } = event;
-  const { innerWidth, innerHeight } = window;
-  if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
-    ellipsisButton.style.opacity = "1";
-  } else {
-    ellipsisButton.style.opacity = "0";
-  }
-});
-
-document.body.addEventListener("mouseleave", () => {
-  ellipsisButton.style.opacity = "0";
-});
-
-// Handle button click
-ellipsisButton.addEventListener("click", () => {
-  window.electronAPI.showSettings();
-});
 
 // ECP Keyboard Mapping
 const ecpKeysMap = new Map();
@@ -176,17 +177,17 @@ ecpKeysMap.set("Control+KeyA", "a");
 ecpKeysMap.set("Control+KeyZ", "b");
 ecpKeysMap.set("F10", "volumemute");
 if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
-    ecpKeysMap.set("Command+Backspace", "backspace");
-    ecpKeysMap.set("Command+Enter", "play");
-    ecpKeysMap.set("Command+ArrowLeft", "rev");
-    ecpKeysMap.set("Command+ArrowRight", "fwd");
-    ecpKeysMap.set("Command+Digit8", "info");
+  ecpKeysMap.set("Command+Backspace", "backspace");
+  ecpKeysMap.set("Command+Enter", "play");
+  ecpKeysMap.set("Command+ArrowLeft", "rev");
+  ecpKeysMap.set("Command+ArrowRight", "fwd");
+  ecpKeysMap.set("Command+Digit8", "info");
 } else {
-    ecpKeysMap.set("Control+Backspace", "backspace");
-    ecpKeysMap.set("Control+Enter", "play");
-    ecpKeysMap.set("Control+ArrowLeft", "rev");
-    ecpKeysMap.set("Control+ArrowRight", "fwd");
-    ecpKeysMap.set("Control+Digit8", "info");
+  ecpKeysMap.set("Control+Backspace", "backspace");
+  ecpKeysMap.set("Control+Enter", "play");
+  ecpKeysMap.set("Control+ArrowLeft", "rev");
+  ecpKeysMap.set("Control+ArrowRight", "fwd");
+  ecpKeysMap.set("Control+Digit8", "info");
 }
 
 // ADB Keyboard Mapping
@@ -210,23 +211,23 @@ adbKeysMap.set("Control+KeyA", "29");
 adbKeysMap.set("Control+KeyZ", "54");
 adbKeysMap.set("F10", "164");
 if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
-    adbKeysMap.set("Command+Backspace", "67");
-    adbKeysMap.set("Command+Enter", "85");
-    adbKeysMap.set("Command+ArrowLeft", "89");
-    adbKeysMap.set("Command+ArrowRight", "90");
-    adbKeysMap.set("Command+Digit8", "1");
+  adbKeysMap.set("Command+Backspace", "67");
+  adbKeysMap.set("Command+Enter", "85");
+  adbKeysMap.set("Command+ArrowLeft", "89");
+  adbKeysMap.set("Command+ArrowRight", "90");
+  adbKeysMap.set("Command+Digit8", "1");
 } else {
-    adbKeysMap.set("Control+Backspace", "67");
-    adbKeysMap.set("Control+Enter", "85");
-    adbKeysMap.set("Control+ArrowLeft", "89");
-    adbKeysMap.set("Control+ArrowRight", "90");
-    adbKeysMap.set("Control+Digit8", "1");
+  adbKeysMap.set("Control+Backspace", "67");
+  adbKeysMap.set("Control+Enter", "85");
+  adbKeysMap.set("Control+ArrowLeft", "89");
+  adbKeysMap.set("Control+ArrowRight", "90");
+  adbKeysMap.set("Control+Digit8", "1");
 }
 for (let i = 0; i <= 9; i++) {
-    adbKeysMap.set(`Digit${i}`, (i+7).toString());
+  adbKeysMap.set(`Digit${i}`, (i + 7).toString());
 }
 for (let i = 65; i <= 90; i++) {
-    adbKeysMap.set(`Key${String.fromCharCode(i)}`, (i-36).toString());
+  adbKeysMap.set(`Key${String.fromCharCode(i)}`, (i - 36).toString());
 }
 adbKeysMap.set("Comma", "55");
 adbKeysMap.set("Period", "56");
@@ -250,7 +251,7 @@ adbKeysMap.set("Shift+Digit0", "163");
 // Keyboard handlers
 function keyDownHandler(event) {
   if (!event.repeat) {
-      handleKeyboardEvent(event, 0);
+    handleKeyboardEvent(event, 0);
   }
 }
 function keyUpHandler(event) {
@@ -259,13 +260,13 @@ function keyUpHandler(event) {
 function handleKeyboardEvent(event, mod) {
   let keyCode = event.code;
   if (event.shiftKey && !keyCode.startsWith("Shift")) {
-      keyCode = "Shift+" + keyCode;
+    keyCode = "Shift+" + keyCode;
   } else if (event.ctrlKey && !keyCode.startsWith("Control")) {
-      keyCode = "Control+" + keyCode;
+    keyCode = "Control+" + keyCode;
   } else if (event.altKey && !keyCode.startsWith("Alt")) {
-      keyCode = "Alt+" + keyCode;
+    keyCode = "Alt+" + keyCode;
   } else if (event.metaKey && !keyCode.startsWith("Meta")) {
-      keyCode = "Meta+" + keyCode;
+    keyCode = "Meta+" + keyCode;
   }
   if (controlType === "ecp") {
     const key = ecpKeysMap.get(keyCode);
@@ -283,30 +284,30 @@ function handleKeyboardEvent(event, mod) {
 }
 
 function sendKey(key, mod) {
-    console.log("Sending Key: ", key, mod);
-    if (isValidIP(controlIp) && controlType === "ecp") {
-      sendEcpKey(controlIp, key, mod);
-    } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
-      window.electronAPI.sendSync("shared-window-channel", {
-        type: "send-adb-key",
-        payload: key,
-      });
-    }
+  console.log("Sending Key: ", key, mod);
+  if (isValidIP(controlIp) && controlType === "ecp") {
+    sendEcpKey(controlIp, key, mod);
+  } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
+    window.electronAPI.sendSync("shared-window-channel", {
+      type: "send-adb-key",
+      payload: key,
+    });
+  }
 }
 
 function sendEcpKey(host, key, mod = -1) {
   let command = "keypress";
   if (mod !== -1) {
-      command = mod === 0 ? "keydown" : "keyup";
+    command = mod === 0 ? "keydown" : "keyup";
   }
   const xhr = new XMLHttpRequest();
   const url = `http://${host}:8060/${command}/${key}`;
   console.log("Sending ECP Key: ", url);
   try {
-      xhr.open("POST", url, false);
-      xhr.send();
+    xhr.open("POST", url, false);
+    xhr.send();
   } catch (e) {
-      console.error("Error sending ECP Key: ", e.message);
+    console.error("Error sending ECP Key: ", e.message);
   }
 }
 
@@ -316,8 +317,8 @@ function sendEcpKey(host, key, mod = -1) {
 // Check if the IP address is valid
 function isValidIP(ip) {
   if (ip && ip.length >= 7) {
-      const ipFormat = /^(\d{1,3}\.){3}\d{1,3}$/;
-      return ipFormat.test(ip);
+    const ipFormat = /^(\d{1,3}\.){3}\d{1,3}$/;
+    return ipFormat.test(ip);
   }
   return false;
 }
