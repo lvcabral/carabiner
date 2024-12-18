@@ -12,8 +12,8 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Development
 
-<p align="center"><img  src="./images/codefest-2024.webp" height="125px" alt="Code Fest">
-<img  src="./images/network-streaming.png" height="125px" alt="Code Fest">
+<p align="center"><img  src="./public/images/codefest-2024.webp" height="125px" alt="Code Fest">
+<img  src="./public/images/network-streaming.png" height="125px" alt="Code Fest">
 </p>
 
 **Carabiner** project was created during the **Paramount Network Streaming - Code Fest 2024**, and its name was inspired by one essential tool for anyone that aims to climb mountains!
@@ -28,12 +28,12 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Features
 
-[Carabiner](https://github.com/lvcabral/Carabiner) features a wide range of settings for:
+**Carabiner** features a wide range of settings for:
 
 - Changing the dimensions of the floating window
 - Changing the transparency of the floating window
 - Adding a border to the window
-- Create a list of streaming devices to connect
+- Create a list of streaming devices to connect and control
 - Overlay a picture to check "design vs app screen" for pixel perfect UI
 
 ### Future Improvements
@@ -48,15 +48,29 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Installation
 
-Carabiner is available on macOS, Windows and Linux. You can download it from the [releases](https://github.com/lvcabral/carabiner/releases) page.
+Carabiner is available on macOS (Windows and Linux will be released soon). You can download it from the [releases](https://github.com/lvcabral/carabiner/releases) page.
 
 > **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we don't have a code signing certificate yet, so you might have to allow the app to run on your system.
 
 ## Usage
 
-After installing, launch and customize the settings to your liking. When you are done customizing, you can minimize the settings window and start using it or move the settings window to a different monitor.
+After installing Carabiner, launch the application and customize the settings to your preferences. Once you have configured the settings, you can minimize or close the settings window and start using the floating window.
 
-The floating window can be moved around, resized and have its borders changed.
+### Controlling Streaming Devices
+
+1. **Select a Capture Device**: In the `Display` tba, select a video capture device from the list.
+2. **Select a Streaming Device**: In the `Control` tab, select a streaming device from the list.
+3. **Keyboard Controls**: When the floating display window is focused, you can use your keyboard to control the selected device. Refer to the [keyboard control mappings](./docs/key-mappings.md) documentation to learn how to operate your device.
+
+### Overlay Image
+
+You can load an overlay image on top of the video capture to help you compare a screen design with the app. This feature is useful for achieving pixel-perfect UI designs.
+
+### Additional Features
+
+- **Transparency**: Adjust the transparency of the floating window.
+- **Dimensions**: Change the dimensions of the floating window.
+- **Borders**: Add or customize the border of the floating window.
 
 ## Contributing
 
