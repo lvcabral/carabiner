@@ -146,19 +146,24 @@ window.addEventListener("DOMContentLoaded", function () {
     const { clientX, clientY } = event;
     const { innerWidth, innerHeight } = window;
     if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
+      console.log("Show button");
       settingsButton.style.opacity = "1";
     } else {
+      console.log("Hide button");
       settingsButton.style.opacity = "0";
     }
   });
 
   document.body.addEventListener("mouseleave", () => {
+    console.log("Mouse leave");
     settingsButton.style.opacity = "0";
   });
 
   // Handle button click
   settingsButton.addEventListener("click", () => {
+    console.log("Button clicked");
     window.electronAPI.showSettings();
+    console.log("Control Selected: ", controlIp, controlType);
   });
 
 });
