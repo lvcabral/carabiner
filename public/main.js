@@ -7,8 +7,11 @@ const {
   systemPreferences,
 } = require("electron");
 const { saveSettings, loadSettings } = require("./settings");
-
+const { connectADB, disconnectADB, sendADBKey } = require("./adb");
 const settings = loadSettings();
+let controlIp = "";
+let controlType = "";
+let isADBConnected = false;
 
 function createWindow(name, options) {
   const windowState = settings[name] || {
@@ -166,7 +169,18 @@ app.whenReady().then(async () => {
       saveSettings(settings);
     } else if (arg.type && arg.type === "set-control-selected") {
       settings.control.deviceId = arg.payload;
+      const oldControlIp = controlIp;
+      [controlIp, controlType] = arg.payload.split("|");
+      console.log("Control selected:", controlIp, controlType, isADBConnected);
+      if (isADBConnected && oldControlIp !== controlIp) {
+        isADBConnected = disconnectADB();
+      }
+      if (!isADBConnected && controlType === "adb") {
+        isADBConnected = connectADB(controlIp);
+      }
       saveSettings(settings);
+    } else if (arg.type && arg.type === "send-adb-key") {
+      sendADBKey(arg.payload);
     }
     event.returnValue = true;
   });
@@ -178,6 +192,11 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
+    }
+  });
+  app.on("before-quit", () => {
+    if (isADBConnected) {
+      disconnectADB();
     }
   });
 });
