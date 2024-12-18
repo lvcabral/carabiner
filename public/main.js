@@ -2,10 +2,12 @@ const path = require("path");
 const {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Notification,
   systemPreferences,
 } = require("electron");
+const fs = require("fs");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey } = require("./adb");
 const settings = loadSettings();
@@ -32,9 +34,11 @@ function createWindow(name, options) {
   });
 
   win.on("close", (event) => {
-    const bounds = win.getBounds();
-    settings[name] = bounds;
-    saveSettings(settings);
+    if (!win.isFullScreen()) {
+      const bounds = win.getBounds();
+      settings[name] = bounds;
+      saveSettings(settings);
+    }
     if (name === "mainWindow" && !isQuitting) {
       event.preventDefault();
       win.hide();
@@ -185,6 +189,22 @@ app.whenReady().then(async () => {
       sendADBKey(arg.payload);
     }
     event.returnValue = true;
+  });
+
+
+  ipcMain.handle('load-image', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['jpg', 'png', 'webp'] }],
+    });
+    if (result.canceled) {
+      return '';
+    } else {
+      const imagePath = result.filePaths[0];
+      const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
+      console.log("Image loaded:", imageData.length);
+      displayWindow.webContents.send("image-loaded", `data:image/png;base64,${imageData}`);
+      return imagePath;    }
   });
 
   ipcMain.on('show-settings', () => {

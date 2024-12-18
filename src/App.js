@@ -9,6 +9,7 @@ import Tab from "react-bootstrap/Tab";
 import DisplaySection from "./components/DisplaySection";
 import BorderSection from "./components/BorderSection";
 import ControlSection from "./components/ControlSection";
+import OverlaySection from "./components/OverlaySection";
 
 function SettingsScreen() {
   return (
@@ -26,6 +27,11 @@ function SettingsScreen() {
       <Tab eventKey="control" title="Control">
         <div className="tab-content-container">
           <ControlSection />
+        </div>
+      </Tab>
+      <Tab eventKey="overlay" title="Overlay">
+        <div className="tab-content-container">
+          <OverlaySection />
         </div>
       </Tab>
     </Tabs>
