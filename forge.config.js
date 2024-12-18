@@ -1,5 +1,6 @@
 module.exports = {
   packagerConfig: {
+    'name': 'Carabiner',
     'icon': './images/icon',
     'asar': true
   },
