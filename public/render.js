@@ -100,7 +100,7 @@ window.addEventListener("DOMContentLoaded", function () {
   );
 
   // Create the ellipsis button
-  const ellipsisButton = document.createElement("button");
+  const ellipsisButton = document.getElementById("settings");
   ellipsisButton.innerHTML = "&#x22ef;"; // Ellipsis character
   ellipsisButton.style.position = "fixed";
   ellipsisButton.style.top = "20px";
@@ -116,8 +116,6 @@ window.addEventListener("DOMContentLoaded", function () {
   ellipsisButton.style.fontWeight = "bold";
   ellipsisButton.style.fontSize = "20px";
   ellipsisButton.style.zIndex = "1000"; // Ensure the button is on top
-  document.body.appendChild(ellipsisButton);
-
 
   // Show the button when the mouse is in the top right quarter of the screen
   document.body.addEventListener("mousemove", (event) => {
