@@ -10,6 +10,7 @@ import DisplaySection from "./components/DisplaySection";
 import BorderSection from "./components/BorderSection";
 import ControlSection from "./components/ControlSection";
 import OverlaySection from "./components/OverlaySection";
+import AboutSection from "./components/AboutSection";
 
 function SettingsScreen() {
   return (
@@ -32,6 +33,11 @@ function SettingsScreen() {
       <Tab eventKey="overlay" title="Overlay">
         <div className="tab-content-container">
           <OverlaySection />
+        </div>
+      </Tab>
+      <Tab eventKey="about" title="About">
+        <div className="tab-content-container">
+          <AboutSection />
         </div>
       </Tab>
     </Tabs>
