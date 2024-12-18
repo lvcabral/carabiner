@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onMessageReceived: (chan, callback) => ipcRenderer.on(chan, callback),
   showSettings: () => ipcRenderer.send('show-settings'),
   loadImage: () => ipcRenderer.invoke('load-image'),
+  getVersion: () => ipcRenderer.invoke("get-version"),
 });
