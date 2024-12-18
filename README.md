@@ -44,6 +44,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 - Record captured video to mp4/mkv file
 - Detect list streaming devices in the network (SSDP)
 - Link capture devices with streaming devices
+- Add missing ADB keyboard mapping
 
 ## Installation
 

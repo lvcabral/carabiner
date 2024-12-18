@@ -182,6 +182,30 @@ if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
     adbKeysMap.set("Control+ArrowRight", "90");
     adbKeysMap.set("Control+Digit8", "1");
 }
+for (let i = 0; i <= 9; i++) {
+    adbKeysMap.set(`Digit${i}`, (i+7).toString());
+}
+for (let i = 65; i <= 90; i++) {
+    adbKeysMap.set(`Key${String.fromCharCode(i)}`, (i-36).toString());
+}
+adbKeysMap.set("Comma", "55");
+adbKeysMap.set("Period", "56");
+adbKeysMap.set("Space", "62");
+adbKeysMap.set("Minus", "69");
+adbKeysMap.set("Equal", "70");
+adbKeysMap.set("BracketLeft", "71");
+adbKeysMap.set("BracketRight", "72");
+adbKeysMap.set("Backslash", "73");
+adbKeysMap.set("Semicolon", "74");
+adbKeysMap.set("Quote", "75");
+adbKeysMap.set("Slash", "76");
+adbKeysMap.set("Shift+Slash", "59 76");
+adbKeysMap.set("Backquote", "68");
+adbKeysMap.set("Shift+Digit1", "59 8");
+adbKeysMap.set("Shift+Digit2", "77");
+adbKeysMap.set("Shift+Digit3", "78");
+adbKeysMap.set("Shift+Digit9", "162");
+adbKeysMap.set("Shift+Digit0", "163");
 
 // Keyboard handlers
 function keyDownHandler(event) {
