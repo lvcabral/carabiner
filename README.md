@@ -35,13 +35,13 @@ It is perfect for developers and QA engineers to execute and test applications u
 - Adding a border to the window
 - Create a list of streaming devices to connect
 - Overlay a picture to check "design vs app screen" for pixel perfect UI
-- Configure a shortcut to save a screenshot of the floating window
 
 ### Future Improvements
 
 - Freely resizable floating window including fullscreen support
 - Configurable global shortcut to show/hide the floating window
-- Record captured video to mp4/mkv file
+- Configure a shortcut to save a screenshot of the floating window
+- Allow user to record captured video to mp4/mkv file
 - Detect list streaming devices in the network (SSDP)
 - Link capture devices with streaming devices
 - Add missing ADB keyboard mapping

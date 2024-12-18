@@ -1,7 +1,10 @@
 const video = document.querySelector("video");
 const videoPlayer = document.getElementById("video-player");
+const overlayImage = document.getElementById("overlay-image");
+const settingsButton = document.getElementById("settings-button");
 let currentColor = "#662D91";
 
+// Load settings from main process
 window.electronAPI.invoke("load-settings").then((settings) => {
   if (settings.control && settings.control.deviceId) {
     handleControlSelected(settings.control.deviceId);
@@ -40,6 +43,10 @@ function handleSetTransparency(data) {
   videoPlayer.style["-webkit-filter"] = `-webkit-${data.filter}`;
 }
 
+function handleOverlayOpacity(opacity) {
+  overlayImage.style.opacity = opacity;
+}
+
 const eventHandlers = {
   "set-resolution": handleSetResolution,
   "set-border-width": handleSetBorderWidth,
@@ -48,6 +55,7 @@ const eventHandlers = {
   "set-video-stream": handleSetVideoStream,
   "set-transparency": handleSetTransparency,
   "set-control-selected": handleControlSelected,
+  "set-overlay-opacity": handleOverlayOpacity,
 };
 
 function renderDisplay(constraints) {
@@ -99,41 +107,57 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   );
 
-  // Create the ellipsis button
-  const ellipsisButton = document.getElementById("settings");
-  ellipsisButton.innerHTML = "&#x22ef;"; // Ellipsis character
-  ellipsisButton.style.position = "fixed";
-  ellipsisButton.style.top = "20px";
-  ellipsisButton.style.right = "20px";
-  ellipsisButton.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-  ellipsisButton.style.color = "rgba(255, 255, 255, 0.5)";
-  ellipsisButton.style.border = "none";
-  ellipsisButton.style.borderRadius = "5px";
-  ellipsisButton.style.padding = "10px";
-  ellipsisButton.style.cursor = "pointer";
-  ellipsisButton.style.opacity = "0";
-  ellipsisButton.style.transition = "opacity 0.3s";
-  ellipsisButton.style.fontWeight = "bold";
-  ellipsisButton.style.fontSize = "20px";
-  ellipsisButton.style.zIndex = "1000"; // Ensure the button is on top
+  // Listen for the image-loaded event
+  window.electronAPI.onMessageReceived("image-loaded", (event, imageData) => {
+    overlayImage.src = imageData;
+  });
+
+  // Configure the overlay image
+  overlayImage.id = "overlay-image";
+  overlayImage.style.position = "absolute";
+  overlayImage.style.top = "0";
+  overlayImage.style.left = "0";
+  overlayImage.style.width = "100%";
+  overlayImage.style.height = "100%";
+  overlayImage.style.objectFit = "cover";
+  overlayImage.style.pointerEvents = "none"; // Ensure it doesn't interfere with video controls
+  overlayImage.style.opacity = "0"; // Start with 0 opacity
+  overlayImage.style.zIndex = "700";
+
+  // Configure the ellipsis button
+  settingsButton.innerHTML = "&#x22ef;"; // Ellipsis character
+  settingsButton.style.position = "fixed";
+  settingsButton.style.top = "20px";
+  settingsButton.style.right = "20px";
+  settingsButton.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+  settingsButton.style.color = "rgba(255, 255, 255, 0.5)";
+  settingsButton.style.border = "none";
+  settingsButton.style.borderRadius = "5px";
+  settingsButton.style.padding = "10px";
+  settingsButton.style.cursor = "pointer";
+  settingsButton.style.opacity = "0";
+  settingsButton.style.transition = "opacity 0.3s";
+  settingsButton.style.fontWeight = "bold";
+  settingsButton.style.fontSize = "20px";
+  settingsButton.style.zIndex = "1000"; // Ensure the button is on top
 
   // Show the button when the mouse is in the top right quarter of the screen
   document.body.addEventListener("mousemove", (event) => {
     const { clientX, clientY } = event;
     const { innerWidth, innerHeight } = window;
     if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
-      ellipsisButton.style.opacity = "1";
+      settingsButton.style.opacity = "1";
     } else {
-      ellipsisButton.style.opacity = "0";
+      settingsButton.style.opacity = "0";
     }
   });
 
   document.body.addEventListener("mouseleave", () => {
-    ellipsisButton.style.opacity = "0";
+    settingsButton.style.opacity = "0";
   });
 
   // Handle button click
-  ellipsisButton.addEventListener("click", () => {
+  settingsButton.addEventListener("click", () => {
     window.electronAPI.showSettings();
   });
 
