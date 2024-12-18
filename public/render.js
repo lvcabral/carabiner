@@ -129,20 +129,18 @@ keysMap.set("Shift+Escape", "home");
 keysMap.set("Control+Escape", "home");
 keysMap.set("Backspace", "instantreplay");
 keysMap.set("End", "play");
-if (process.platform === "darwin") {
+if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
     keysMap.set("Command+Backspace", "backspace");
     keysMap.set("Command+Enter", "play");
     keysMap.set("Command+ArrowLeft", "rev");
     keysMap.set("Command+ArrowRight", "fwd");
     keysMap.set("Command+Digit8", "info");
-    keysMap.set("Control+KeyC", "break");
 } else {
     keysMap.set("Control+Backspace", "backspace");
     keysMap.set("Control+Enter", "play");
     keysMap.set("Control+ArrowLeft", "rev");
     keysMap.set("Control+ArrowRight", "fwd");
     keysMap.set("Control+Digit8", "info");
-    keysMap.set("Control+Pause", "break");
 }
 keysMap.set("PageDown", "rev");
 keysMap.set("PageUp", "fwd");
@@ -173,22 +171,27 @@ function handleKeyboardEvent(event, mod) {
   }
   const key = keysMap.get(keyCode);
   if (key && key.toLowerCase() !== "ignore") {
-      sendKey(key, mod);
-  } else {
+    sendKey(key, mod);
+  } else if (controlType === "ecp") {
     sendKey(`lit_${encodeURIComponent(event.key)}`, mod);
+  } else if (controlType === "adb") {
+    sendKey(event.key, mod);
   }
 }
 
 function sendKey(key, mod) {
-    if (controlIp !== "" && controlType === "ecp") {
+    console.log("Sending Key: ", key, mod); 
+    if (isValidIP(controlIp) && controlType === "ecp") {
       sendEcpKey(controlIp, key, mod);
+    } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
+      window.electronAPI.sendSync("shared-window-channel", {
+        type: "send-adb-key",
+        payload: key,
+      });
     }
 }
 
 function sendEcpKey(host, key, mod = -1) {
-  if (!isValidIP(host)) {
-      return;
-  }
   let command = "keypress";
   if (mod !== -1) {
       command = mod === 0 ? "keydown" : "keyup";
