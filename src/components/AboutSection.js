@@ -1,12 +1,20 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Container, Row, Col } from "react-bootstrap";
 
 function AboutSection() {
+  const [version, setVersion] = useState("");
+
+  useEffect(() => {
+    window.electronAPI.getVersion().then((version) => {
+      setVersion(version);
+    });
+  }, []);
+
   return (
     <Container className="text-center mt-4">
       <Row>
         <Col>
-          <p>Version 0.1.0</p>
+          <p>Version {version}</p>
           <p>&copy; 2024 Marcelo Lv Cabral</p>
           <p>
             <a href="https://github.com/lvcabral/carabiner" target="_blank" rel="noopener noreferrer">

@@ -21,6 +21,8 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey } = require("./adb");
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
+
 const settings = loadSettings();
 let controlIp = "";
 let controlType = "";
@@ -287,6 +289,10 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('load-settings', async () => {
     return settings;
+  });
+
+  ipcMain.handle("get-version", async () => {
+    return packageJson.version;
   });
 
   app.on("activate", () => {
