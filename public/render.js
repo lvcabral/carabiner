@@ -142,7 +142,7 @@ window.addEventListener("DOMContentLoaded", function () {
   settingsButton.style.zIndex = "1000"; // Ensure the button is on top
 
   // Show the button when the mouse is in the top right quarter of the screen
-  document.body.addEventListener("mousemove", (event) => {
+  window.addEventListener("mousemove", (event) => {
     const { clientX, clientY } = event;
     const { innerWidth, innerHeight } = window;
     if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
@@ -154,7 +154,7 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  document.body.addEventListener("mouseleave", () => {
+  window.addEventListener("mouseleave", () => {
     console.log("Mouse leave");
     settingsButton.style.opacity = "0";
   });

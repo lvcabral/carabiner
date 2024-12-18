@@ -95,13 +95,13 @@ If you want to build Carabiner from source, first ensure you have the Node.js in
 Next, clone the repository and install the dependencies.
 
 ```console
-git clone https://github.com/lvcabral/carabiner.git && cd carabiner && yarn install
+git clone https://github.com/lvcabral/carabiner.git; cd carabiner; yarn install
 ```
 
 To start the app, you'd need to run:
 
 ```console
-yarn build && yarn forge
+yarn build; yarn forge
 ```
 
 To create an installer in the platform you are running, just use:
