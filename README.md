@@ -48,7 +48,14 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Installation
 
-Carabiner is available on macOS (Windows and Linux will be released soon). You can download it from the [releases](https://github.com/lvcabral/carabiner/releases) page.
+**Carabiner** is available on macOS (Windows and Linux will be released soon). You can download it from the [releases](https://github.com/lvcabral/carabiner/releases) page.
+
+### Pre-requisites
+
+1. First time you run the app, you will need to authorize the app to have access to your camera and microphone.
+2. Make sure your Roku devices have the Developer Mode enabled, see the documentation [here](https://developer.roku.com/docs/developer-program/getting-started/developer-setup.md).
+3. Make sure your Fire TV and Google TV devices have the ADB Debugging enabled, see the documentation [here](https://developer.android.com/studio/command-line/adb).
+4. First time you connect to your Fire TV or Google TV device, you will need to authorize the connection.
 
 > **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we don't have a code signing certificate yet, so you might have to allow the app to run on your system.
 
