@@ -131,6 +131,7 @@ ellipsisButton.style.opacity = "0";
 ellipsisButton.style.transition = "opacity 0.3s";
 ellipsisButton.style.fontWeight = "bold";
 ellipsisButton.style.fontSize = "20px";
+ellipsisButton.style.zIndex = "1000"; // Ensure the button is on top
 document.body.appendChild(ellipsisButton);
 
 
