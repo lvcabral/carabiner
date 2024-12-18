@@ -1,10 +1,17 @@
 const path = require("path");
 const exec = require("child_process").exec;
-const adbPath = path.join(__dirname, "platform-tools/adb");
+let adbPath = "";
 
 let isADBConnected = false;
 
-function connectADB(deviceIp) {
+function connectADB(deviceIp, path) {
+    if (typeof path === "string") {
+        adbPath = path;
+    }
+    if (adbPath === "") {
+        console.error("ADB path not set.");
+        return isADBConnected;
+    }
     try {
         exec(`${adbPath} connect ${deviceIp}`, puts);
         isADBConnected = true;
@@ -16,6 +23,10 @@ function connectADB(deviceIp) {
 }
 
 function disconnectADB() {
+    if (adbPath === "") {
+        console.error("ADB path not set.");
+        return isADBConnected;
+    }
     try {
         exec(`${adbPath} disconnect`, puts);
         isADBConnected = false;
@@ -27,7 +38,7 @@ function disconnectADB() {
 }
 
 function sendADBKey(key) {
-    if (isADBConnected && typeof key === "string") {
+    if (isADBConnected && typeof key === "string" && adbPath !== "") {
         exec(`${adbPath} shell input keyevent ${key}`, puts);
         console.log(key + " pressed.");
     }

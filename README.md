@@ -34,6 +34,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 - Changing the transparency of the floating window
 - Adding a border to the window
 - Create a list of streaming devices to connect and control
+- Configure the path to the ADB executable
 - Overlay a picture to check "design vs app screen" for pixel perfect UI
 
 ### Future Improvements
@@ -42,7 +43,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 - Configurable global shortcut to show/hide the floating window
 - Configure a shortcut to save a screenshot of the floating window
 - Allow user to record captured video to mp4/mkv file
-- Detect list streaming devices in the network (SSDP)
+- Detect the list streaming devices in the network (SSDP)
 - Link capture devices with streaming devices
 - Add missing ADB keyboard mapping
 
@@ -55,7 +56,8 @@ It is perfect for developers and QA engineers to execute and test applications u
 1. First time you run the app, you will need to authorize the app to have access to your camera and microphone.
 2. Make sure your Roku devices have the Developer Mode enabled, see the documentation [here](https://developer.roku.com/docs/developer-program/getting-started/developer-setup.md).
 3. Make sure your Fire TV and Google TV devices have the ADB Debugging enabled, see the documentation [here](https://developer.android.com/studio/command-line/adb).
-4. First time you connect to your Fire TV or Google TV device, you will need to authorize the connection.
+4. To control Fire TV and Google TV, make sure your computer has the ADB executable installed and you configured the path in the settings. Get the latest version of the platform tools [here](https://developer.android.com/studio/releases/platform-tools.html).
+5. First time you connect to your Fire TV or Google TV device, you will need to authorize the connection.
 
 > **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we don't have a code signing certificate yet, so you might have to allow the app to run on your system.
 
@@ -65,7 +67,7 @@ After installing Carabiner, launch the application and customize the settings to
 
 ### Controlling Streaming Devices
 
-1. **Select a Capture Device**: In the `Display` tba, select a video capture device from the list.
+1. **Select a Capture Device**: In the `Display` tab, select a video capture device from the list.
 2. **Select a Streaming Device**: In the `Control` tab, select a streaming device from the list.
 3. **Keyboard Controls**: When the floating display window is focused, you can use your keyboard to control the selected device. Refer to the [keyboard control mappings](./docs/key-mappings.md) documentation to learn how to operate your device.
 

@@ -10,9 +10,10 @@ const { electronAPI } = window;
 
 function ControlSection() {
   const [ipAddress, setIpAddress] = useState("");
-  const [deviceType, setDeviceType] = useState("ecp");
+  const [deviceType, setDeviceType] = useState("roku");
   const [deviceList, setDeviceList] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [adbPath, setAdbPath] = useState("");
   const ipAddressRef = useRef(null);
 
   useEffect(() => {
@@ -23,6 +24,9 @@ function ControlSection() {
       }
       if (settings.control && settings.control.deviceId) {
         setSelectedDevice(settings.control.deviceId);
+      }
+      if (settings.control && settings.control.adbPath) {
+        setAdbPath(settings.control.adbPath);
       }
     });
   }, []);
@@ -62,13 +66,20 @@ function ControlSection() {
     notifyControlChange("set-control-selected", "");
   };
 
+  const handleSelectAdbPath = async () => {
+    const path = await electronAPI.invoke("select-adb-path");
+    if (path) {
+      setAdbPath(path);
+      notifyControlChange("set-adb-path", path);
+    }
+  };
+
   return (
     <Container className="p-3">
       <Card>
         <Card.Body>
         <Form>
             <Form.Group controlId="formIpAddress" className="form-group-spacing">
-              <Form.Label>IP Address</Form.Label>
               <Form.Control
                 type="text"
                 placeholder="Enter IP address"
@@ -78,7 +89,6 @@ function ControlSection() {
               />
             </Form.Group>
             <Form.Group controlId="formDeviceType" className="form-group-spacing">
-              <Form.Label>Device Type</Form.Label>
               <Row>
                 <Col xs="auto" className="d-flex align-items-center">
                   <Form.Check
@@ -98,6 +108,7 @@ function ControlSection() {
                     value="firetv"
                     checked={deviceType === "firetv"}
                     onChange={(e) => setDeviceType(e.target.value)}
+                    disabled={!adbPath}
                   />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
@@ -108,6 +119,7 @@ function ControlSection() {
                     value="googletv"
                     checked={deviceType === "googletv"}
                     onChange={(e) => setDeviceType(e.target.value)}
+                    disabled={!adbPath}
                   />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center ml-auto">
@@ -119,7 +131,7 @@ function ControlSection() {
               </Row>
             </Form.Group>
             <Form.Group controlId="formDeviceList" className="form-group-spacing">
-              <Form.Label>Device List</Form.Label>
+              <Form.Label>Streaming Device</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
                   <Form.Control as="select" value={selectedDevice} onChange={handleDeviceSelect}>
@@ -134,6 +146,19 @@ function ControlSection() {
                 <Col xs="auto" className="d-flex align-items-center">
                   <Button title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
                     &#x232B;
+                  </Button>
+                </Col>
+              </Row>
+            </Form.Group>
+            <Form.Group controlId="formAdbPath" className="form-group-spacing">
+              <Form.Label>ADB Tool Path</Form.Label>
+              <Row>
+                <Col className="d-flex align-items-center flex-grow-1">
+                  <Form.Control type="text" readOnly value={adbPath} />
+                </Col>
+                <Col xs="auto" className="d-flex align-items-center">
+                  <Button title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
+                    &#x2026;
                   </Button>
                 </Col>
               </Row>
