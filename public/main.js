@@ -12,6 +12,7 @@ const settings = loadSettings();
 let controlIp = "";
 let controlType = "";
 let isADBConnected = false;
+let isQuitting = false;
 
 function createWindow(name, options) {
   const windowState = settings[name] || {
@@ -30,13 +31,14 @@ function createWindow(name, options) {
     },
   });
 
-  win.on("close", () => {
+  win.on("close", (event) => {
     const bounds = win.getBounds();
     settings[name] = bounds;
     saveSettings(settings);
-    if (name === "displayWindow") {
-      // TODO: Only to prevent a crash on Main Window when display window is closed
-      // This should be removed when the main window is able to re-open display window
+    if (name === "mainWindow" && !isQuitting) {
+      event.preventDefault();
+      win.minimize();
+    } else if (name === "displayWindow") {
       app.quit();
     }
   });
@@ -195,6 +197,7 @@ app.whenReady().then(async () => {
     }
   });
   app.on("before-quit", () => {
+    isQuitting = true;
     if (isADBConnected) {
       disconnectADB();
     }
