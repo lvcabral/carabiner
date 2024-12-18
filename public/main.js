@@ -115,7 +115,7 @@ app.whenReady().then(async () => {
     [controlIp, controlType] = settings.control.deviceId.split("|");
     console.log("Control loaded from settings:", controlIp, controlType);
     if (!isADBConnected) {
-      isADBConnected = connectADB(controlIp);
+      isADBConnected = connectADB(controlIp, settings.control.adbPath);
     }
   }
 
@@ -189,13 +189,27 @@ app.whenReady().then(async () => {
         isADBConnected = disconnectADB();
       }
       if (!isADBConnected && controlType === "adb") {
-        isADBConnected = connectADB(controlIp);
+        isADBConnected = connectADB(controlIp, settings.control.adbPath);
       }
       saveSettings(settings);
     } else if (arg.type && arg.type === "send-adb-key") {
       sendADBKey(arg.payload);
     }
     event.returnValue = true;
+  });
+
+  ipcMain.handle("select-adb-path", async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [{ name: "Executables", extensions: ["exe", "bat", "sh", ""] }],
+    });
+    if (result.canceled) {
+      return null;
+    } else {
+      const adbPath = result.filePaths[0];
+      settings.control.adbPath = adbPath;
+      return adbPath;
+    }
   });
 
   ipcMain.handle('load-image', async () => {
@@ -208,7 +222,6 @@ app.whenReady().then(async () => {
     } else {
       const imagePath = result.filePaths[0];
       const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
-      console.log("Image loaded:", imageData.length);
       displayWindow.webContents.send("image-loaded", `data:image/png;base64,${imageData}`);
       return imagePath;    }
   });
