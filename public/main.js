@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const path = require("path");
 const {
   app,
@@ -6,8 +15,10 @@ const {
   ipcMain,
   Notification,
   systemPreferences,
+  globalShortcut,
 } = require("electron");
 const fs = require("fs");
+const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey } = require("./adb");
 const settings = loadSettings();
@@ -16,7 +27,12 @@ let controlType = "";
 let isADBConnected = false;
 let isQuitting = false;
 
-function createWindow(name, options) {
+const appLauncher = new AutoLaunch({
+  name: "Carabiner",
+  path: app.getPath("exe"),
+});
+
+function createWindow(name, options, showOnStart = true) {
   const windowState = settings[name] || {
     width: options.width || 800,
     height: options.height || 600,
@@ -31,6 +47,7 @@ function createWindow(name, options) {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: true,
     },
+    show: showOnStart,
   });
 
   win.on("close", (event) => {
@@ -57,7 +74,7 @@ function createMainWindow() {
     maximizable: false,
     resizable: false,
     autoHideMenuBar: true,
-  });
+  }, settings.display.showSettingsOnStart);
   const loadURL =
     process.env.NODE_ENV === "development"
       ? "http://localhost:3000"
@@ -85,6 +102,18 @@ function createDisplayWindow() {
   win.loadFile("public/display.html");
   return win;
 }
+
+function registerShortcut(shortcut, window) {
+  globalShortcut.unregisterAll();
+  globalShortcut.register(shortcut, () => {
+    if (window.isVisible()) {
+      window.hide();
+    } else {
+      window.show();
+    }
+  });
+}
+
 
 app.whenReady().then(async () => {
   const access = systemPreferences.getMediaAccessStatus("camera");
@@ -117,6 +146,10 @@ app.whenReady().then(async () => {
     if (!isADBConnected) {
       isADBConnected = connectADB(controlIp, settings.control.adbPath);
     }
+  }
+
+  if (settings.display.shortcut) {
+    registerShortcut(settings.display.shortcut, displayWindow);
   }
 
   let borderSize = 0;
@@ -198,6 +231,27 @@ app.whenReady().then(async () => {
     event.returnValue = true;
   });
 
+  ipcMain.on("save-shortcut", (event, shortcut) => {
+    settings.display.shortcut = shortcut;
+    saveSettings(settings);
+    registerShortcut(shortcut, displayWindow);
+  });
+
+  ipcMain.on("save-launch-app-at-login", (event, launchAppAtLogin) => {
+    settings.display.launchAppAtLogin = launchAppAtLogin;
+    saveSettings(settings);
+    if (launchAppAtLogin) {
+      appLauncher.enable();
+    } else {
+      appLauncher.disable();
+    }
+  });
+
+  ipcMain.on("save-show-settings-on-start", (event, showSettingsOnStart) => {
+    settings.display.showSettingsOnStart = showSettingsOnStart;
+    saveSettings(settings);
+  });
+
   ipcMain.handle("select-adb-path", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
@@ -223,7 +277,8 @@ app.whenReady().then(async () => {
       const imagePath = result.filePaths[0];
       const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
       displayWindow.webContents.send("image-loaded", `data:image/png;base64,${imageData}`);
-      return imagePath;    }
+      return imagePath;
+    }
   });
 
   ipcMain.on('show-settings', () => {
@@ -245,6 +300,10 @@ app.whenReady().then(async () => {
       disconnectADB();
     }
   });
+});
+
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on("window-all-closed", () => {
