@@ -25,7 +25,7 @@ function ShortcutInput({ value, onChange }) {
 
   return (
     <Form.Group controlId="formShortcut">
-      <Form.Label>Display Shortcut</Form.Label>
+      <Form.Label>Toggle Display Shortcut</Form.Label>
       <Form.Control
         type="text"
         value={shortcut}
