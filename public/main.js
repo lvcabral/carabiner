@@ -111,6 +111,14 @@ app.whenReady().then(async () => {
   const displayWindow = createDisplayWindow();
   displayWindow.setAlwaysOnTop(true, "floating", 1);
 
+  if (settings.control.deviceId && settings.control.deviceId.includes("|adb")) {
+    [controlIp, controlType] = settings.control.deviceId.split("|");
+    console.log("Control loaded from settings:", controlIp, controlType);
+    if (!isADBConnected) {
+      isADBConnected = connectADB(controlIp);
+    }
+  }
+
   let borderSize = 0;
   let lastSizeWith = [505, 295];
   ipcMain.on("shared-window-channel", (event, arg) => {
@@ -131,7 +139,6 @@ app.whenReady().then(async () => {
       let { width, height } = arg.payload;
       settings.display.resolution = `${width}|${height}`;
       saveSettings(settings);
-       // adding 25 just to make sure the window is not too small to fit the camera
       width = Number(width.replace("px", "")) + 25;
       height = Number(height.replace("px", "")) + 25;
       lastSizeWith = [width, height];
@@ -190,7 +197,6 @@ app.whenReady().then(async () => {
     }
     event.returnValue = true;
   });
-
 
   ipcMain.handle('load-image', async () => {
     const result = await dialog.showOpenDialog({
