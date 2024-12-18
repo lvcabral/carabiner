@@ -115,39 +115,73 @@ function handleControlSelected(data) {
 document.addEventListener("keydown", keyDownHandler);
 document.addEventListener("keyup", keyUpHandler);
 
-// Keyboard Mapping
-const keysMap = new Map();
-keysMap.set("ArrowUp", "up");
-keysMap.set("ArrowDown", "down");
-keysMap.set("ArrowLeft", "left");
-keysMap.set("ArrowRight", "right");
-keysMap.set("Enter", "select");
-keysMap.set("Escape", "back");
-keysMap.set("Delete", "back");
-keysMap.set("Home", "home");
-keysMap.set("Shift+Escape", "home");
-keysMap.set("Control+Escape", "home");
-keysMap.set("Backspace", "instantreplay");
-keysMap.set("End", "play");
+// ECP Keyboard Mapping
+const ecpKeysMap = new Map();
+ecpKeysMap.set("ArrowUp", "up");
+ecpKeysMap.set("ArrowDown", "down");
+ecpKeysMap.set("ArrowLeft", "left");
+ecpKeysMap.set("ArrowRight", "right");
+ecpKeysMap.set("Enter", "select");
+ecpKeysMap.set("Escape", "back");
+ecpKeysMap.set("Delete", "back");
+ecpKeysMap.set("Home", "home");
+ecpKeysMap.set("Shift+Escape", "home");
+ecpKeysMap.set("Control+Escape", "home");
+ecpKeysMap.set("Backspace", "instantreplay");
+ecpKeysMap.set("End", "play");
+ecpKeysMap.set("PageDown", "rev");
+ecpKeysMap.set("PageUp", "fwd");
+ecpKeysMap.set("Insert", "info");
+ecpKeysMap.set("Control+KeyA", "a");
+ecpKeysMap.set("Control+KeyZ", "b");
+ecpKeysMap.set("F10", "volumemute");
 if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
-    keysMap.set("Command+Backspace", "backspace");
-    keysMap.set("Command+Enter", "play");
-    keysMap.set("Command+ArrowLeft", "rev");
-    keysMap.set("Command+ArrowRight", "fwd");
-    keysMap.set("Command+Digit8", "info");
+    ecpKeysMap.set("Command+Backspace", "backspace");
+    ecpKeysMap.set("Command+Enter", "play");
+    ecpKeysMap.set("Command+ArrowLeft", "rev");
+    ecpKeysMap.set("Command+ArrowRight", "fwd");
+    ecpKeysMap.set("Command+Digit8", "info");
 } else {
-    keysMap.set("Control+Backspace", "backspace");
-    keysMap.set("Control+Enter", "play");
-    keysMap.set("Control+ArrowLeft", "rev");
-    keysMap.set("Control+ArrowRight", "fwd");
-    keysMap.set("Control+Digit8", "info");
+    ecpKeysMap.set("Control+Backspace", "backspace");
+    ecpKeysMap.set("Control+Enter", "play");
+    ecpKeysMap.set("Control+ArrowLeft", "rev");
+    ecpKeysMap.set("Control+ArrowRight", "fwd");
+    ecpKeysMap.set("Control+Digit8", "info");
 }
-keysMap.set("PageDown", "rev");
-keysMap.set("PageUp", "fwd");
-keysMap.set("Insert", "info");
-keysMap.set("Control+KeyA", "a");
-keysMap.set("Control+KeyZ", "b");
-keysMap.set("F10", "volumemute");
+
+// ADB Keyboard Mapping
+const adbKeysMap = new Map();
+adbKeysMap.set("ArrowUp", "19");
+adbKeysMap.set("ArrowDown", "20");
+adbKeysMap.set("ArrowLeft", "21");
+adbKeysMap.set("ArrowRight", "22");
+adbKeysMap.set("Enter", "66");
+adbKeysMap.set("Escape", "4");
+adbKeysMap.set("Delete", "4");
+adbKeysMap.set("Home", "3");
+adbKeysMap.set("Shift+Escape", "3");
+adbKeysMap.set("Control+Escape", "3");
+adbKeysMap.set("Backspace", "67");
+adbKeysMap.set("End", "85");
+adbKeysMap.set("PageDown", "89");
+adbKeysMap.set("PageUp", "90");
+adbKeysMap.set("Insert", "1");
+adbKeysMap.set("Control+KeyA", "29");
+adbKeysMap.set("Control+KeyZ", "54");
+adbKeysMap.set("F10", "164");
+if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
+    adbKeysMap.set("Command+Backspace", "67");
+    adbKeysMap.set("Command+Enter", "85");
+    adbKeysMap.set("Command+ArrowLeft", "89");
+    adbKeysMap.set("Command+ArrowRight", "90");
+    adbKeysMap.set("Command+Digit8", "1");
+} else {
+    adbKeysMap.set("Control+Backspace", "67");
+    adbKeysMap.set("Control+Enter", "85");
+    adbKeysMap.set("Control+ArrowLeft", "89");
+    adbKeysMap.set("Control+ArrowRight", "90");
+    adbKeysMap.set("Control+Digit8", "1");
+}
 
 // Keyboard handlers
 function keyDownHandler(event) {
@@ -169,18 +203,23 @@ function handleKeyboardEvent(event, mod) {
   } else if (event.metaKey && !keyCode.startsWith("Meta")) {
       keyCode = "Meta+" + keyCode;
   }
-  const key = keysMap.get(keyCode);
-  if (key && key.toLowerCase() !== "ignore") {
-    sendKey(key, mod);
-  } else if (controlType === "ecp") {
-    sendKey(`lit_${encodeURIComponent(event.key)}`, mod);
+  if (controlType === "ecp") {
+    const key = ecpKeysMap.get(keyCode);
+    if (key && key.toLowerCase() !== "ignore") {
+      sendKey(key, mod);
+    } else {
+      sendKey(`lit_${encodeURIComponent(event.key)}`, mod);
+    }
   } else if (controlType === "adb") {
-    sendKey(event.key, mod);
+    const key = adbKeysMap.get(keyCode);
+    if (key) {
+      sendKey(key, mod);
+    }
   }
 }
 
 function sendKey(key, mod) {
-    console.log("Sending Key: ", key, mod); 
+    console.log("Sending Key: ", key, mod);
     if (isValidIP(controlIp) && controlType === "ecp") {
       sendEcpKey(controlIp, key, mod);
     } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
@@ -203,7 +242,7 @@ function sendEcpKey(host, key, mod = -1) {
       xhr.open("POST", url, false);
       xhr.send();
   } catch (e) {
-      // ignore;
+      console.error("Error sending ECP Key: ", e.message);
   }
 }
 
