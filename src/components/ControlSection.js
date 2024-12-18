@@ -29,8 +29,16 @@ function ControlSection() {
 
   const handleAddDevice = () => {
     if (ipAddress && deviceType) {
-      const type = deviceType === "ecp" ? "Roku" : "Fire TV / Google TV";
-      const newDevice = { id: `${ipAddress}|${deviceType}`, ipAddress: ipAddress, type: type };
+      const protocol = deviceType === "roku" ? "ecp" : "adb";
+      let type = "";
+      if (deviceType === "roku") {
+        type = "Roku";
+      } else if (deviceType === "firetv") {
+        type = "Fire TV";
+      } else if (deviceType === "googletv") {
+        type = "Google TV";
+      }
+      const newDevice = { id: `${ipAddress}|${protocol}`, ipAddress: ipAddress, type: type };
       const newDeviceList = [...deviceList, newDevice];
       setDeviceList(newDeviceList);
       notifyControlChange("set-control-list", newDeviceList);
@@ -77,18 +85,28 @@ function ControlSection() {
                     type="radio"
                     label="Roku"
                     name="deviceType"
-                    value="ecp"
-                    checked={deviceType === "ecp"}
+                    value="roku"
+                    checked={deviceType === "roku"}
                     onChange={(e) => setDeviceType(e.target.value)}
                   />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
                   <Form.Check
                     type="radio"
-                    label="Fire TV / Google TV"
+                    label="Fire TV"
                     name="deviceType"
-                    value="adb"
-                    checked={deviceType === "adb"}
+                    value="firetv"
+                    checked={deviceType === "firetv"}
+                    onChange={(e) => setDeviceType(e.target.value)}
+                  />
+                </Col>
+                <Col xs="auto" className="d-flex align-items-center">
+                  <Form.Check
+                    type="radio"
+                    label="Google TV"
+                    name="deviceType"
+                    value="googletv"
+                    checked={deviceType === "googletv"}
                     onChange={(e) => setDeviceType(e.target.value)}
                   />
                 </Col>
