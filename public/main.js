@@ -37,7 +37,7 @@ function createWindow(name, options) {
     saveSettings(settings);
     if (name === "mainWindow" && !isQuitting) {
       event.preventDefault();
-      win.minimize();
+      win.hide();
     } else if (name === "displayWindow") {
       app.quit();
     }
@@ -185,6 +185,10 @@ app.whenReady().then(async () => {
       sendADBKey(arg.payload);
     }
     event.returnValue = true;
+  });
+
+  ipcMain.on('show-settings', () => {
+    mainWindow.show();
   });
 
   ipcMain.handle('load-settings', async () => {

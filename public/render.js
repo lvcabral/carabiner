@@ -115,6 +115,45 @@ function handleControlSelected(data) {
 document.addEventListener("keydown", keyDownHandler);
 document.addEventListener("keyup", keyUpHandler);
 
+// Create the ellipsis button
+const ellipsisButton = document.createElement("button");
+ellipsisButton.innerHTML = "&#x22ef;"; // Ellipsis character
+ellipsisButton.style.position = "fixed";
+ellipsisButton.style.top = "20px";
+ellipsisButton.style.right = "20px";
+ellipsisButton.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+ellipsisButton.style.color = "rgba(255, 255, 255, 0.5)";
+ellipsisButton.style.border = "none";
+ellipsisButton.style.borderRadius = "5px";
+ellipsisButton.style.padding = "10px";
+ellipsisButton.style.cursor = "pointer";
+ellipsisButton.style.opacity = "0";
+ellipsisButton.style.transition = "opacity 0.3s";
+ellipsisButton.style.fontWeight = "bold";
+ellipsisButton.style.fontSize = "20px";
+document.body.appendChild(ellipsisButton);
+
+
+// Show the button when the mouse is in the top right quarter of the screen
+document.body.addEventListener("mousemove", (event) => {
+  const { clientX, clientY } = event;
+  const { innerWidth, innerHeight } = window;
+  if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
+    ellipsisButton.style.opacity = "1";
+  } else {
+    ellipsisButton.style.opacity = "0";
+  }
+});
+
+document.body.addEventListener("mouseleave", () => {
+  ellipsisButton.style.opacity = "0";
+});
+
+// Handle button click
+ellipsisButton.addEventListener("click", () => {
+  window.electronAPI.showSettings();
+});
+
 // ECP Keyboard Mapping
 const ecpKeysMap = new Map();
 ecpKeysMap.set("ArrowUp", "up");
