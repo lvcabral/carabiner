@@ -93,7 +93,6 @@ function createDisplayWindow() {
     height: 295,
     maxWidth: 1945,
     maxHeight: 1105,
-    resizable: false,
     titleBarStyle: "hide",
     transparent: true,
     darkTheme: false,
@@ -102,6 +101,7 @@ function createDisplayWindow() {
     alwaysOnTop: true,
   });
   win.loadFile("public/display.html");
+  win.setResizable(false);
   return win;
 }
 
@@ -174,10 +174,10 @@ app.whenReady().then(async () => {
       let { width, height } = arg.payload;
       settings.display.resolution = `${width}|${height}`;
       saveSettings(settings);
-      width = Number(width.replace("px", "")) + 25;
-      height = Number(height.replace("px", "")) + 25;
+      width = Number(width.replace("px", "")) + 20;
+      height = Number(height.replace("px", "")) + 20;
       lastSizeWith = [width, height];
-      displayWindow.setSize(width, height);
+      resizeDisplay();
     } else if (arg.type && arg.type === "set-border-width") {
       settings.border.width = arg.payload;
       saveSettings(settings);
@@ -200,12 +200,7 @@ app.whenReady().then(async () => {
           break;
         }
       }
-
-      // Resize window with count borders
-      displayWindow.setSize(
-        lastSizeWith[0] + borderSize,
-        lastSizeWith[1] + borderSize
-      );
+      resizeDisplay();
     } else if (arg.type && arg.type === "set-border-style") {
       settings.border.style = arg.payload;
       saveSettings(settings);
@@ -232,6 +227,17 @@ app.whenReady().then(async () => {
     }
     event.returnValue = true;
   });
+
+  function resizeDisplay() {
+    // Resize window with count borders
+    displayWindow.setResizable(true);
+    displayWindow.setSize(
+      lastSizeWith[0] + borderSize,
+      lastSizeWith[1] + borderSize
+    );
+    displayWindow.setResizable(false);
+  }
+
 
   ipcMain.on("save-shortcut", (event, shortcut) => {
     settings.display.shortcut = shortcut;

@@ -55,7 +55,9 @@ function handleSetBorderStyle(borderStyle) {
 
 function handleSetBorderColor(borderColor) {
   currentColor = borderColor;
-  videoPlayer.style.borderColor = borderColor;
+  if (videoPlayer.style.borderWidth !== "0.1px") {
+    videoPlayer.style.borderColor = borderColor;
+  }
 }
 
 function handleSetVideoStream(constraints) {
