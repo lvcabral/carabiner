@@ -11,9 +11,32 @@ window.electronAPI.invoke("load-settings").then((settings) => {
   }
 });
 
+function updateOverlayPositionNoBorder() {
+  const rect = videoPlayer.getBoundingClientRect();
+  overlayImage.style.position = "absolute";
+  overlayImage.style.top = `${rect.top}px`;
+  overlayImage.style.left = `${rect.left}px`;
+  overlayImage.style.width = `${rect.width}px`;
+  overlayImage.style.height = `${rect.height}px`;
+}
+
+function updateOverlayPosition() {
+  const rect = videoPlayer.getBoundingClientRect();
+  console.log("Border Width: ", getComputedStyle(videoPlayer).borderWidth);
+  const borderWidth = parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
+  overlayImage.style.position = "absolute";
+  overlayImage.style.top = `${rect.top + borderWidth}px`;
+  overlayImage.style.left = `${rect.left + borderWidth}px`;
+  overlayImage.style.width = `${rect.width - 2 * borderWidth}px`;
+  overlayImage.style.height = `${rect.height - 2 * borderWidth}px`;
+}
+
 function handleSetResolution(style) {
   videoPlayer.style.width = style.width;
   videoPlayer.style.height = style.height;
+  document.body.style.width = style.width;
+  document.body.style.height = style.height;
+  updateOverlayPosition();
 }
 
 function handleSetBorderWidth(borderWidth) {
@@ -23,6 +46,7 @@ function handleSetBorderWidth(borderWidth) {
     videoPlayer.style.borderColor = currentColor;
   }
   videoPlayer.style.borderWidth = borderWidth;
+  updateOverlayPosition();
 }
 
 function handleSetBorderStyle(borderStyle) {
@@ -113,12 +137,8 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 
   // Configure the overlay image
-  overlayImage.id = "overlay-image";
   overlayImage.style.position = "absolute";
-  overlayImage.style.top = "0";
-  overlayImage.style.left = "0";
-  overlayImage.style.width = "100%";
-  overlayImage.style.height = "100%";
+  updateOverlayPosition();
   overlayImage.style.objectFit = "cover";
   overlayImage.style.pointerEvents = "none"; // Ensure it doesn't interfere with video controls
   overlayImage.style.opacity = "0"; // Start with 0 opacity
@@ -127,8 +147,8 @@ window.addEventListener("DOMContentLoaded", function () {
   // Configure the ellipsis button
   settingsButton.innerHTML = "&#x22ef;"; // Ellipsis character
   settingsButton.style.position = "fixed";
-  settingsButton.style.top = "20px";
-  settingsButton.style.right = "20px";
+  settingsButton.style.top = "25px";
+  settingsButton.style.right = "30px";
   settingsButton.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
   settingsButton.style.color = "rgba(255, 255, 255, 0.5)";
   settingsButton.style.border = "none";
