@@ -27,7 +27,6 @@ function DisplaySection() {
         notifyFilterChange(settings.display.filter);
       }
       if (settings.display && settings.display.shortcut) {
-        console.log("Loaded settings", settings.display.shortcut);
         setShortcut(settings.display.shortcut);
       }
       if (settings.display && settings.display.launchAppAtLogin !== undefined) {
