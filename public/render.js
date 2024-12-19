@@ -314,7 +314,7 @@ function handleKeyboardEvent(event, mod) {
     const key = ecpKeysMap.get(keyCode);
     if (key && key.toLowerCase() !== "ignore") {
       sendKey(key, mod);
-    } else if (!["Alt", "Control", "Meta", "Shift", "Dead"].includes(event.key)) {
+    } else if (!["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key)) {
       sendKey(`lit_${encodeURIComponent(event.key)}`, mod);
     }
   } else if (controlType === "adb") {
