@@ -36,11 +36,13 @@ It is perfect for developers and QA engineers to execute and test applications u
 - Create a list of streaming devices to connect and control
 - Configure the path to the ADB executable
 - Overlay a picture to check "design vs app screen" for pixel perfect UI
+- Configurable global shortcut to show/hide the floating window
+- Option to show/hide the settings window on app start
+- Option to launch the app on system login
 
 ### Future Improvements
 
 - Freely resizable floating window including fullscreen support
-- Configurable global shortcut to show/hide the floating window
 - Configure a shortcut to save a screenshot of the floating window
 - Allow user to record captured video to mp4/mkv file
 - Detect the list streaming devices in the network (SSDP)
@@ -49,7 +51,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Installation
 
-**Carabiner** is available on macOS (Windows and Linux will be released soon). You can download it from the [releases](https://github.com/lvcabral/carabiner/releases) page.
+**Carabiner** is available on macOS and Windows (Linux will be available soon). You can download the installers from the [releases](https://github.com/lvcabral/carabiner/releases) page.
 
 ### Pre-requisites
 
