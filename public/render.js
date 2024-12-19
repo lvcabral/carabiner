@@ -22,7 +22,6 @@ function updateOverlayPositionNoBorder() {
 
 function updateOverlayPosition() {
   const rect = videoPlayer.getBoundingClientRect();
-  console.log("Border Width: ", getComputedStyle(videoPlayer).borderWidth);
   const borderWidth = parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
   overlayImage.style.position = "absolute";
   overlayImage.style.top = `${rect.top + borderWidth}px`;
@@ -168,24 +167,19 @@ window.addEventListener("DOMContentLoaded", function () {
     const { clientX, clientY } = event;
     const { innerWidth, innerHeight } = window;
     if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
-      console.log("Show button");
       settingsButton.style.opacity = "1";
     } else {
-      console.log("Hide button");
       settingsButton.style.opacity = "0";
     }
   });
 
   this.document.body.addEventListener("mouseleave", () => {
-    console.log("Mouse leave");
     settingsButton.style.opacity = "0";
   });
 
   // Handle button click
   settingsButton.addEventListener("click", () => {
-    console.log("Button clicked");
     window.electronAPI.showSettings();
-    console.log("Control Selected: ", controlIp, controlType);
   });
 
 });
@@ -197,7 +191,6 @@ let controlType = "ecp";
 function handleControlSelected(data) {
   if (typeof data === "string" && data.includes("|")) {
     [controlIp, controlType] = data.split("|");
-    console.log("Control Selected: ", controlIp, controlType);
   }
 }
 
