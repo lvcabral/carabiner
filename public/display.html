@@ -3,8 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <title>Video Capture</title>
+    <style>
+      body {
+        -webkit-app-region: drag;
+      }
+      .interactive {
+        -webkit-app-region: no-drag;
+      }
+    </style>
   </head>
-  <body style="-webkit-app-region: drag; webkit-app-region: drag">
+  <body>
     <video
       id="video-player"
       style="
@@ -22,7 +30,7 @@
       playsinlines
     ></video>
     <img id="overlay-image" style="opacity: 0;" />
-    <button id="settings-button" style="opacity: 0;"></button>
+    <button id="settings-button" style="opacity: 0;" class="interactive"></button>
     <script src="render.js"></script>
   </body>
 </html>
