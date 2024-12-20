@@ -1,23 +1,30 @@
 module.exports = {
   packagerConfig: {
-    'name': 'Carabiner',
-    'icon': './images/icon',
-    'asar': true
+    name: 'carabiner',
+    productName: "Carabiner",
+    icon: './images/icon',
+    asar: true
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        setupIcon: "./images/icon.ico"
+      },
     },
     {
       name: '@electron-forge/maker-zip',
-      config: {},
+      config: {
+        icon: './images/icon.icns'
+      },
       platforms: ['darwin'],
     },
     {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        icon: './images/icon.png'
+      },
     },
     {
       name: '@electron-forge/maker-rpm',
