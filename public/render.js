@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const video = document.querySelector("video");
 const videoPlayer = document.getElementById("video-player");
 const overlayImage = document.getElementById("overlay-image");
@@ -22,7 +31,8 @@ function updateOverlayPositionNoBorder() {
 
 function updateOverlayPosition() {
   const rect = videoPlayer.getBoundingClientRect();
-  const borderWidth = parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
+  const borderWidth =
+    parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
   overlayImage.style.position = "absolute";
   overlayImage.style.top = `${rect.top + borderWidth}px`;
   overlayImage.style.left = `${rect.left + borderWidth}px`;
@@ -181,7 +191,6 @@ window.addEventListener("DOMContentLoaded", function () {
   settingsButton.addEventListener("click", () => {
     window.electronAPI.showSettings();
   });
-
 });
 
 // Remote Control
@@ -218,7 +227,7 @@ ecpKeysMap.set("Insert", "info");
 ecpKeysMap.set("Control+KeyA", "a");
 ecpKeysMap.set("Control+KeyZ", "b");
 ecpKeysMap.set("F10", "volumemute");
-if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
+if (navigator.platform.toUpperCase().indexOf("MAC") >= 0) {
   ecpKeysMap.set("Command+Backspace", "backspace");
   ecpKeysMap.set("Command+Enter", "play");
   ecpKeysMap.set("Command+ArrowLeft", "rev");
@@ -252,7 +261,7 @@ adbKeysMap.set("Insert", "1");
 adbKeysMap.set("Control+KeyA", "29");
 adbKeysMap.set("Control+KeyZ", "54");
 adbKeysMap.set("F10", "164");
-if (navigator.platform.toUpperCase().indexOf('MAC') >= 0) {
+if (navigator.platform.toUpperCase().indexOf("MAC") >= 0) {
   adbKeysMap.set("Command+Backspace", "67");
   adbKeysMap.set("Command+Enter", "85");
   adbKeysMap.set("Command+ArrowLeft", "89");
@@ -314,7 +323,9 @@ function handleKeyboardEvent(event, mod) {
     const key = ecpKeysMap.get(keyCode);
     if (key && key.toLowerCase() !== "ignore") {
       sendKey(key, mod);
-    } else if (!["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key)) {
+    } else if (
+      !["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key)
+    ) {
       sendKey(`lit_${encodeURIComponent(event.key)}`, mod);
     }
   } else if (controlType === "adb") {
@@ -355,7 +366,6 @@ function sendEcpKey(host, key, mod = -1) {
 
 //----------------------- Helper Functions -----------------------//
 
-
 // Check if the IP address is valid
 function isValidIP(ip) {
   if (ip && ip.length >= 7) {
@@ -364,4 +374,3 @@ function isValidIP(ip) {
   }
   return false;
 }
-

@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 import React, { useEffect, useState } from "react";
 import Form from "react-bootstrap/Form";
 import Container from "react-bootstrap/Container";
@@ -49,14 +58,8 @@ function BorderSection() {
     <Container className="p-3">
       <Card>
         <Card.Body>
-          <SelectBorderWidth
-            value={borderWidth}
-            onChange={handleWidthChange}
-          />
-          <SelectBorderStyle
-            value={borderStyle}
-            onChange={handleStyleChange}
-          />
+          <SelectBorderWidth value={borderWidth} onChange={handleWidthChange} />
+          <SelectBorderStyle value={borderStyle} onChange={handleStyleChange} />
           <Card.Text as="div">
             <Form.Group>
               <Form.Label>Color</Form.Label>
