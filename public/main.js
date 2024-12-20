@@ -52,14 +52,6 @@ function createWindow(name, options, showOnStart = true) {
     show: showOnStart,
   });
 
-  win.onAlwaysOnTop = function(alwaysOnTop) {
-    if (alwaysOnTop === false) {
-      win.setAlwaysOnTop(false);
-    } else {
-      win.setAlwaysOnTop(true, 'floating', 1);
-    }
-  };
-
   win.on("close", (event) => {
     if (!win.isFullScreen()) {
       const bounds = win.getBounds();
@@ -113,6 +105,14 @@ function createDisplayWindow() {
   return win;
 }
 
+function setAlwaysOnTop(alwaysOnTop, window) {
+  if (alwaysOnTop === false) {
+    window.setAlwaysOnTop(false);
+  } else {
+    window.setAlwaysOnTop(true, 'floating', 1);
+  }
+}
+
 function registerShortcut(shortcut, window) {
   globalShortcut.unregisterAll();
   globalShortcut.register(shortcut, () => {
@@ -148,7 +148,7 @@ app.whenReady().then(async () => {
 
   const mainWindow = createMainWindow();
   const displayWindow = createDisplayWindow();
-  displayWindow.onAlwaysOnTop(settings.display.alwaysOnTop);
+  setAlwaysOnTop(settings.display.alwaysOnTop, displayWindow);
 
   if (settings.control.deviceId && settings.control.deviceId.includes("|adb")) {
     [controlIp, controlType] = settings.control.deviceId.split("|");
@@ -272,7 +272,7 @@ app.whenReady().then(async () => {
     settings.display.alwaysOnTop = alwaysOnTop;
     saveSettings(settings);
 
-    displayWindow.onAlwaysOnTop(alwaysOnTop);
+    setAlwaysOnTop(alwaysOnTop, displayWindow);
   });
 
   ipcMain.handle("select-adb-path", async () => {
