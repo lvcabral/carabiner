@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 import React, { useState, useEffect, useRef } from "react";
 import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
@@ -42,7 +51,11 @@ function ControlSection() {
       } else if (deviceType === "googletv") {
         type = "Google TV";
       }
-      const newDevice = { id: `${ipAddress}|${protocol}`, ipAddress: ipAddress, type: type };
+      const newDevice = {
+        id: `${ipAddress}|${protocol}`,
+        ipAddress: ipAddress,
+        type: type,
+      };
       const newDeviceList = [...deviceList, newDevice];
       setDeviceList(newDeviceList);
       notifyControlChange("set-control-list", newDeviceList);
@@ -59,7 +72,9 @@ function ControlSection() {
   };
 
   const handleDeleteDevice = () => {
-    const newDeviceList = deviceList.filter(device => device.id !== selectedDevice);
+    const newDeviceList = deviceList.filter(
+      (device) => device.id !== selectedDevice
+    );
     setDeviceList(newDeviceList);
     notifyControlChange("set-control-list", newDeviceList);
     setSelectedDevice("");
@@ -78,8 +93,11 @@ function ControlSection() {
     <Container className="p-3">
       <Card>
         <Card.Body>
-        <Form>
-            <Form.Group controlId="formIpAddress" className="form-group-spacing">
+          <Form>
+            <Form.Group
+              controlId="formIpAddress"
+              className="form-group-spacing"
+            >
               <Form.Control
                 type="text"
                 placeholder="Enter IP address"
@@ -88,7 +106,10 @@ function ControlSection() {
                 ref={ipAddressRef}
               />
             </Form.Group>
-            <Form.Group controlId="formDeviceType" className="form-group-spacing">
+            <Form.Group
+              controlId="formDeviceType"
+              className="form-group-spacing"
+            >
               <Row>
                 <Col xs="auto" className="d-flex align-items-center">
                   <Form.Check
@@ -123,18 +144,28 @@ function ControlSection() {
                   />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center ml-auto">
-                  <Button title="Add Device" variant="primary" onClick={handleAddDevice}>
+                  <Button
+                    title="Add Device"
+                    variant="primary"
+                    onClick={handleAddDevice}
+                  >
                     &#x271A;
                   </Button>
                 </Col>
-
               </Row>
             </Form.Group>
-            <Form.Group controlId="formDeviceList" className="form-group-spacing">
+            <Form.Group
+              controlId="formDeviceList"
+              className="form-group-spacing"
+            >
               <Form.Label>Streaming Device</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
-                  <Form.Control as="select" value={selectedDevice} onChange={handleDeviceSelect}>
+                  <Form.Control
+                    as="select"
+                    value={selectedDevice}
+                    onChange={handleDeviceSelect}
+                  >
                     <option value="">Select a device</option>
                     {deviceList.map((device, index) => (
                       <option key={index} value={device.id}>
@@ -144,7 +175,11 @@ function ControlSection() {
                   </Form.Control>
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
-                  <Button title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
+                  <Button
+                    title="Delete Device"
+                    variant="primary"
+                    onClick={handleDeleteDevice}
+                  >
                     &#x232B;
                   </Button>
                 </Col>
@@ -157,7 +192,11 @@ function ControlSection() {
                   <Form.Control type="text" readOnly value={adbPath} />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
-                  <Button title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
+                  <Button
+                    title="Select ADB Path"
+                    variant="primary"
+                    onClick={handleSelectAdbPath}
+                  >
                     &#x2026;
                   </Button>
                 </Col>

@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 import React, { useEffect, useState } from "react";
 import { Container, Form, Row, Col, Card } from "react-bootstrap";
 
@@ -33,7 +42,10 @@ function DisplaySection() {
       if (settings.display && settings.display.launchAppAtLogin !== undefined) {
         setLaunchAppAtLogin(settings.display.launchAppAtLogin);
       }
-      if (settings.display && settings.display.showSettingsOnStart !== undefined) {
+      if (
+        settings.display &&
+        settings.display.showSettingsOnStart !== undefined
+      ) {
         setShowSettingsOnStart(settings.display.showSettingsOnStart);
       }
       if (settings.display && settings.display.alwaysOnTop !== undefined) {
@@ -85,18 +97,12 @@ function DisplaySection() {
               />
             </Col>
             <Col>
-              <SelectFilter
-                value={filter}
-                onChange={handleChangeFilter}
-              />
+              <SelectFilter value={filter} onChange={handleChangeFilter} />
             </Col>
           </Row>
           <Row className="mt-3">
             <Col>
-              <ShortcutInput
-                value={shortcut}
-                onChange={handleShortcutChange}
-              />
+              <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
             </Col>
             <Col className="d-flex flex-column align-items-start">
               <Form.Check

@@ -58,12 +58,7 @@ function App() {
     <Container className="p-3 custom-container">
       <Container className="p-3 bg-light rounded-3">
         <h1 className="header" style={{ textAlign: "center" }}>
-          <img
-            src={logo}
-            alt="Carabiner Logo"
-            height="65px"
-            width="65px"
-          />
+          <img src={logo} alt="Carabiner Logo" height="65px" width="65px" />
         </h1>
         <h1 className="header" style={{ textAlign: "center" }}>
           Carabiner

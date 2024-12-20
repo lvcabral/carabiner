@@ -21,7 +21,9 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey } = require("./adb");
-const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
+);
 
 const settings = loadSettings();
 let controlIp = "";
@@ -70,14 +72,18 @@ function createWindow(name, options, showOnStart = true) {
 }
 
 function createMainWindow() {
-  const win = createWindow("mainWindow", {
-    height: 600,
-    width: 600,
-    maximizable: false,
-    resizable: false,
-    autoHideMenuBar: true,
-    icon: __dirname + "/images/icon.ico",
-  }, settings.display.showSettingsOnStart);
+  const win = createWindow(
+    "mainWindow",
+    {
+      height: 600,
+      width: 600,
+      maximizable: false,
+      resizable: false,
+      autoHideMenuBar: true,
+      icon: __dirname + "/images/icon.ico",
+    },
+    settings.display.showSettingsOnStart
+  );
   const loadURL =
     process.env.NODE_ENV === "development"
       ? "http://localhost:3000"
@@ -110,7 +116,7 @@ function setAlwaysOnTop(alwaysOnTop, window) {
   if (alwaysOnTop === false) {
     window.setAlwaysOnTop(false);
   } else {
-    window.setAlwaysOnTop(true, 'floating', 1);
+    window.setAlwaysOnTop(true, "floating", 1);
   }
 }
 
@@ -124,7 +130,6 @@ function registerShortcut(shortcut, window) {
     }
   });
 }
-
 
 app.whenReady().then(async () => {
   if (process.platform !== "linux") {
@@ -253,7 +258,6 @@ app.whenReady().then(async () => {
     displayWindow.setResizable(false);
   }
 
-
   ipcMain.on("save-shortcut", (event, shortcut) => {
     settings.display.shortcut = shortcut;
     saveSettings(settings);
@@ -296,26 +300,29 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle('load-image', async () => {
+  ipcMain.handle("load-image", async () => {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'Images', extensions: ['jpg', 'png', 'webp'] }],
+      properties: ["openFile"],
+      filters: [{ name: "Images", extensions: ["jpg", "png", "webp"] }],
     });
     if (result.canceled) {
-      return '';
+      return "";
     } else {
       const imagePath = result.filePaths[0];
       const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
-      displayWindow.webContents.send("image-loaded", `data:image/png;base64,${imageData}`);
+      displayWindow.webContents.send(
+        "image-loaded",
+        `data:image/png;base64,${imageData}`
+      );
       return imagePath;
     }
   });
 
-  ipcMain.on('show-settings', () => {
+  ipcMain.on("show-settings", () => {
     mainWindow.show();
   });
 
-  ipcMain.handle('load-settings', async () => {
+  ipcMain.handle("load-settings", async () => {
     return settings;
   });
 

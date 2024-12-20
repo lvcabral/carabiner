@@ -39,6 +39,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 - Configurable global shortcut to show/hide the floating window
 - Option to show/hide the settings window on app start
 - Option to launch the app on system login
+- Option to enable/disable the always on top for the floating window
 
 ### Future Improvements
 

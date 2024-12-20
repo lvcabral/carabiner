@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 import React, { useEffect, useState } from "react";
 import { Container, Row, Col } from "react-bootstrap";
 
@@ -17,7 +26,11 @@ function AboutSection() {
           <p>Version {version}</p>
           <p>&copy; 2024 Marcelo Lv Cabral</p>
           <p>
-            <a href="https://github.com/lvcabral/carabiner" target="_blank" rel="noopener noreferrer">
+            <a
+              href="https://github.com/lvcabral/carabiner"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               GitHub Repository
             </a>
           </p>
@@ -25,10 +38,20 @@ function AboutSection() {
       </Row>
       <Row className="mt-4">
         <Col>
-          <img src="images/codefest-2024.webp" alt="Codefest 2024" className="img-fluid" style={{ width: "70%", height: "auto" }} />
+          <img
+            src="images/codefest-2024.webp"
+            alt="Codefest 2024"
+            className="img-fluid"
+            style={{ width: "70%", height: "auto" }}
+          />
         </Col>
         <Col>
-          <img src="images/network-streaming.png" alt="Network Streaming" className="img-fluid" style={{ width: "70%", height: "auto" }} />
+          <img
+            src="images/network-streaming.png"
+            alt="Network Streaming"
+            className="img-fluid"
+            style={{ width: "70%", height: "auto" }}
+          />
         </Col>
       </Row>
     </Container>
