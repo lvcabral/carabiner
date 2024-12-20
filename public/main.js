@@ -52,6 +52,14 @@ function createWindow(name, options, showOnStart = true) {
     show: showOnStart,
   });
 
+  win.onAlwaysOnTop = function(alwaysOnTop) {
+    if (alwaysOnTop === false) {
+      win.setAlwaysOnTop(false);
+    } else {
+      win.setAlwaysOnTop(true, 'floating', 1);
+    }
+  };
+
   win.on("close", (event) => {
     if (!win.isFullScreen()) {
       const bounds = win.getBounds();
@@ -140,7 +148,7 @@ app.whenReady().then(async () => {
 
   const mainWindow = createMainWindow();
   const displayWindow = createDisplayWindow();
-  displayWindow.setAlwaysOnTop(true, "floating", 1);
+  displayWindow.onAlwaysOnTop(settings.display.alwaysOnTop);
 
   if (settings.control.deviceId && settings.control.deviceId.includes("|adb")) {
     [controlIp, controlType] = settings.control.deviceId.split("|");
@@ -258,6 +266,13 @@ app.whenReady().then(async () => {
   ipcMain.on("save-show-settings-on-start", (event, showSettingsOnStart) => {
     settings.display.showSettingsOnStart = showSettingsOnStart;
     saveSettings(settings);
+  });
+
+  ipcMain.on("save-always-on-top", (event, alwaysOnTop) => {
+    settings.display.alwaysOnTop = alwaysOnTop;
+    saveSettings(settings);
+
+    displayWindow.onAlwaysOnTop(alwaysOnTop);
   });
 
   ipcMain.handle("select-adb-path", async () => {
