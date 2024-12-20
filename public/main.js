@@ -76,6 +76,7 @@ function createMainWindow() {
     maximizable: false,
     resizable: false,
     autoHideMenuBar: true,
+    icon: __dirname + "/images/icon.ico",
   }, settings.display.showSettingsOnStart);
   const loadURL =
     process.env.NODE_ENV === "development"
@@ -126,23 +127,29 @@ function registerShortcut(shortcut, window) {
 
 
 app.whenReady().then(async () => {
-  const access = systemPreferences.getMediaAccessStatus("camera");
-  if (access !== "granted") {
-    const camAllowed = await systemPreferences
-      .askForMediaAccess("camera")
-      .then(async (access) => {
-        if (!access) {
-          new Notification({
-            title: "Camera Access",
-            body: "Camera access is required to use this app",
-          }).show();
-          return false;
-        }
-        return true;
-      });
+  if (process.platform !== "linux") {
+    try {
+      const access = systemPreferences.getMediaAccessStatus("camera");
+      if (access !== "granted") {
+        const camAllowed = await systemPreferences
+          .askForMediaAccess("camera")
+          .then(async (access) => {
+            if (!access) {
+              new Notification({
+                title: "Camera Access",
+                body: "Camera access is required to use this app",
+              }).show();
+              return false;
+            }
+            return true;
+          });
 
-    if (!camAllowed) {
-      app.quit();
+        if (!camAllowed) {
+          app.quit();
+        }
+      }
+    } catch (error) {
+      console.log("Error requesting access to the camera:", error.message);
     }
   }
 
