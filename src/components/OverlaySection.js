@@ -1,3 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 import React, { useState } from "react";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
@@ -17,9 +26,9 @@ function OverlaySection() {
   const handleOpacityChange = (event) => {
     setOpacity(event.target.value);
     electronAPI.sendSync("shared-window-channel", {
-        type: "set-overlay-opacity",
-        payload: event.target.value,
-      });
+      type: "set-overlay-opacity",
+      payload: event.target.value,
+    });
   };
 
   return (

@@ -1,42 +1,42 @@
-require('dotenv').config();
+require("dotenv").config();
 
 module.exports = {
   packagerConfig: {
-    name: 'carabiner',
+    name: "carabiner",
     productName: "Carabiner",
-    icon: './images/icon',
+    icon: "./images/icon",
     asar: true,
     osxSign: {},
     osxNotarize: {
       appleId: process.env.APPLE_ID,
       appleIdPassword: process.env.APPLE_PASSWORD,
-      teamId: process.env.APPLE_TEAM_ID
+      teamId: process.env.APPLE_TEAM_ID,
     },
   },
   rebuildConfig: {},
   makers: [
     {
-      name: '@electron-forge/maker-squirrel',
+      name: "@electron-forge/maker-squirrel",
       config: {
-        setupIcon: "./images/icon.ico"
+        setupIcon: "./images/icon.ico",
       },
     },
     {
-      name: '@electron-forge/maker-zip',
+      name: "@electron-forge/maker-zip",
       config: {
-        icon: './images/icon.icns',
-        arch: ['x64', "arm64"],
+        icon: "./images/icon.icns",
+        arch: ["x64", "arm64"],
       },
-      platforms: ['darwin'],
+      platforms: ["darwin"],
     },
     {
-      name: '@electron-forge/maker-deb',
+      name: "@electron-forge/maker-deb",
       config: {
-        icon: './images/icon.png'
+        icon: "./images/icon.png",
       },
     },
     {
-      name: '@electron-forge/maker-rpm',
+      name: "@electron-forge/maker-rpm",
       config: {},
     },
   ],
