@@ -1,9 +1,17 @@
+require('dotenv').config();
+
 module.exports = {
   packagerConfig: {
     name: 'carabiner',
     productName: "Carabiner",
     icon: './images/icon',
-    asar: true
+    asar: true,
+    osxSign: {},
+    osxNotarize: {
+      appleId: process.env.APPLE_ID,
+      appleIdPassword: process.env.APPLE_PASSWORD,
+      teamId: process.env.APPLE_TEAM_ID
+    },
   },
   rebuildConfig: {},
   makers: [
@@ -16,7 +24,8 @@ module.exports = {
     {
       name: '@electron-forge/maker-zip',
       config: {
-        icon: './images/icon.icns'
+        icon: './images/icon.icns',
+        arch: ['x64', "arm64"],
       },
       platforms: ['darwin'],
     },
