@@ -14,6 +14,7 @@ function DisplaySection() {
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(true);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
 
   useEffect(() => {
     // Load settings from main process
@@ -34,6 +35,9 @@ function DisplaySection() {
       }
       if (settings.display && settings.display.showSettingsOnStart !== undefined) {
         setShowSettingsOnStart(settings.display.showSettingsOnStart);
+      }
+      if (settings.display && settings.display.alwaysOnTop !== undefined) {
+        setAlwaysOnTop(settings.display.alwaysOnTop);
       }
     });
   }, []);
@@ -61,6 +65,11 @@ function DisplaySection() {
   const handleShowSettingsOnStartChange = (e) => {
     setShowSettingsOnStart(e.target.checked);
     electronAPI.send("save-show-settings-on-start", e.target.checked);
+  };
+
+  const handleAlwaysOnTopChange = (e) => {
+    setAlwaysOnTop(e.target.checked);
+    electronAPI.send("save-always-on-top", e.target.checked);
   };
 
   return (
@@ -101,6 +110,12 @@ function DisplaySection() {
                 label="Settings on App Start"
                 checked={showSettingsOnStart}
                 onChange={handleShowSettingsOnStartChange}
+              />
+              <Form.Check
+                type="checkbox"
+                label="Always on Top"
+                checked={alwaysOnTop}
+                onChange={handleAlwaysOnTopChange}
               />
             </Col>
           </Row>
