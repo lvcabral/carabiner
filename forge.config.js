@@ -22,12 +22,12 @@ module.exports = {
       },
     },
     {
-      name: "@electron-forge/maker-zip",
+      name: "@electron-forge/maker-dmg",
       config: {
         icon: "./images/icon.icns",
-        arch: ["x64", "arm64"],
+        background: "./images/dmg-background.png",
+        format: "ULFO",
       },
-      platforms: ["darwin"],
     },
     {
       name: "@electron-forge/maker-deb",
