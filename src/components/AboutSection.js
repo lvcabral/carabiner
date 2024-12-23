@@ -19,6 +19,12 @@ function AboutSection() {
     });
   }, []);
 
+  const handleLinkClick = (event) => {
+    event.preventDefault();
+    const url = event.currentTarget.href;
+    window.electronAPI.openExternal(url);
+  };
+
   return (
     <Container className="text-center mt-4">
       <Row>
@@ -30,6 +36,7 @@ function AboutSection() {
               href="https://github.com/lvcabral/carabiner"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={handleLinkClick}
             >
               GitHub Repository
             </a>
@@ -40,17 +47,10 @@ function AboutSection() {
         <Col>
           <img
             src="images/codefest-2024.webp"
-            alt="Codefest 2024"
+            alt="Winner of Codefest 2024"
+            title="Winner of Paramount Network Streaming Codefest 2024"
             className="img-fluid"
-            style={{ width: "70%", height: "auto" }}
-          />
-        </Col>
-        <Col>
-          <img
-            src="images/network-streaming.png"
-            alt="Network Streaming"
-            className="img-fluid"
-            style={{ width: "70%", height: "auto" }}
+            style={{ width: "30%", height: "auto" }}
           />
         </Col>
       </Row>
