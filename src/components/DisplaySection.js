@@ -16,6 +16,8 @@ import SelectFilter from "./select/Filter";
 import ShortcutInput from "./select/ShortcutInput";
 
 const { electronAPI } = window;
+let captureDevice = "";
+let captureResolution = "1280|720";
 
 function DisplaySection() {
   const [deviceId, setDeviceId] = useState("");
@@ -30,7 +32,7 @@ function DisplaySection() {
     // Load settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.display && settings.display.captureWidth) {
-          const captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
+          captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
           setResolution(captureResolution);
       }
       if (settings.display && settings.display.filter) {
@@ -56,13 +58,15 @@ function DisplaySection() {
   }, []);
 
   const handleCaptureDeviceChange = (e) => {
+    captureDevice = e.target.value;
     setDeviceId(e.target.value);
-    notifyCaptureChange(e.target.value, resolution);
+    notifyCaptureChange(e.target.value, captureResolution);
   };
 
   const handleCaptureResolutionChange = (e) => {
+    captureResolution = e.target.value;
     setResolution(e.target.value);
-    notifyCaptureChange(deviceId, e.target.value);
+    notifyCaptureChange(captureDevice, e.target.value);
   };
 
   const handleChangeFilter = (e) => {
