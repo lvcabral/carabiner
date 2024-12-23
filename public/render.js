@@ -304,6 +304,7 @@ function keyDownHandler(event) {
   if (!event.repeat) {
     handleKeyboardEvent(event, 0);
   }
+  event.preventDefault();
 }
 function keyUpHandler(event) {
   handleKeyboardEvent(event, 100);
