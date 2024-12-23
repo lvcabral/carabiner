@@ -12,12 +12,29 @@ import { Container, Row, Col } from "react-bootstrap";
 
 function AboutSection() {
   const [version, setVersion] = useState("");
+  const [copyright, setCopyright] = useState("");
+  const [repository, setRepository] = useState("");
 
   useEffect(() => {
-    window.electronAPI.getVersion().then((version) => {
-      setVersion(version);
+    window.electronAPI.getPackageInfo().then((packageInfo) => {
+      setVersion(packageInfo.version);
+      setCopyright(packageInfo.copyright);
+      setRepository(packageInfo.repository.url);
     });
+    window.electronAPI.onMessageReceived("open-about-tab", handleOpenAboutTab);
+
+    return () => {
+      window.electronAPI.removeListener("open-about-tab", handleOpenAboutTab);
+    };
   }, []);
+
+  const handleOpenAboutTab = () => {
+    // Logic to switch to the About tab
+    const aboutTab = document.getElementById("settings-tabs-tab-about");
+    if (aboutTab) {
+      aboutTab.click();
+    }
+  };
 
   const handleLinkClick = (event) => {
     event.preventDefault();
@@ -30,10 +47,10 @@ function AboutSection() {
       <Row>
         <Col>
           <p>Version {version}</p>
-          <p>&copy; 2024 Marcelo Lv Cabral</p>
+          <p>{copyright}</p>
           <p>
             <a
-              href="https://github.com/lvcabral/carabiner"
+              href={repository}
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleLinkClick}

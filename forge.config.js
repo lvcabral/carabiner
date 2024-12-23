@@ -2,8 +2,7 @@ require("dotenv").config();
 
 module.exports = {
   packagerConfig: {
-    name: "carabiner",
-    productName: "Carabiner",
+    name: "Carabiner",
     icon: "./images/icon",
     asar: true,
     osxSign: {},
