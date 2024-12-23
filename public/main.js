@@ -116,6 +116,9 @@ function createDisplayWindow() {
   win.loadFile("public/display.html");
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
+  win.on("move", () => {
+    win.webContents.send("window-moved");
+  });
   return win;
 }
 

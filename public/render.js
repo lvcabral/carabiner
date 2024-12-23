@@ -171,8 +171,8 @@ window.addEventListener("DOMContentLoaded", function () {
   settingsButton.style.fontSize = "20px";
   settingsButton.style.zIndex = "1000"; // Ensure the button is on top
 
-  // Show the button when the mouse is in the top right quarter of the screen
-  this.document.body.addEventListener("mousemove", (event) => {
+  // Show the button when the mouse is in the top right quarter of the window
+  window.addEventListener("mousemove", (event) => {
     const { clientX, clientY } = event;
     const { innerWidth, innerHeight } = window;
     if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
@@ -182,8 +182,9 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  this.document.body.addEventListener("mouseleave", () => {
-    settingsButton.style.opacity = "0";
+  // Show the button when the window is moved
+  window.electronAPI.onMessageReceived("window-moved", (event, imageData) => {
+    settingsButton.style.opacity = "1";
   });
 
   // Handle button click
