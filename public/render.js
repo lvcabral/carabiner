@@ -141,6 +141,42 @@ window.addEventListener("DOMContentLoaded", function () {
   const newHeight = window.innerHeight - 15;
   handleSetResolution({ width: `${newWidth}px`, height: `${newHeight}px` });
 
+  // Handle Screenshot Requests
+  function getScreenshotCanvas() {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  window.electronAPI.onMessageReceived("copy-screenshot", function () {
+    const canvas = getScreenshotCanvas();
+    canvas.toBlob(function (blob) {
+      const item = new ClipboardItem({ "image/png": blob });
+      navigator.clipboard.write([item]).catch((err) => {
+        console.log(`error copying screenshot to clipboard: ${err.message}`);
+      });
+    });
+  });
+
+  window.electronAPI.onMessageReceived("save-screenshot", function () {
+    const canvas = getScreenshotCanvas();
+    const now = new Date();
+    const datePart = now.toLocaleDateString("en-CA");
+    const timePart = now
+      .toLocaleTimeString("en-CA", { hour12: false })
+      .replace(/:/g, "");
+    const filename = `carabiner-${datePart}-${timePart}.png`;
+    canvas.toBlob(function (blob) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    });
+  });
+
   // Listen for the image-loaded event
   window.electronAPI.onMessageReceived("image-loaded", (event, imageData) => {
     overlayImage.src = imageData;
@@ -189,7 +225,8 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Handle button click
   settingsButton.addEventListener("click", () => {
-    window.electronAPI.showSettings();
+    settingsButton.blur();
+    window.electronAPI.showContextMenu();
   });
 });
 
@@ -304,7 +341,6 @@ function keyDownHandler(event) {
   if (!event.repeat) {
     handleKeyboardEvent(event, 0);
   }
-  event.preventDefault();
 }
 function keyUpHandler(event) {
   handleKeyboardEvent(event, 100);

@@ -5,8 +5,20 @@
   "version": "0.2.0",
   "private": true,
   "main": "public/main.js",
-  "author": "Marcelo Lv Cabral <marcelo@lvcabral.com>",
   "license": "MIT",
+  "author": {
+    "name": "Marcelo Lv Cabral",
+    "email": "marcelo@lvcabral.com",
+    "url": "https://lvcabral.com/"
+  },
+  "copyright": "© 2024, Marcelo Lv Cabral",
+  "bugs": {
+    "url": "https://github.com/lvcabral/carabiner/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lvcabral/carabiner"
+  },
   "dependencies": {
     "@testing-library/jest-dom": "^5.16.2",
     "@testing-library/react": "^12.1.4",
