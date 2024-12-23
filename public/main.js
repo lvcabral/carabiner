@@ -278,7 +278,7 @@ app.whenReady().then(async () => {
 
   ipcMain.on("show-context-menu", (event) => {
     const menu = new Menu();
-    let fullscreenAcc = "F1";
+    let fullscreenAcc = "F11";
     if (process.platform === "darwin") {
       fullscreenAcc = "Cmd+Ctrl+F";
     }
