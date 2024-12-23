@@ -10,18 +10,22 @@
 const path = require("path");
 const {
   app,
+  shell,
   BrowserWindow,
   dialog,
   ipcMain,
   Notification,
   systemPreferences,
   globalShortcut,
+  Menu,
+  MenuItem,
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey } = require("./adb");
-const packageJson = JSON.parse(
+const { createMenu, updateAlwaysOnTopMenuItem } = require("./menu");
+const packageInfo = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
 );
 
@@ -128,6 +132,7 @@ function setAlwaysOnTop(alwaysOnTop, window) {
   } else {
     window.setAlwaysOnTop(true, "floating", 1);
   }
+  updateAlwaysOnTopMenuItem(alwaysOnTop);
 }
 
 function registerShortcut(shortcut, window) {
@@ -171,7 +176,9 @@ app.whenReady().then(async () => {
   const mainWindow = createMainWindow();
   const displayWindow = createDisplayWindow();
   setAlwaysOnTop(settings.display.alwaysOnTop, displayWindow);
-
+  if (process.platform === "darwin") {
+    createMenu(mainWindow, displayWindow, packageInfo);
+  }
   if (settings.control.deviceId && settings.control.deviceId.includes("|adb")) {
     [controlIp, controlType] = settings.control.deviceId.split("|");
     console.log("Control loaded from settings:", controlIp, controlType);
@@ -269,6 +276,73 @@ app.whenReady().then(async () => {
     setAlwaysOnTop(alwaysOnTop, displayWindow);
   });
 
+  ipcMain.on("show-context-menu", (event) => {
+    const menu = new Menu();
+    let fullscreenAcc = "F11";
+    if (process.platform === "darwin") {
+      fullscreenAcc = "Cmd+Ctrl+F";
+    }
+    menu.append(
+      new MenuItem({
+        label: "Copy Screenshot",
+        accelerator: "CmdOrCtrl+Shift+C",
+        click: () => {
+          displayWindow.webContents.send("copy-screenshot");
+        },
+      })
+    );
+    menu.append(
+      new MenuItem({
+        label: "Save Screenshot As...",
+        accelerator: "CmdOrCtrl+S",
+        click: () => {
+          displayWindow.webContents.send("save-screenshot");
+        },
+      })
+    );
+    menu.append(new MenuItem({ type: "separator" }));
+    menu.append(
+      new MenuItem({
+        role: "togglefullscreen",
+        accelerator: fullscreenAcc,
+      })
+    );
+    menu.append(
+      new MenuItem({
+        label: "Hide Screen",
+        click: () => {
+          displayWindow.hide();
+        },
+      })
+    );
+    menu.append(new MenuItem({ type: "separator" }));
+    menu.append(
+      new MenuItem({
+        label: "Settings...",
+        accelerator: "CmdOrCtrl+,",
+        click: () => {
+          mainWindow.webContents.send("open-display-tab");
+          mainWindow.show();
+        },
+      })
+    );
+    menu.append(new MenuItem({ type: "separator" }));
+    menu.append(
+      new MenuItem({
+        label: "Keyboard Control Help",
+        accelerator: "CmdOrCtrl+F1",
+        click: () => {
+          shell.openExternal(
+            `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
+          );
+        },
+      })
+    );
+    menu.append(new MenuItem({ type: "separator" }));
+    menu.append(new MenuItem({ role: "quit" }));
+    menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
+  });
+
   ipcMain.handle("select-adb-path", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
@@ -301,16 +375,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on("show-settings", () => {
-    mainWindow.show();
-  });
-
   ipcMain.handle("load-settings", async () => {
     return settings;
   });
 
-  ipcMain.handle("get-version", async () => {
-    return packageJson.version;
+  ipcMain.handle("get-package-info", async () => {
+    return packageInfo;
   });
 
   app.on("activate", () => {

@@ -32,8 +32,8 @@ function DisplaySection() {
     // Load settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.display && settings.display.captureWidth) {
-          captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
-          setResolution(captureResolution);
+        captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
+        setResolution(captureResolution);
       }
       if (settings.display && settings.display.filter) {
         setFilter(settings.display.filter);
@@ -55,7 +55,29 @@ function DisplaySection() {
         setAlwaysOnTop(settings.display.alwaysOnTop);
       }
     });
+    window.electronAPI.onMessageReceived(
+      "open-display-tab",
+      handleOpenDisplayTab
+    );
+    window.electronAPI.onMessageReceived(
+      "update-always-on-top",
+      (event, value) => {
+        setAlwaysOnTop(value);
+      }
+    );
+    return () => {
+      window.electronAPI.removeListener("open-display-tab");
+      window.electronAPI.removeListener("update-always-on-top");
+    };
   }, []);
+
+  const handleOpenDisplayTab = () => {
+    // Logic to switch to the About tab
+    const aboutTab = document.getElementById("settings-tabs-tab-display");
+    if (aboutTab) {
+      aboutTab.click();
+    }
+  };
 
   const handleCaptureDeviceChange = (e) => {
     captureDevice = e.target.value;
@@ -126,7 +148,7 @@ function DisplaySection() {
               />
               <Form.Check
                 type="checkbox"
-                label="Settings on App Start"
+                label="Settings at App Start"
                 checked={showSettingsOnStart}
                 onChange={handleShowSettingsOnStartChange}
               />
@@ -145,7 +167,7 @@ function DisplaySection() {
 }
 
 function notifyCaptureChange(videoSource, resolution) {
-  const [width, height] = resolution.split("|").map(dim => parseInt(dim, 10));
+  const [width, height] = resolution.split("|").map((dim) => parseInt(dim, 10));
   const constraints = {
     video: {
       deviceId: {

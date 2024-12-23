@@ -1,12 +1,12 @@
 <p align="center">
   <img  src="src/carabiner-icon.png" height="125px" alt="Carabiner logo"> <br/>
-  <img  src="https://img.shields.io/badge/Version-0.2.0-blue.svg" alt="Version 0.2.0" />
+  <img  src="https://img.shields.io/badge/Version-0.3.0-blue.svg" alt="Version 0.3.0" />
   <img  src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" />
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
 </p>
 
-**Carabiner** is a simple, lightweight, and easy-to-use video capture and remote control simulator app that supports Roku and Android based streaming devices (FireTV, AndroidTV and Google TV). It floats on top of other apps, so you can easily control your WCTV app while visualizes it on your computer.
+**Carabiner** is a simple and easy-to-use video capture and remote control simulator app that supports Roku and Android based streaming devices (FireTV, Google TV, Android TV). It floats on top of other apps, so you can easily control your streaming app while visualizes it on your computer.
 
 It is perfect for developers and QA engineers to execute and test applications using a capture card and the computer keyboard, without the need of a TV set or a Remote control.
 
@@ -28,26 +28,27 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Features
 
-**Carabiner** features a wide range of settings for:
+**Carabiner** offers a wide range of features and settings:
 
-- Changing the dimensions of the floating window
-- Changing the transparency of the floating window
-- Adding a border to the window
-- Create a list of streaming devices to connect and control
+- Freely resizable floating window including fullscreen support
+- Option to select the capture device
+- Option to select the resolution of the capture device
+- Option to set the transparency of the floating window
+- Fully configurable border to the floating window
+- Create your list of streaming devices to connect and control
 - Configure the path to the ADB executable
 - Overlay a picture to check "design vs app screen" for pixel perfect UI
 - Configurable global shortcut to show/hide the floating window
+- Dropdown menu with options to Copy and Save a screenshot of streaming display
 - Option to show/hide the settings window on app start
 - Option to launch the app on system login
 - Option to enable/disable the always on top for the floating window
 
 ### Future Improvements
 
-- Freely resizable floating window including fullscreen support
-- Configure a shortcut to save a screenshot of the floating window
+- Link capture devices with streaming devices
 - Allow user to record captured video to mp4/mkv file
 - Detect the list streaming devices in the network (SSDP)
-- Link capture devices with streaming devices
 - Add missing ADB keyboard mapping
 
 ## Installation
@@ -74,6 +75,10 @@ After installing Carabiner, launch the application and customize the settings to
 2. **Select a Streaming Device**: In the `Control` tab, select a streaming device from the list.
 3. **Keyboard Controls**: When the floating display window is focused, you can use your keyboard to control the selected device. Refer to the [keyboard control mappings](./docs/key-mappings.md) documentation to learn how to operate your device.
 
+### Taking Screenshots
+
+You can take screenshots of the streaming display by clicking the settings button, in the top right corner of the floating window. It will display a dropdown menu with options to `Copy` or `Save`. The screenshot will be saved to your clipboard or the specified folder, respectively.
+
 ### Overlay Image
 
 You can load an overlay image on top of the video capture to help you compare a screen design with the app. This feature is useful for achieving pixel-perfect UI designs.
@@ -81,8 +86,9 @@ You can load an overlay image on top of the video capture to help you compare a 
 ### Additional Features
 
 - **Transparency**: Adjust the transparency of the floating window.
-- **Dimensions**: Change the dimensions of the floating window.
 - **Borders**: Add or customize the border of the floating window.
+- **Always on Top**: Enable or disable the floating window to be always on top.
+- **Global Shortcut**: Set a global shortcut to show/hide the floating window.
 
 ## Contributing
 
