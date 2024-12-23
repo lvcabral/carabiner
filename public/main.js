@@ -26,6 +26,7 @@ const packageJson = JSON.parse(
 );
 
 const settings = loadSettings();
+let lastSize = [500, 290];
 let controlIp = "";
 let controlType = "";
 let isADBConnected = false;
@@ -95,11 +96,16 @@ function createMainWindow() {
 }
 
 function createDisplayWindow() {
+  if (settings.display.resolution.includes("px")) {
+    lastSize = settings.display.resolution
+      .split("|")
+      .map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
+  }
   const win = createWindow("displayWindow", {
-    width: 505,
-    height: 295,
-    maxWidth: 1945,
-    maxHeight: 1105,
+    width: lastSize[0] ?? 500,
+    height: lastSize[1] ?? 290,
+    minWidth: 500,
+    minHeight: 290,
     titleBarStyle: "hide",
     transparent: true,
     darkTheme: false,
@@ -108,7 +114,11 @@ function createDisplayWindow() {
     alwaysOnTop: true,
   });
   win.loadFile("public/display.html");
-  win.setResizable(false);
+  win.setResizable(true);
+  win.setAspectRatio(16 / 9);
+  win.on("move", () => {
+    win.webContents.send("window-moved");
+  });
   return win;
 }
 
@@ -174,62 +184,43 @@ app.whenReady().then(async () => {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
 
-  let borderSize = 0;
-  let lastSizeWith = [505, 295];
   ipcMain.on("shared-window-channel", (event, arg) => {
     displayWindow.webContents.send("shared-window-channel", arg);
+    saveFlag = true;
     if (arg.type && arg.type === "set-webcams") {
       mainWindow.webContents.send("shared-window-channel", arg);
     } else if (arg.type && arg.type === "set-video-stream") {
+      saveFlag = false;
       if (arg.payload?.video?.deviceId?.exact) {
         settings.display.deviceId = arg.payload.video.deviceId.exact;
-        saveSettings(settings);
+        saveFlag = true;
+      }
+      if (arg.payload?.video?.width && arg.payload?.video?.height) {
+        settings.display.captureWidth = arg.payload.video.width;
+        settings.display.captureHeight = arg.payload.video.height;
+        saveFlag = true;
       }
     } else if (arg.type && arg.type === "set-transparency") {
+      saveFlag = false;
       if (arg.payload?.filter) {
         settings.display.filter = arg.payload.filter;
-        saveSettings(settings);
+        saveFlag = true;
       }
     } else if (arg.type && arg.type === "set-resolution") {
       let { width, height } = arg.payload;
       settings.display.resolution = `${width}|${height}`;
-      saveSettings(settings);
-      width = Number(width.replace("px", "")) + 20;
-      height = Number(height.replace("px", "")) + 20;
-      lastSizeWith = [width, height];
-      resizeDisplay();
+      saveFlag = true;
+      width = Number(width.replace("px", "")) + 15;
+      height = Number(height.replace("px", "")) + 15;
+      lastSize = [width, height];
     } else if (arg.type && arg.type === "set-border-width") {
       settings.border.width = arg.payload;
-      saveSettings(settings);
-
-      switch (arg.payload) {
-        case "0.1px": {
-          borderSize = 0;
-          break;
-        }
-        case "thin": {
-          borderSize = 3;
-          break;
-        }
-        case "medium": {
-          borderSize = 5;
-          break;
-        }
-        case "thick": {
-          borderSize = 20;
-          break;
-        }
-      }
-      resizeDisplay();
     } else if (arg.type && arg.type === "set-border-style") {
       settings.border.style = arg.payload;
-      saveSettings(settings);
     } else if (arg.type && arg.type === "set-border-color") {
       settings.border.color = arg.payload;
-      saveSettings(settings);
     } else if (arg.type && arg.type === "set-control-list") {
       settings.control.deviceList = arg.payload;
-      saveSettings(settings);
     } else if (arg.type && arg.type === "set-control-selected") {
       settings.control.deviceId = arg.payload;
       const oldControlIp = controlIp;
@@ -241,22 +232,14 @@ app.whenReady().then(async () => {
       if (!isADBConnected && controlType === "adb") {
         isADBConnected = connectADB(controlIp, settings.control.adbPath);
       }
-      saveSettings(settings);
     } else if (arg.type && arg.type === "send-adb-key") {
       sendADBKey(arg.payload);
     }
+    if (saveFlag) {
+      saveSettings(settings);
+    }
     event.returnValue = true;
   });
-
-  function resizeDisplay() {
-    // Resize window with count borders
-    displayWindow.setResizable(true);
-    displayWindow.setSize(
-      lastSizeWith[0] + borderSize,
-      lastSizeWith[1] + borderSize
-    );
-    displayWindow.setResizable(false);
-  }
 
   ipcMain.on("save-shortcut", (event, shortcut) => {
     settings.display.shortcut = shortcut;

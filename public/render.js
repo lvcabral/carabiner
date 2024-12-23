@@ -20,15 +20,6 @@ window.electronAPI.invoke("load-settings").then((settings) => {
   }
 });
 
-function updateOverlayPositionNoBorder() {
-  const rect = videoPlayer.getBoundingClientRect();
-  overlayImage.style.position = "absolute";
-  overlayImage.style.top = `${rect.top}px`;
-  overlayImage.style.left = `${rect.left}px`;
-  overlayImage.style.width = `${rect.width}px`;
-  overlayImage.style.height = `${rect.height}px`;
-}
-
 function updateOverlayPosition() {
   const rect = videoPlayer.getBoundingClientRect();
   const borderWidth =
@@ -47,6 +38,22 @@ function handleSetResolution(style) {
   document.body.style.height = style.height;
   updateOverlayPosition();
 }
+
+let resizeTimeout;
+window.addEventListener("resize", () => {
+  const newWidth = window.innerWidth - 15;
+  const newHeight = window.innerHeight - 15;
+  const dimensions = { width: `${newWidth}px`, height: `${newHeight}px` };
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    console.log("Window resized to: ", newWidth, newHeight);
+    window.electronAPI.sendSync("shared-window-channel", {
+      type: "set-resolution",
+      payload: dimensions,
+    });
+  }, 200);
+  handleSetResolution(dimensions);
+});
 
 function handleSetBorderWidth(borderWidth) {
   if (borderWidth === "0.1px") {
@@ -83,7 +90,6 @@ function handleOverlayOpacity(opacity) {
 }
 
 const eventHandlers = {
-  "set-resolution": handleSetResolution,
   "set-border-width": handleSetBorderWidth,
   "set-border-style": handleSetBorderStyle,
   "set-border-color": handleSetBorderColor,
@@ -116,17 +122,6 @@ window.addEventListener("DOMContentLoaded", function () {
         type: "set-webcams",
         payload: JSON.stringify(cams),
       });
-      const videoSource = cams[0].deviceId;
-      const constraints = {
-        video: {
-          deviceId: {
-            exact: videoSource,
-          },
-          width: 1280,
-          height: 720,
-        },
-      };
-      renderDisplay(constraints);
     } else {
       console.log("No camera/capture card found");
     }
@@ -141,6 +136,10 @@ window.addEventListener("DOMContentLoaded", function () {
       }
     }
   );
+
+  const newWidth = window.innerWidth - 15;
+  const newHeight = window.innerHeight - 15;
+  handleSetResolution({ width: `${newWidth}px`, height: `${newHeight}px` });
 
   // Listen for the image-loaded event
   window.electronAPI.onMessageReceived("image-loaded", (event, imageData) => {
@@ -172,8 +171,8 @@ window.addEventListener("DOMContentLoaded", function () {
   settingsButton.style.fontSize = "20px";
   settingsButton.style.zIndex = "1000"; // Ensure the button is on top
 
-  // Show the button when the mouse is in the top right quarter of the screen
-  this.document.body.addEventListener("mousemove", (event) => {
+  // Show the button when the mouse is in the top right quarter of the window
+  window.addEventListener("mousemove", (event) => {
     const { clientX, clientY } = event;
     const { innerWidth, innerHeight } = window;
     if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
@@ -183,8 +182,9 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  this.document.body.addEventListener("mouseleave", () => {
-    settingsButton.style.opacity = "0";
+  // Show the button when the window is moved
+  window.electronAPI.onMessageReceived("window-moved", (event, imageData) => {
+    settingsButton.style.opacity = "1";
   });
 
   // Handle button click

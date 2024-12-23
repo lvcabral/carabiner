@@ -5,11 +5,9 @@ import Alert from "react-bootstrap/Alert";
 
 const { electronAPI } = window;
 
-const Capture = () => {
-  const [deviceId, setDeviceId] = useState("");
+const Capture = ({ value, onChange }) => {
   const [errorOccurred, setErrorOccurred] = useState(false);
-
-  const [webcams, setWebcams] = React.useState([
+  const [webcams, setWebcams] = useState([
     { deviceId: "loading", label: "Loading..." },
   ]);
 
@@ -19,18 +17,14 @@ const Capture = () => {
         setWebcams(JSON.parse(message.payload));
         electronAPI.invoke("load-settings").then((settings) => {
           if (settings.display && settings.display.deviceId) {
-            setDeviceId(settings.display.deviceId);
-            notifyCaptureChange(settings.display.deviceId);
+            onChange({ target: { value: settings.display.deviceId } });
+          } else if(message.payload?.length) {
+            onChange({ target: { value: message.payload[0].deviceId } });
           }
         });
       }
     });
   }, []);
-
-  const handleChange = (event) => {
-    setDeviceId(event.target.value)
-    notifyCaptureChange(event.target.value);
-  };
 
   return (
     <div>
@@ -59,7 +53,7 @@ const Capture = () => {
       <Card.Text as="div">
         <Form.Group controlId="formCameraSource">
           <Form.Label>Capture Device</Form.Label>
-          <Form.Control as="select" value={deviceId} onChange={handleChange}>
+          <Form.Control as="select" value={value} onChange={onChange}>
             {webcams.map((webcam) => (
               <option key={webcam.deviceId} value={webcam.deviceId}>
                 {webcam.label}
@@ -71,22 +65,5 @@ const Capture = () => {
     </div>
   );
 };
-
-function notifyCaptureChange(videoSource) {
-  const constraints = {
-    video: {
-      deviceId: {
-        exact: videoSource,
-      },
-      width: 1280,
-      height: 720,
-    },
-  };
-  electronAPI.sendSync("shared-window-channel", {
-    type: "set-video-stream",
-    payload: constraints,
-  });
-}
-
 
 export default Capture;
