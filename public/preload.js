@@ -7,7 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, shell } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   sendSync: (chan, message) => ipcRenderer.sendSync(chan, message),
@@ -17,4 +17,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   showSettings: () => ipcRenderer.send("show-settings"),
   loadImage: () => ipcRenderer.invoke("load-image"),
   getVersion: () => ipcRenderer.invoke("get-version"),
+  openExternal: (url) => shell.openExternal(url),
 });
