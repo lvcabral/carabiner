@@ -18,7 +18,8 @@ import ShortcutInput from "./select/ShortcutInput";
 const { electronAPI } = window;
 
 function DisplaySection() {
-  const [resolution, setResolution] = useState("480px|270px");
+  const [deviceId, setDeviceId] = useState("");
+  const [resolution, setResolution] = useState("1280|720");
   const [filter, setFilter] = useState("none");
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
@@ -28,9 +29,9 @@ function DisplaySection() {
   useEffect(() => {
     // Load settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
-      if (settings.display && settings.display.resolution) {
-        setResolution(settings.display.resolution);
-        notifyResolutionChange(settings.display.resolution);
+      if (settings.display && settings.display.captureWidth) {
+          const captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
+          setResolution(captureResolution);
       }
       if (settings.display && settings.display.filter) {
         setFilter(settings.display.filter);
@@ -54,9 +55,14 @@ function DisplaySection() {
     });
   }, []);
 
-  const handleResolutionChange = (e) => {
+  const handleCaptureDeviceChange = (e) => {
+    setDeviceId(e.target.value);
+    notifyCaptureChange(e.target.value, resolution);
+  };
+
+  const handleCaptureResolutionChange = (e) => {
     setResolution(e.target.value);
-    notifyResolutionChange(e.target.value);
+    notifyCaptureChange(deviceId, e.target.value);
   };
 
   const handleChangeFilter = (e) => {
@@ -88,12 +94,15 @@ function DisplaySection() {
     <Container className="p-3">
       <Card>
         <Card.Body>
-          <SelectCapture />
+          <SelectCapture
+            value={deviceId}
+            onChange={handleCaptureDeviceChange}
+          />
           <Row>
             <Col>
               <SelectResolution
                 value={resolution}
-                onChange={handleResolutionChange}
+                onChange={handleCaptureResolutionChange}
               />
             </Col>
             <Col>
@@ -131,11 +140,20 @@ function DisplaySection() {
   );
 }
 
-function notifyResolutionChange(size) {
-  const [width, height] = size.split("|");
+function notifyCaptureChange(videoSource, resolution) {
+  const [width, height] = resolution.split("|").map(dim => parseInt(dim, 10));
+  const constraints = {
+    video: {
+      deviceId: {
+        exact: videoSource,
+      },
+      width: width ?? 1280,
+      height: height ?? 720,
+    },
+  };
   electronAPI.sendSync("shared-window-channel", {
-    type: "set-resolution",
-    payload: { width, height },
+    type: "set-video-stream",
+    payload: constraints,
   });
 }
 
