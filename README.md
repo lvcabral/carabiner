@@ -63,7 +63,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 4. To control Fire TV and Google TV, make sure your computer has the ADB executable installed and you configured the path in the settings. Get the latest version of the platform tools [here](https://developer.android.com/studio/releases/platform-tools.html).
 5. First time you connect to your Fire TV or Google TV device, you will need to authorize the connection.
 
-> **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we don't only have code signing certificate for MacOS, so you might have to allow the app to run on your system.
+> **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we only have code signing certificate for MacOS, so you might have to allow the app to run on your system.
 
 ## Usage
 
