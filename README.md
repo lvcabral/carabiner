@@ -16,7 +16,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 <img  src="./public/images/network-streaming.png" height="125px" alt="Code Fest">
 </p>
 
-**Carabiner** project was created during the **Paramount Network Streaming - Code Fest 2024**, and its name was inspired by one essential tool for anyone that aims to climb mountains!
+**Carabiner** app was created during the **Paramount Network Streaming - Code Fest 2024**, and it was elected as the **winning project**. Its name was inspired by one essential tool for anyone that aims to climb mountains!
 
 ### Tech Stack
 
@@ -53,7 +53,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ## Installation
 
-**Carabiner** is available on macOS and Windows (Linux will be available soon). You can download the installers from the [releases](https://github.com/lvcabral/carabiner/releases) page.
+**Carabiner** is available on macOS, Windows and Linux. You can download the installers from the [releases](https://github.com/lvcabral/carabiner/releases) page.
 
 ### Pre-requisites
 
