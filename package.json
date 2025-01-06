@@ -11,7 +11,7 @@
     "email": "marcelo@lvcabral.com",
     "url": "https://lvcabral.com/"
   },
-  "copyright": "© 2024, Marcelo Lv Cabral",
+  "copyright": "© 2024-2025, Marcelo Lv Cabral",
   "bugs": {
     "url": "https://github.com/lvcabral/carabiner/issues"
   },
@@ -30,6 +30,7 @@
     "react-bootstrap": "^2.2.1",
     "react-dom": "^17.0.2",
     "react-scripts": "5.0.0",
+    "toastify-js": "^1.12.0",
     "web-vitals": "^2.1.4"
   },
   "homepage": "./",
@@ -70,6 +71,6 @@
     "@electron-forge/maker-rpm": "^7.6.0",
     "@electron-forge/maker-squirrel": "^7.6.0",
     "dotenv": "^16.4.7",
-    "electron": "^25.9.7"
+    "electron": "^32.0.0"
   }
 }
