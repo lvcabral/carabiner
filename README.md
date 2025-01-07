@@ -1,8 +1,8 @@
 <p align="center">
-  <img  src="src/carabiner-icon.png" height="125px" alt="Carabiner logo"> <br/>
-  <img  src="https://img.shields.io/badge/Version-0.3.0-blue.svg" alt="Version 0.3.0" />
+  <img  src="src/carabiner-icon.png" height="125px" alt="Carabiner logo"> <br/><br/>
+  <a href="/releases/v0.3.1"><img  src="https://img.shields.io/badge/Version-0.3.1-blue.svg" alt="Version 0.3.1" /></a>
   <img  src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
-  <img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" />
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
 </p>
 

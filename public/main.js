@@ -3,7 +3,7 @@
  *
  *  Repository: https://github.com/lvcabral/carabiner
  *
- *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -24,7 +24,7 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey } = require("./adb");
-const { createMenu, updateAlwaysOnTopMenuItem } = require("./menu");
+const { createMenu, updateAlwaysOnTopMenuItem, updateScreenshotMenuItems } = require("./menu");
 const packageInfo = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
 );
@@ -35,6 +35,7 @@ let controlIp = "";
 let controlType = "";
 let isADBConnected = false;
 let isQuitting = false;
+let captureDevices;
 
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
@@ -67,11 +68,23 @@ function createWindow(name, options, showOnStart = true) {
     }
     if (name === "mainWindow" && !isQuitting) {
       event.preventDefault();
-      win.hide();
+      win?.hide();
     } else if (name === "displayWindow") {
       app.quit();
     }
   });
+
+  if (name === "displayWindow") {
+    win.on("hide", () => {
+      win.webContents.send("stop-video-stream");
+      updateScreenshotMenuItems(false);
+    });
+
+    win.on("show", () => {
+      win.webContents.send("start-video-stream");
+      updateScreenshotMenuItems(true);
+    });
+  }
 
   return win;
 }
@@ -194,7 +207,8 @@ app.whenReady().then(async () => {
   ipcMain.on("shared-window-channel", (event, arg) => {
     displayWindow.webContents.send("shared-window-channel", arg);
     saveFlag = true;
-    if (arg.type && arg.type === "set-webcams") {
+    if (arg.type && arg.type === "set-capture-devices") {
+      captureDevices = JSON.parse(arg.payload);
       mainWindow.webContents.send("shared-window-channel", arg);
     } else if (arg.type && arg.type === "set-video-stream") {
       saveFlag = false;
@@ -206,6 +220,9 @@ app.whenReady().then(async () => {
         settings.display.captureWidth = arg.payload.video.width;
         settings.display.captureHeight = arg.payload.video.height;
         saveFlag = true;
+      }
+      if (!displayWindow.isVisible()) {
+        displayWindow.show();
       }
     } else if (arg.type && arg.type === "set-transparency") {
       saveFlag = false;
@@ -315,6 +332,21 @@ app.whenReady().then(async () => {
         },
       })
     );
+    if (captureDevices) {
+      menu.append(new MenuItem({ type: "separator" }));
+      captureDevices.forEach((device) => {
+        menu.append(
+          new MenuItem({
+            label: device.label || `Device ${videoDevices.indexOf(device) + 1}`,
+            type: "radio",
+            checked: settings.display.deviceId === device.deviceId,
+            click: () => {
+              mainWindow.webContents.send("update-capture-device", device.deviceId);
+            },
+          })
+        );
+      });
+    }
     menu.append(new MenuItem({ type: "separator" }));
     menu.append(
       new MenuItem({

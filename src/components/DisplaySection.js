@@ -65,9 +65,19 @@ function DisplaySection() {
         setAlwaysOnTop(value);
       }
     );
+    window.electronAPI.onMessageReceived(
+      "update-capture-device",
+      (event, value) => {
+        captureDevice = value;
+        setDeviceId(value);
+        notifyCaptureChange(value, captureResolution);
+      }
+    );
+
     return () => {
       window.electronAPI.removeListener("open-display-tab");
       window.electronAPI.removeListener("update-always-on-top");
+      window.electronAPI.removeListener("update-capture-device");
     };
   }, []);
 
