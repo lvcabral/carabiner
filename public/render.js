@@ -3,15 +3,18 @@
  *
  *  Repository: https://github.com/lvcabral/carabiner
  *
- *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-const video = document.querySelector("video");
 const videoPlayer = document.getElementById("video-player");
 const overlayImage = document.getElementById("overlay-image");
 const settingsButton = document.getElementById("settings-button");
+const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 let currentColor = "#662D91";
+let currentConstraints = { video: true };
+let videoState = "stopped";
+let resizeTimeout;
 
 // Load settings from main process
 window.electronAPI.invoke("load-settings").then((settings) => {
@@ -39,14 +42,12 @@ function handleSetResolution(style) {
   updateOverlayPosition();
 }
 
-let resizeTimeout;
 window.addEventListener("resize", () => {
   const newWidth = window.innerWidth - 15;
   const newHeight = window.innerHeight - 15;
   const dimensions = { width: `${newWidth}px`, height: `${newHeight}px` };
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
-    console.log("Window resized to: ", newWidth, newHeight);
     window.electronAPI.sendSync("shared-window-channel", {
       type: "set-resolution",
       payload: dimensions,
@@ -77,6 +78,7 @@ function handleSetBorderColor(borderColor) {
 }
 
 function handleSetVideoStream(constraints) {
+  currentConstraints = constraints;
   renderDisplay(constraints);
 }
 
@@ -100,30 +102,47 @@ const eventHandlers = {
 };
 
 function renderDisplay(constraints) {
-  if (video.srcObject) {
-    video.srcObject.getTracks().forEach((track) => track.stop());
+  if (videoState !== "stopped") {
+    stopVideoStream();
   }
+  videoState = "starting";
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then((stream) => {
-      video.srcObject = stream;
-      video.play();
+      videoPlayer.srcObject = stream;
+      videoPlayer.play();
+      currentConstraints = constraints;
     })
     .catch((err) => {
       console.log(err.name + ": " + err.message);
+      showToast("Error loading capture devices!", 5000, true);
+      videoState = "stopped";
     });
+}
+
+function stopVideoStream() {
+  videoPlayer.pause();
+  const stream = videoPlayer.srcObject;
+  if (stream) {
+    const tracks = stream.getTracks();
+    tracks.forEach((track) => track.stop());
+    videoPlayer.srcObject = null;
+  }
+  videoState = "stopped";
 }
 
 window.addEventListener("DOMContentLoaded", function () {
   navigator.mediaDevices.enumerateDevices().then((devices) => {
-    const cams = devices.filter((device) => device.kind === "videoinput");
-    if (cams?.length) {
+    const capture = devices.filter((device) => device.kind === "videoinput");
+    if (capture?.length) {
       window.electronAPI.sendSync("shared-window-channel", {
-        type: "set-webcams",
-        payload: JSON.stringify(cams),
+        type: "set-capture-devices",
+        payload: JSON.stringify(capture),
       });
     } else {
-      console.log("No camera/capture card found");
+      overlayImage.style.opacity = "1";
+      overlayImage.src = "images/no-capture-device.png";
+      showToast("No capture device found!", 5000, true);
     }
   });
 
@@ -137,6 +156,17 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   );
 
+  // Handle video streaming control
+  window.electronAPI.onMessageReceived("stop-video-stream", function () {
+    stopVideoStream();
+  });
+
+  window.electronAPI.onMessageReceived("start-video-stream", function () {
+    if (videoState === "stopped") {
+      renderDisplay(currentConstraints);
+    }
+  });
+
   const newWidth = window.innerWidth - 15;
   const newHeight = window.innerHeight - 15;
   handleSetResolution({ width: `${newWidth}px`, height: `${newHeight}px` });
@@ -144,10 +174,10 @@ window.addEventListener("DOMContentLoaded", function () {
   // Handle Screenshot Requests
   function getScreenshotCanvas() {
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = videoPlayer.videoWidth;
+    canvas.height = videoPlayer.videoHeight;
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
     return canvas;
   }
 
@@ -155,9 +185,15 @@ window.addEventListener("DOMContentLoaded", function () {
     const canvas = getScreenshotCanvas();
     canvas.toBlob(function (blob) {
       const item = new ClipboardItem({ "image/png": blob });
-      navigator.clipboard.write([item]).catch((err) => {
-        console.log(`error copying screenshot to clipboard: ${err.message}`);
-      });
+      navigator.clipboard
+        .write([item])
+        .then(() => {
+          showToast("Screenshot copied to clipboard!");
+        })
+        .catch((err) => {
+          showToast("Error copying screenshot to clipboard!", 5000, true);
+          console.log(`error copying screenshot to clipboard: ${err.message}`);
+        });
     });
   });
 
@@ -171,9 +207,11 @@ window.addEventListener("DOMContentLoaded", function () {
     const filename = `carabiner-${datePart}-${timePart}.png`;
     canvas.toBlob(function (blob) {
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
+      a.href = url;
       a.download = filename;
       a.click();
+      URL.revokeObjectURL(url);
     });
   });
 
@@ -230,6 +268,15 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 });
 
+// Video Events
+videoPlayer.addEventListener("loadstart", () => {
+  videoState = "loading";
+});
+
+videoPlayer.addEventListener("play", () => {
+  videoState = "playing";
+});
+
 // Remote Control
 let controlIp = "";
 let controlType = "ecp";
@@ -264,7 +311,7 @@ ecpKeysMap.set("Insert", "info");
 ecpKeysMap.set("Control+KeyA", "a");
 ecpKeysMap.set("Control+KeyZ", "b");
 ecpKeysMap.set("F10", "volumemute");
-if (navigator.platform.toUpperCase().indexOf("MAC") >= 0) {
+if (isMacOS) {
   ecpKeysMap.set("Command+Backspace", "backspace");
   ecpKeysMap.set("Command+Enter", "play");
   ecpKeysMap.set("Command+ArrowLeft", "rev");
@@ -298,7 +345,7 @@ adbKeysMap.set("Insert", "1");
 adbKeysMap.set("Control+KeyA", "29");
 adbKeysMap.set("Control+KeyZ", "54");
 adbKeysMap.set("F10", "164");
-if (navigator.platform.toUpperCase().indexOf("MAC") >= 0) {
+if (isMacOS) {
   adbKeysMap.set("Command+Backspace", "67");
   adbKeysMap.set("Command+Enter", "85");
   adbKeysMap.set("Command+ArrowLeft", "89");
@@ -374,7 +421,6 @@ function handleKeyboardEvent(event, mod) {
 }
 
 function sendKey(key, mod) {
-  console.log("Sending Key: ", key, mod);
   if (isValidIP(controlIp) && controlType === "ecp") {
     sendEcpKey(controlIp, key, mod);
   } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
@@ -392,7 +438,6 @@ function sendEcpKey(host, key, mod = -1) {
   }
   const xhr = new XMLHttpRequest();
   const url = `http://${host}:8060/${command}/${key}`;
-  console.log("Sending ECP Key: ", url);
   try {
     xhr.open("POST", url, false);
     xhr.send();
@@ -410,4 +455,28 @@ function isValidIP(ip) {
     return ipFormat.test(ip);
   }
   return false;
+}
+
+// Shows a Toast message on the Window
+function showToast(message, duration = 3000, error = false) {
+  try {
+    let style = null;
+    if (error) {
+      style = {
+        color: "#fff",
+        background: "#b61717"
+      }
+    }
+    Toastify({
+      text: message,
+      duration: duration,
+      close: false,
+      gravity: "bottom",
+      position: "center",
+      stopOnFocus: true,
+      style: style,
+    }).showToast();
+  } catch (error) {
+    console.error("Error showing toast: ", error.message);
+  }
 }

@@ -2,6 +2,8 @@ const { Menu, BrowserWindow, app, shell } = require("electron");
 
 let devToolsAccelerator = "Cmd+Option+I";
 let alwaysOnTopMenuItem;
+let copyScreenshotMenuItem;
+let saveScreenshotMenuItem;
 
 function createMenu(mainWindow, displayWindow, packageInfo) {
   const template = [
@@ -59,10 +61,13 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
       label: "&File",
       submenu: [
         {
+          id: "save-screenshot",
           label: "Save Screenshot As...",
           accelerator: "CmdOrCtrl+S",
           click: () => {
-            displayWindow.webContents.send("save-screenshot");
+            if (displayWindow && displayWindow.isVisible()) {
+              displayWindow.webContents.send("save-screenshot");
+            }
           },
         },
         { type: "separator" },
@@ -70,7 +75,7 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
           label: "Close Window",
           accelerator: "CmdOrCtrl+W",
           click: (_, window) => {
-            window.hide();
+            window?.hide();
           },
         },
       ],
@@ -172,6 +177,8 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
   alwaysOnTopMenuItem = menu.getMenuItemById("on-top");
+  copyScreenshotMenuItem = menu.getMenuItemById("copy-screen");
+  saveScreenshotMenuItem = menu.getMenuItemById("save-screenshot");
 }
 
 function updateAlwaysOnTopMenuItem(value) {
@@ -180,4 +187,13 @@ function updateAlwaysOnTopMenuItem(value) {
   }
 }
 
-module.exports = { createMenu, updateAlwaysOnTopMenuItem };
+function updateScreenshotMenuItems(enabled) {
+  if (copyScreenshotMenuItem) {
+    copyScreenshotMenuItem.enabled = enabled;
+  }
+  if (saveScreenshotMenuItem) {
+    saveScreenshotMenuItem.enabled = enabled;
+  }
+}
+
+module.exports = { createMenu, updateAlwaysOnTopMenuItem, updateScreenshotMenuItems };

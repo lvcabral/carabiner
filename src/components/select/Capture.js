@@ -7,14 +7,14 @@ const { electronAPI } = window;
 
 const Capture = ({ value, onChange }) => {
   const [errorOccurred, setErrorOccurred] = useState(false);
-  const [webcams, setWebcams] = useState([
+  const [captureDevices, setCaptureDevices] = useState([
     { deviceId: "loading", label: "Loading..." },
   ]);
 
   useEffect(() => {
     electronAPI.onMessageReceived("shared-window-channel", (_, message) => {
-      if (message.type === "set-webcams") {
-        setWebcams(JSON.parse(message.payload));
+      if (message.type === "set-capture-devices") {
+        setCaptureDevices(JSON.parse(message.payload));
         electronAPI.invoke("load-settings").then((settings) => {
           if (settings.display && settings.display.deviceId) {
             onChange({ target: { value: settings.display.deviceId } });
@@ -54,9 +54,9 @@ const Capture = ({ value, onChange }) => {
         <Form.Group controlId="formCameraSource">
           <Form.Label>Capture Device</Form.Label>
           <Form.Control as="select" value={value} onChange={onChange}>
-            {webcams.map((webcam) => (
-              <option key={webcam.deviceId} value={webcam.deviceId}>
-                {webcam.label}
+            {captureDevices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label}
               </option>
             ))}
           </Form.Control>
