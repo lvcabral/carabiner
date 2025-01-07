@@ -133,11 +133,11 @@ function stopVideoStream() {
 
 window.addEventListener("DOMContentLoaded", function () {
   navigator.mediaDevices.enumerateDevices().then((devices) => {
-    const cams = devices.filter((device) => device.kind === "videoinput");
-    if (cams?.length) {
+    const capture = devices.filter((device) => device.kind === "videoinput");
+    if (capture?.length) {
       window.electronAPI.sendSync("shared-window-channel", {
         type: "set-capture-devices",
-        payload: JSON.stringify(cams),
+        payload: JSON.stringify(capture),
       });
     } else {
       overlayImage.style.opacity = "1";
@@ -421,7 +421,6 @@ function handleKeyboardEvent(event, mod) {
 }
 
 function sendKey(key, mod) {
-  console.log("Sending Key: ", key, mod);
   if (isValidIP(controlIp) && controlType === "ecp") {
     sendEcpKey(controlIp, key, mod);
   } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
@@ -439,7 +438,6 @@ function sendEcpKey(host, key, mod = -1) {
   }
   const xhr = new XMLHttpRequest();
   const url = `http://${host}:8060/${command}/${key}`;
-  console.log("Sending ECP Key: ", url);
   try {
     xhr.open("POST", url, false);
     xhr.send();
