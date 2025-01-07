@@ -10,6 +10,7 @@
 const videoPlayer = document.getElementById("video-player");
 const overlayImage = document.getElementById("overlay-image");
 const settingsButton = document.getElementById("settings-button");
+const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 let currentColor = "#662D91";
 let currentConstraints = { video: true };
 let videoState = "stopped";
@@ -114,7 +115,7 @@ function renderDisplay(constraints) {
     })
     .catch((err) => {
       console.log(err.name + ": " + err.message);
-      showToast("Error loading camera/capture devices!", 5000, true);
+      showToast("Error loading capture devices!", 5000, true);
       videoState = "stopped";
     });
 }
@@ -141,8 +142,7 @@ window.addEventListener("DOMContentLoaded", function () {
     } else {
       overlayImage.style.opacity = "1";
       overlayImage.src = "images/no-capture-device.png";
-      showToast("No camera/capture card found!", 5000, true);
-      console.log("No camera/capture card found");
+      showToast("No capture device found!", 5000, true);
     }
   });
 
@@ -311,7 +311,7 @@ ecpKeysMap.set("Insert", "info");
 ecpKeysMap.set("Control+KeyA", "a");
 ecpKeysMap.set("Control+KeyZ", "b");
 ecpKeysMap.set("F10", "volumemute");
-if (navigator.platform.toUpperCase().indexOf("MAC") >= 0) {
+if (isMacOS) {
   ecpKeysMap.set("Command+Backspace", "backspace");
   ecpKeysMap.set("Command+Enter", "play");
   ecpKeysMap.set("Command+ArrowLeft", "rev");
@@ -345,7 +345,7 @@ adbKeysMap.set("Insert", "1");
 adbKeysMap.set("Control+KeyA", "29");
 adbKeysMap.set("Control+KeyZ", "54");
 adbKeysMap.set("F10", "164");
-if (navigator.platform.toUpperCase().indexOf("MAC") >= 0) {
+if (isMacOS) {
   adbKeysMap.set("Command+Backspace", "67");
   adbKeysMap.set("Command+Enter", "85");
   adbKeysMap.set("Command+ArrowLeft", "89");
@@ -462,6 +462,13 @@ function isValidIP(ip) {
 // Shows a Toast message on the Window
 function showToast(message, duration = 3000, error = false) {
   try {
+    let style = null;
+    if (error) {
+      style = {
+        color: "#fff",
+        background: "#b61717"
+      }
+    }
     Toastify({
       text: message,
       duration: duration,
@@ -469,7 +476,7 @@ function showToast(message, duration = 3000, error = false) {
       gravity: "bottom",
       position: "center",
       stopOnFocus: true,
-      className: error ? "toastify-error" : "toastify-success",
+      style: style,
     }).showToast();
   } catch (error) {
     console.error("Error showing toast: ", error.message);

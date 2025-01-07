@@ -49,7 +49,12 @@ function createWindow(name, options, showOnStart = true) {
     x: undefined,
     y: undefined,
   };
-
+  if (windowState.width < options.minWidth) {
+    windowState.width = options.minWidth;
+  }
+  if (windowState.height < options.minHeight) {
+    windowState.height = options.minHeight;
+  }
   const win = new BrowserWindow({
     ...options,
     ...windowState,
@@ -95,6 +100,8 @@ function createMainWindow() {
     {
       height: 600,
       width: 600,
+      minHeight: 600,
+      minWidth: 600,
       maximizable: false,
       resizable: false,
       autoHideMenuBar: true,
