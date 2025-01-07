@@ -120,7 +120,7 @@ function createMainWindow() {
 }
 
 function createDisplayWindow() {
-  if (settings.display.resolution.includes("px")) {
+  if (settings.display?.resolution?.includes("px")) {
     lastSize = settings.display.resolution
       .split("|")
       .map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
@@ -195,7 +195,7 @@ app.whenReady().then(async () => {
 
   const mainWindow = createMainWindow();
   const displayWindow = createDisplayWindow();
-  setAlwaysOnTop(settings.display.alwaysOnTop, displayWindow);
+  setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
   if (process.platform === "darwin") {
     createMenu(mainWindow, displayWindow, packageInfo);
   }
