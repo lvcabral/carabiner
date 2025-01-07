@@ -98,9 +98,9 @@ function createMainWindow() {
   const win = createWindow(
     "mainWindow",
     {
-      height: 600,
+      height: 605,
       width: 600,
-      minHeight: 600,
+      minHeight: 605,
       minWidth: 600,
       maximizable: false,
       resizable: false,
