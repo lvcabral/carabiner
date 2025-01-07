@@ -201,7 +201,6 @@ app.whenReady().then(async () => {
   }
   if (settings.control.deviceId && settings.control.deviceId.includes("|adb")) {
     [controlIp, controlType] = settings.control.deviceId.split("|");
-    console.log("Control loaded from settings:", controlIp, controlType);
     if (!isADBConnected) {
       isADBConnected = connectADB(controlIp, settings.control.adbPath);
     }
