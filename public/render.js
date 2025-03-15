@@ -423,9 +423,10 @@ function handleKeyboardEvent(event, mod) {
     if (key && key.toLowerCase() !== "ignore") {
       sendKey(key, mod);
     } else if (
-      !["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key)
+      !["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key) &&
+      mod === 0
     ) {
-      sendKey(`lit_${encodeURIComponent(event.key)}`, mod);
+      sendKey(`lit_${encodeURIComponent(event.key)}`, -1);
     }
   } else if (controlType === "adb") {
     const key = adbKeysMap.get(keyCode);
@@ -446,16 +447,37 @@ function sendKey(key, mod) {
   }
 }
 
-function sendEcpKey(host, key, mod = -1) {
+// Queue to manage key events
+const keyEventQueue = [];
+let isProcessingQueue = false;
+
+function enqueueKeyEvent(key, mod) {
+  keyEventQueue.push({ key, mod });
+  if (!isProcessingQueue) {
+    processKeyEventQueue();
+  }
+}
+
+async function processKeyEventQueue() {
+  isProcessingQueue = true;
+  while (keyEventQueue.length > 0) {
+    const { key, mod } = keyEventQueue.shift();
+    await sendEcpKey(controlIp, key, mod);
+  }
+  isProcessingQueue = false;
+}
+
+async function sendEcpKey(host, key, mod = -1) {
   let command = "keypress";
   if (mod !== -1) {
     command = mod === 0 ? "keydown" : "keyup";
   }
-  const xhr = new XMLHttpRequest();
   const url = `http://${host}:8060/${command}/${key}`;
   try {
-    xhr.open("POST", url, false);
-    xhr.send();
+    const response = await fetch(url, { method: "POST" });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
   } catch (e) {
     console.error("Error sending ECP Key: ", e.message);
   }
@@ -479,8 +501,8 @@ function showToast(message, duration = 3000, error = false) {
     if (error) {
       style = {
         color: "#fff",
-        background: "#b61717"
-      }
+        background: "#b61717",
+      };
     }
     Toastify({
       text: message,
