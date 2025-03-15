@@ -49,7 +49,6 @@ It is perfect for developers and QA engineers to execute and test applications u
 - Link capture devices with streaming devices
 - Allow user to record captured video to mp4/mkv file
 - Detect the list streaming devices in the network (SSDP)
-- Add missing ADB keyboard mapping
 
 ## Installation
 
