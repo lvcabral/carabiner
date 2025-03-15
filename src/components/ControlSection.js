@@ -19,6 +19,7 @@ const { electronAPI } = window;
 
 function ControlSection() {
   const [ipAddress, setIpAddress] = useState("");
+  const [alias, setAlias] = useState("");
   const [deviceType, setDeviceType] = useState("roku");
   const [deviceList, setDeviceList] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
@@ -54,12 +55,14 @@ function ControlSection() {
       const newDevice = {
         id: `${ipAddress}|${protocol}`,
         ipAddress: ipAddress,
+        alias: alias.trim(),
         type: type,
       };
       const newDeviceList = [...deviceList, newDevice];
       setDeviceList(newDeviceList);
       notifyControlChange("set-control-list", newDeviceList);
       setIpAddress("");
+      setAlias("");
       setSelectedDevice(newDevice.id);
       notifyControlChange("set-control-selected", newDevice.id);
       ipAddressRef.current.focus();
@@ -98,13 +101,25 @@ function ControlSection() {
               controlId="formIpAddress"
               className="form-group-spacing"
             >
-              <Form.Control
-                type="text"
-                placeholder="Enter IP address"
-                value={ipAddress}
-                onChange={(e) => setIpAddress(e.target.value)}
-                ref={ipAddressRef}
-              />
+              <Row>
+                <Col>
+                  <Form.Control
+                    type="text"
+                    placeholder="Enter IP address"
+                    value={ipAddress}
+                    onChange={(e) => setIpAddress(e.target.value)}
+                    ref={ipAddressRef}
+                  />
+                </Col>
+                <Col>
+                  <Form.Control
+                    type="text"
+                    placeholder="Enter Alias"
+                    value={alias}
+                    onChange={(e) => setAlias(e.target.value)}
+                  />
+                </Col>
+              </Row>
             </Form.Group>
             <Form.Group
               controlId="formDeviceType"
@@ -169,7 +184,9 @@ function ControlSection() {
                     <option value="">Select a device</option>
                     {deviceList.map((device, index) => (
                       <option key={index} value={device.id}>
-                        {device.ipAddress} - {device.type}
+                        {device.type}:{" "}
+                        {device.alias ? device.alias + " - " : ""}
+                        {device.ipAddress}
                       </option>
                     ))}
                   </Form.Control>
