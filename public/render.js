@@ -10,6 +10,7 @@
 const videoPlayer = document.getElementById("video-player");
 const overlayImage = document.getElementById("overlay-image");
 const settingsButton = document.getElementById("settings-button");
+const deviceLabel = document.getElementById("device-label");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 let currentColor = "#662D91";
 let currentConstraints = { video: true };
@@ -108,7 +109,10 @@ function renderDisplay(constraints) {
   videoState = "starting";
   navigator.mediaDevices
     .getUserMedia(constraints)
-    .then((stream) => {
+    .then(async (stream) => {
+      deviceLabel.textContent = await getCaptureDeviceLabel(
+        constraints.video.deviceId.exact
+      );
       videoPlayer.srcObject = stream;
       videoPlayer.play();
       currentConstraints = constraints;
@@ -131,6 +135,14 @@ function stopVideoStream() {
   videoState = "stopped";
 }
 
+async function getCaptureDeviceLabel(deviceId) {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const captureDevice = devices.find(
+    (device) => device.deviceId === deviceId && device.kind === "videoinput"
+  );
+  return captureDevice ? captureDevice.label : "Unknown Device";
+}
+
 window.addEventListener("DOMContentLoaded", function () {
   navigator.mediaDevices.enumerateDevices().then((devices) => {
     const capture = devices.filter((device) => device.kind === "videoinput");
@@ -139,6 +151,9 @@ window.addEventListener("DOMContentLoaded", function () {
         type: "set-capture-devices",
         payload: JSON.stringify(capture),
       });
+      // Set the initial device label
+      const initialDevice = capture[0];
+      deviceLabel.textContent = initialDevice.label || "";
     } else {
       overlayImage.style.opacity = "1";
       overlayImage.src = "images/no-capture-device.png";
@@ -245,20 +260,37 @@ window.addEventListener("DOMContentLoaded", function () {
   settingsButton.style.fontSize = "20px";
   settingsButton.style.zIndex = "1000"; // Ensure the button is on top
 
+  // Configure the device label
+  deviceLabel.style.position = "fixed";
+  deviceLabel.style.bottom = "25px";
+  deviceLabel.style.right = "30px";
+  deviceLabel.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+  deviceLabel.style.color = "rgba(255, 255, 255, 0.5)";
+  deviceLabel.style.border = "none";
+  deviceLabel.style.borderRadius = "5px";
+  deviceLabel.style.padding = "10px";
+  deviceLabel.style.opacity = "0";
+  deviceLabel.style.transition = "opacity 0.3s";
+  deviceLabel.style.fontSize = "12px";
+  deviceLabel.style.zIndex = "1000"; // Ensure the label is on top
+
   // Show the button when the mouse is in the top right quarter of the window
   window.addEventListener("mousemove", (event) => {
     const { clientX, clientY } = event;
     const { innerWidth, innerHeight } = window;
     if (clientX > innerWidth * 0.75 && clientY < innerHeight * 0.25) {
       settingsButton.style.opacity = "1";
+      deviceLabel.style.opacity = "1";
     } else {
       settingsButton.style.opacity = "0";
+      deviceLabel.style.opacity = "0";
     }
   });
 
   // Show the button when the window is moved
   window.electronAPI.onMessageReceived("window-moved", (event, imageData) => {
     settingsButton.style.opacity = "1";
+    deviceLabel.style.opacity = "1";
   });
 
   // Handle button click
