@@ -20,8 +20,8 @@ The following table lists the key mappings for both Roku ECP (External Control P
 | Control+Escape          | home          | 3            | Home Button          |
 | Backspace               | instantreplay | 67           | Backspace Action     |
 | End                     | play          | 85           | Play/Pause Button    |
-| PageDown                | rev           | 89           | Rewind Button        |
-| PageUp                  | fwd           | 90           | Forward Button       |
+| PageUp                  | rev           | 89           | Rewind Button        |
+| PageDown                | fwd           | 90           | Forward Button       |
 | Insert                  | info          | 1            | Info/Menu Button     |
 | Control+KeyA            | a             | N/A          | Game Remote A Button |
 | Control+KeyZ            | b             | N/A          | Game Remote B Button |
