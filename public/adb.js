@@ -48,9 +48,16 @@ function disconnectADB() {
 
 function sendADBKey(key) {
   if (isADBConnected && typeof key === "string" && adbPath !== "") {
-    exec(`${adbPath} shell input keyevent ${key}`, puts);
-    console.log(key + " pressed.");
+    if (!isNumeric(key)) {
+      exec(`${adbPath} shell input text '${key}'`, puts);
+    } else {
+      exec(`${adbPath} shell input keyevent ${key}`, puts);
+    }
   }
+}
+
+function isNumeric(str) {
+  return /^\d+$/.test(str);
 }
 
 function puts(error, stdout, stderr) {
