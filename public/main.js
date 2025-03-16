@@ -33,6 +33,8 @@ const packageInfo = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
 );
 
+if (require('electron-squirrel-startup') === true) app.quit();
+
 const settings = loadSettings();
 let lastSize = [500, 290];
 let controlIp = "";
