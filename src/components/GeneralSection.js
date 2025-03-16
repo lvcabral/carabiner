@@ -16,8 +16,13 @@ import ShortcutInput from "./select/ShortcutInput";
 const { electronAPI } = window;
 let captureDevice = "";
 let captureResolution = "1280|720";
+let currentLinked = "";
 
-function GeneralSection({ streamingDevices, onUpdateStreamingDevices }) {
+function GeneralSection({
+  streamingDevices,
+  onUpdateStreamingDevices,
+  onDeletedDeviceRef,
+}) {
   const [deviceId, setDeviceId] = useState("");
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
@@ -30,6 +35,14 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices }) {
   useEffect(() => {
     streamingDevicesRef.current = streamingDevices;
   }, [streamingDevices]);
+
+  useEffect(() => {
+    onDeletedDeviceRef.current = (deviceId) => {
+      if (currentLinked === deviceId) {
+        setLinkedDevice("");
+      }
+    };
+  }, [onDeletedDeviceRef]);
 
   useEffect(() => {
     // Load settings from main process
@@ -72,8 +85,9 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices }) {
         const linked = streamingDevicesRef.current.find(
           (device) => device.linked === value
         );
-        setLinkedDevice(linked?.id ?? "");
-        notifyControlChange("set-control-selected", linked?.id ?? "");
+        currentLinked = linked?.id ?? "";
+        setLinkedDevice(currentLinked);
+        notifyControlChange("set-control-selected", currentLinked);
       }
     );
 
@@ -99,9 +113,10 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices }) {
     const linked = streamingDevicesRef.current.find(
       (device) => device.linked === captureDevice
     );
-    setLinkedDevice(linked?.id ?? "");
-    notifyControlChange("set-control-selected", linked?.id ?? "");
-  };
+    currentLinked = linked?.id ?? "";
+    setLinkedDevice(currentLinked);
+    notifyControlChange("set-control-selected", currentLinked);
+};
 
   const handleShortcutChange = (value) => {
     setShortcut(value);
@@ -124,11 +139,12 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices }) {
   };
 
   const handleLinkedDeviceChange = (e) => {
-    setLinkedDevice(e.target.value);
-    notifyControlChange("set-control-selected", e.target.value);
+    currentLinked = e.target.value;
+    setLinkedDevice(currentLinked);
+    notifyControlChange("set-control-selected", currentLinked);
     // Update the linked device for the current capture device
     const updatedDevices = streamingDevices.map((device) => {
-      if (device.id === e.target.value) {
+      if (device.id === currentLinked) {
         return { ...device, linked: captureDevice };
       } else if (device.linked === captureDevice) {
         return { ...device, linked: "" };

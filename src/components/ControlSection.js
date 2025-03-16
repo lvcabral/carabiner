@@ -17,7 +17,11 @@ import Col from "react-bootstrap/Col";
 
 const { electronAPI } = window;
 
-function ControlSection({ streamingDevices, onUpdateStreamingDevices }) {
+function ControlSection({
+  streamingDevices,
+  onUpdateStreamingDevices,
+  onDeletedDevice,
+}) {
   const [ipAddress, setIpAddress] = useState("");
   const [alias, setAlias] = useState("");
   const [deviceType, setDeviceType] = useState("roku");
@@ -66,6 +70,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices }) {
   };
 
   const handleDeleteDevice = () => {
+    onDeletedDevice(selectedDevice);
     const newDeviceList = streamingDevices.filter(
       (device) => device.id !== selectedDevice
     );
