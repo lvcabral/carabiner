@@ -14,6 +14,7 @@ import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
+import Alert from "react-bootstrap/Alert";
 
 const { electronAPI } = window;
 
@@ -27,6 +28,7 @@ function ControlSection({
   const [deviceType, setDeviceType] = useState("roku");
   const [selectedDevice, setSelectedDevice] = useState("");
   const [adbPath, setAdbPath] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const ipAddressRef = useRef(null);
 
   useEffect(() => {
@@ -38,7 +40,25 @@ function ControlSection({
     });
   }, []);
 
+  const isValidIpAddress = (ip) => {
+    const regex =
+      /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return regex.test(ip);
+  };
+
   const handleAddDevice = () => {
+    if (!isValidIpAddress(ipAddress)) {
+      setErrorMessage("Invalid IP address format.");
+      setTimeout(() => setErrorMessage(""), 7000);
+      return;
+    }
+
+    if (streamingDevices.some((device) => device.ipAddress === ipAddress)) {
+      setErrorMessage("IP address already exists.");
+      setTimeout(() => setErrorMessage(""), 7000);
+      return;
+    }
+
     if (ipAddress && deviceType) {
       const protocol = deviceType === "roku" ? "ecp" : "adb";
       let type = "";
@@ -61,6 +81,7 @@ function ControlSection({
       setIpAddress("");
       setAlias("");
       setSelectedDevice(newDevice.id);
+      setErrorMessage("");
       ipAddressRef.current.focus();
     }
   };
@@ -167,6 +188,11 @@ function ControlSection({
               controlId="formDeviceList"
               className="form-group-spacing"
             >
+              {errorMessage && (
+                <Alert variant="danger" className="custom-alert">
+                  {errorMessage}
+                </Alert>
+              )}
               <Form.Label>Streaming Device List</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
