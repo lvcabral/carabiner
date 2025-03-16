@@ -70,9 +70,10 @@ After installing Carabiner, launch the application and customize the settings to
 
 ### Controlling Streaming Devices
 
-1. **Select a Capture Device**: In the `Display` tab, select a video capture device from the list.
-2. **Select a Streaming Device**: In the `Control` tab, select a streaming device from the list.
-3. **Keyboard Controls**: When the floating display window is focused, you can use your keyboard to control the selected device. Refer to the [keyboard control mappings](./docs/key-mappings.md) documentation to learn how to operate your device.
+1. **Select a Capture Device**: In the `General` tab, select a video capture device from the list.
+2. **Add a Streaming Device**: In the `Control` tab, add a new streaming device with IP, Alias and Type.
+3. **Select a Linked Device**: In the `General` tab, link your streaming device to the capture device.
+4. **Keyboard Controls**: When the floating display window is focused, you can use your keyboard to control and type text on the selected device. Refer to the [keyboard control mappings](./docs/key-mappings.md) documentation to learn how to operate your device.
 
 ### Taking Screenshots
 
