@@ -103,19 +103,19 @@ If you want to build Carabiner from source, first ensure you have the Node.js in
 Next, clone the repository and install the dependencies.
 
 ```console
-git clone https://github.com/lvcabral/carabiner.git; cd carabiner; yarn install
+git clone https://github.com/lvcabral/carabiner.git; cd carabiner; npm run install
 ```
 
 To start the app, you'd need to run:
 
 ```console
-yarn build; yarn forge
+npm run build; npm run forge
 ```
 
 To create an installer in the platform you are running, just use:
 
 ```console
-yarn make
+npm run make
 ```
 
 The installer will be created inside the folder `./out/make`
@@ -139,6 +139,6 @@ This app was developed borrowing ideas and code from the following repositories:
 
 ## License
 
-Copyright © 2024 Marcelo Lv Cabral. All rights reserved.
+Copyright © 2024-2025 Marcelo Lv Cabral. All rights reserved.
 
 Licensed under the [MIT](LICENSE) license.
