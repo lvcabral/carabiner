@@ -262,13 +262,15 @@ app.whenReady().then(async () => {
       );
       if (!found) {
         settings.control.deviceId = "";
+        if (isADBConnected) {
+          isADBConnected = disconnectADB();
+        }
       }
       settings.control.deviceList = arg.payload;
     } else if (arg.type && arg.type === "set-control-selected") {
       settings.control.deviceId = arg.payload;
       const oldControlIp = controlIp;
       [controlIp, controlType] = arg.payload.split("|");
-      console.log("Control selected:", controlIp, controlType, isADBConnected);
       if (isADBConnected && oldControlIp !== controlIp) {
         isADBConnected = disconnectADB();
       }

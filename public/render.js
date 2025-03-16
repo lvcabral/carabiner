@@ -137,11 +137,23 @@ function stopVideoStream() {
 }
 
 async function getCaptureDeviceLabel(deviceId) {
+  if (!deviceId) {
+    return "Unknown Device";
+  }
   const devices = await navigator.mediaDevices.enumerateDevices();
   const captureDevice = devices.find(
     (device) => device.deviceId === deviceId && device.kind === "videoinput"
   );
-  return captureDevice ? captureDevice.label : "Unknown Device";
+  let deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
+  const streamDevice = controlList.find(
+    (device) => device.linked === captureDevice.deviceId
+  );
+  if (streamDevice) {
+    deviceLabel += ` - ${streamDevice.type} ${
+      streamDevice.alias ?? streamDevice.ipAddress
+    }`;
+  }
+  return deviceLabel;
 }
 
 window.addEventListener("DOMContentLoaded", function () {
@@ -311,21 +323,28 @@ videoPlayer.addEventListener("play", () => {
 });
 
 // Remote Control
+let controlList = [];
 let controlIp = "";
 let controlType = "ecp";
 
-function handleControlSelected(data) {
+async function handleControlSelected(data) {
   if (typeof data === "string" && data.includes("|")) {
     [controlIp, controlType] = data.split("|");
+    deviceLabel.textContent = await getCaptureDeviceLabel(
+      currentConstraints?.video?.deviceId?.exact
+    );
   }
 }
 
 function handleControlList(data) {
-  const found = data.find((device) => device.id === `${controlIp}|${controlType}`);
+  const found = data.find(
+    (device) => device.id === `${controlIp}|${controlType}`
+  );
   if (!found) {
     controlIp = "";
     controlType = "ecp";
   }
+  controlList = data;
 }
 
 // Keyboard Events
