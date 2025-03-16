@@ -35,6 +35,7 @@ const packageInfo = JSON.parse(
 
 if (require('electron-squirrel-startup') === true) app.quit();
 
+const isMacOS = process.platform === "darwin";
 const settings = loadSettings();
 let lastSize = [500, 290];
 let controlIp = "";
@@ -104,9 +105,9 @@ function createMainWindow() {
   const win = createWindow(
     "mainWindow",
     {
-      height: 605,
+      height: isMacOS ? 605 : 630,
       width: 600,
-      minHeight: 605,
+      minHeight: isMacOS ? 605 : 630,
       minWidth: 600,
       maximizable: false,
       resizable: false,
@@ -202,7 +203,7 @@ app.whenReady().then(async () => {
   const mainWindow = createMainWindow();
   const displayWindow = createDisplayWindow();
   setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
-  if (process.platform === "darwin") {
+  if (isMacOS) {
     createMenu(mainWindow, displayWindow, packageInfo);
   }
   if (
@@ -319,7 +320,7 @@ app.whenReady().then(async () => {
   ipcMain.on("show-context-menu", (event) => {
     const menu = new Menu();
     let fullscreenAcc = "F11";
-    if (process.platform === "darwin") {
+    if (isMacOS) {
       fullscreenAcc = "Cmd+Ctrl+F";
     }
     menu.append(
@@ -467,7 +468,7 @@ app.on("will-quit", () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (!isMacOS) {
     app.quit();
   }
 });
