@@ -3,7 +3,7 @@
  *
  *  Repository: https://github.com/lvcabral/carabiner
  *
- *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -17,11 +17,10 @@ import Col from "react-bootstrap/Col";
 
 const { electronAPI } = window;
 
-function ControlSection() {
+function ControlSection({ streamingDevices, onUpdateStreamingDevices }) {
   const [ipAddress, setIpAddress] = useState("");
   const [alias, setAlias] = useState("");
   const [deviceType, setDeviceType] = useState("roku");
-  const [deviceList, setDeviceList] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [adbPath, setAdbPath] = useState("");
   const ipAddressRef = useRef(null);
@@ -29,12 +28,6 @@ function ControlSection() {
   useEffect(() => {
     // Load settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
-      if (settings.control && settings.control.deviceList) {
-        setDeviceList(settings.control.deviceList);
-      }
-      if (settings.control && settings.control.deviceId) {
-        setSelectedDevice(settings.control.deviceId);
-      }
       if (settings.control && settings.control.adbPath) {
         setAdbPath(settings.control.adbPath);
       }
@@ -56,32 +49,28 @@ function ControlSection() {
         id: `${ipAddress}|${protocol}`,
         ipAddress: ipAddress,
         alias: alias.trim(),
+        linked: "",
         type: type,
       };
-      const newDeviceList = [...deviceList, newDevice];
-      setDeviceList(newDeviceList);
-      notifyControlChange("set-control-list", newDeviceList);
+      const newDeviceList = [...streamingDevices, newDevice];
+      onUpdateStreamingDevices(newDeviceList);
       setIpAddress("");
       setAlias("");
       setSelectedDevice(newDevice.id);
-      notifyControlChange("set-control-selected", newDevice.id);
       ipAddressRef.current.focus();
     }
   };
 
   const handleDeviceSelect = (e) => {
     setSelectedDevice(e.target.value);
-    notifyControlChange("set-control-selected", e.target.value);
   };
 
   const handleDeleteDevice = () => {
-    const newDeviceList = deviceList.filter(
+    const newDeviceList = streamingDevices.filter(
       (device) => device.id !== selectedDevice
     );
-    setDeviceList(newDeviceList);
-    notifyControlChange("set-control-list", newDeviceList);
+    onUpdateStreamingDevices(newDeviceList);
     setSelectedDevice("");
-    notifyControlChange("set-control-selected", "");
   };
 
   const handleSelectAdbPath = async () => {
@@ -173,7 +162,7 @@ function ControlSection() {
               controlId="formDeviceList"
               className="form-group-spacing"
             >
-              <Form.Label>Streaming Device</Form.Label>
+              <Form.Label>Streaming Device List</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
                   <Form.Control
@@ -181,8 +170,8 @@ function ControlSection() {
                     value={selectedDevice}
                     onChange={handleDeviceSelect}
                   >
-                    <option value="">Select a device</option>
-                    {deviceList.map((device, index) => (
+                    <option value="">Select a device to delete</option>
+                    {streamingDevices.map((device, index) => (
                       <option key={index} value={device.id}>
                         {device.type}:{" "}
                         {device.alias ? device.alias + " - " : ""}

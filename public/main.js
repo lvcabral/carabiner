@@ -24,7 +24,11 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey } = require("./adb");
-const { createMenu, updateAlwaysOnTopMenuItem, updateScreenshotMenuItems } = require("./menu");
+const {
+  createMenu,
+  updateAlwaysOnTopMenuItem,
+  updateScreenshotMenuItems,
+} = require("./menu");
 const packageInfo = JSON.parse(
   fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
 );
@@ -199,7 +203,10 @@ app.whenReady().then(async () => {
   if (process.platform === "darwin") {
     createMenu(mainWindow, displayWindow, packageInfo);
   }
-  if (settings.control.deviceId && settings.control.deviceId.includes("|adb")) {
+  if (
+    typeof settings?.control?.deviceId === "string" &&
+    settings.control.deviceId.includes("|adb")
+  ) {
     [controlIp, controlType] = settings.control.deviceId.split("|");
     if (!isADBConnected) {
       isADBConnected = connectADB(controlIp, settings.control.adbPath);
@@ -250,6 +257,12 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-border-color") {
       settings.border.color = arg.payload;
     } else if (arg.type && arg.type === "set-control-list") {
+      const found = arg.payload.find(
+        (device) => device.id === settings.control.deviceId
+      );
+      if (!found) {
+        settings.control.deviceId = "";
+      }
       settings.control.deviceList = arg.payload;
     } else if (arg.type && arg.type === "set-control-selected") {
       settings.control.deviceId = arg.payload;
@@ -341,13 +354,24 @@ app.whenReady().then(async () => {
     if (captureDevices) {
       menu.append(new MenuItem({ type: "separator" }));
       captureDevices.forEach((device) => {
+        let deviceLabel =
+          device.label || `Device ${videoDevices.indexOf(device) + 1}`;
+        const found = settings.control.deviceList.find(
+          (d) => d.linked === device.deviceId
+        );
+        deviceLabel += found
+          ? ` - ${found.type} ${found.alias ?? found.ipAddress}`
+          : "";
         menu.append(
           new MenuItem({
-            label: device.label || `Device ${videoDevices.indexOf(device) + 1}`,
+            label: deviceLabel,
             type: "radio",
             checked: settings.display.deviceId === device.deviceId,
             click: () => {
-              mainWindow.webContents.send("update-capture-device", device.deviceId);
+              mainWindow.webContents.send(
+                "update-capture-device",
+                device.deviceId
+              );
             },
           })
         );
