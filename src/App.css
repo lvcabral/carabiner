@@ -40,3 +40,9 @@
 .form-group-spacing {
   margin-bottom: 10px;
 }
+
+.custom-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
