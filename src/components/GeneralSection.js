@@ -3,41 +3,39 @@
  *
  *  Repository: https://github.com/lvcabral/carabiner
  *
- *  Copyright (c) 2024 Marcelo Lv Cabral. All Rights Reserved.
+ *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Container, Form, Row, Col, Card } from "react-bootstrap";
 
-import SelectResolution from "./select/Resolution";
 import SelectCapture from "./select/Capture";
-import SelectFilter from "./select/Filter";
 import ShortcutInput from "./select/ShortcutInput";
 
 const { electronAPI } = window;
 let captureDevice = "";
 let captureResolution = "1280|720";
 
-function DisplaySection() {
+function GeneralSection({ streamingDevices, onUpdateStreamingDevices }) {
   const [deviceId, setDeviceId] = useState("");
-  const [resolution, setResolution] = useState("1280|720");
-  const [filter, setFilter] = useState("none");
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(true);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [linkedDevice, setLinkedDevice] = useState("");
+
+  const streamingDevicesRef = useRef(streamingDevices);
+
+  useEffect(() => {
+    streamingDevicesRef.current = streamingDevices;
+  }, [streamingDevices]);
 
   useEffect(() => {
     // Load settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.display && settings.display.captureWidth) {
         captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
-        setResolution(captureResolution);
-      }
-      if (settings.display && settings.display.filter) {
-        setFilter(settings.display.filter);
-        notifyFilterChange(settings.display.filter);
       }
       if (settings.display && settings.display.shortcut) {
         setShortcut(settings.display.shortcut);
@@ -70,7 +68,12 @@ function DisplaySection() {
       (event, value) => {
         captureDevice = value;
         setDeviceId(value);
-        notifyCaptureChange(value, captureResolution);
+        notifyCaptureChange(value);
+        const linked = streamingDevicesRef.current.find(
+          (device) => device.linked === value
+        );
+        setLinkedDevice(linked?.id ?? "");
+        notifyControlChange("set-control-selected", linked?.id ?? "");
       }
     );
 
@@ -91,19 +94,13 @@ function DisplaySection() {
 
   const handleCaptureDeviceChange = (e) => {
     captureDevice = e.target.value;
-    setDeviceId(e.target.value);
-    notifyCaptureChange(e.target.value, captureResolution);
-  };
-
-  const handleCaptureResolutionChange = (e) => {
-    captureResolution = e.target.value;
-    setResolution(e.target.value);
-    notifyCaptureChange(captureDevice, e.target.value);
-  };
-
-  const handleChangeFilter = (e) => {
-    setFilter(e.target.value);
-    notifyFilterChange(e.target.value);
+    setDeviceId(captureDevice);
+    notifyCaptureChange(captureDevice);
+    const linked = streamingDevicesRef.current.find(
+      (device) => device.linked === captureDevice
+    );
+    setLinkedDevice(linked?.id ?? "");
+    notifyControlChange("set-control-selected", linked?.id ?? "");
   };
 
   const handleShortcutChange = (value) => {
@@ -126,6 +123,21 @@ function DisplaySection() {
     electronAPI.send("save-always-on-top", e.target.checked);
   };
 
+  const handleLinkedDeviceChange = (e) => {
+    setLinkedDevice(e.target.value);
+    notifyControlChange("set-control-selected", e.target.value);
+    // Update the linked device for the current capture device
+    const updatedDevices = streamingDevices.map((device) => {
+      if (device.id === e.target.value) {
+        return { ...device, linked: captureDevice };
+      } else if (device.linked === captureDevice) {
+        return { ...device, linked: "" };
+      }
+      return device;
+    });
+    onUpdateStreamingDevices(updatedDevices);
+  };
+
   return (
     <Container className="p-3">
       <Card>
@@ -134,17 +146,25 @@ function DisplaySection() {
             value={deviceId}
             onChange={handleCaptureDeviceChange}
           />
-          <Row>
-            <Col>
-              <SelectResolution
-                value={resolution}
-                onChange={handleCaptureResolutionChange}
-              />
-            </Col>
-            <Col>
-              <SelectFilter value={filter} onChange={handleChangeFilter} />
-            </Col>
-          </Row>
+          <Form.Group
+            controlId="formLinkedDevice"
+            className="form-group-spacing mt-3"
+          >
+            <Form.Label>Linked Streaming Device</Form.Label>
+            <Form.Control
+              as="select"
+              value={linkedDevice}
+              onChange={handleLinkedDeviceChange}
+            >
+              <option value="">Select a device</option>
+              {streamingDevices.map((device, index) => (
+                <option key={index} value={device.id}>
+                  {device.type}: {device.alias ? device.alias + " - " : ""}
+                  {device.ipAddress}
+                </option>
+              ))}
+            </Form.Control>
+          </Form.Group>
           <Row className="mt-3">
             <Col>
               <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
@@ -176,12 +196,17 @@ function DisplaySection() {
   );
 }
 
-function notifyCaptureChange(videoSource, resolution) {
-  const [width, height] = resolution.split("|").map((dim) => parseInt(dim, 10));
+export function notifyCaptureChange(videoSource, resolution) {
+  if (resolution) {
+    captureResolution = resolution;
+  }
+  const [width, height] = captureResolution
+    .split("|")
+    .map((dim) => parseInt(dim, 10));
   const constraints = {
     video: {
       deviceId: {
-        exact: videoSource,
+        exact: videoSource ?? captureDevice,
       },
       width: width ?? 1280,
       height: height ?? 720,
@@ -193,14 +218,11 @@ function notifyCaptureChange(videoSource, resolution) {
   });
 }
 
-function notifyFilterChange(filter) {
-  const style = {};
-  style.filter = filter;
-  style["-webkit-filter"] = `-webkit-${filter}`;
+function notifyControlChange(type, payload) {
   electronAPI.sendSync("shared-window-channel", {
-    type: "set-transparency",
-    payload: style,
+    type: type,
+    payload: payload,
   });
 }
 
-export default DisplaySection;
+export default GeneralSection;

@@ -98,6 +98,7 @@ const eventHandlers = {
   "set-border-color": handleSetBorderColor,
   "set-video-stream": handleSetVideoStream,
   "set-transparency": handleSetTransparency,
+  "set-control-list": handleControlList,
   "set-control-selected": handleControlSelected,
   "set-overlay-opacity": handleOverlayOpacity,
 };
@@ -316,6 +317,14 @@ let controlType = "ecp";
 function handleControlSelected(data) {
   if (typeof data === "string" && data.includes("|")) {
     [controlIp, controlType] = data.split("|");
+  }
+}
+
+function handleControlList(data) {
+  const found = data.find((device) => device.id === `${controlIp}|${controlType}`);
+  if (!found) {
+    controlIp = "";
+    controlType = "ecp";
   }
 }
 

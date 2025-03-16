@@ -32,6 +32,7 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 - Freely resizable floating window including fullscreen support
 - Option to select the capture device
+- Option to Link a capture device with a streaming device
 - Option to select the resolution of the capture device
 - Option to set the transparency of the floating window
 - Fully configurable border to the floating window
@@ -46,7 +47,6 @@ It is perfect for developers and QA engineers to execute and test applications u
 
 ### Future Improvements
 
-- Link capture devices with streaming devices
 - Allow user to record captured video to mp4/mkv file
 - Detect the list streaming devices in the network (SSDP)
 
