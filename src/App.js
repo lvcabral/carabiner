@@ -7,7 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import logo from "./carabiner-icon.png";
 
@@ -23,64 +23,32 @@ import AboutSection from "./components/AboutSection";
 
 const { electronAPI } = window;
 
-function SettingsScreen({ streamingDevices, onUpdateStreamingDevices }) {
-  return (
-    <Tabs defaultActiveKey="display" id="settings-tabs" className="custom-tabs">
-      <Tab eventKey="display" title="General">
-        <div className="tab-content-container">
-          <GeneralSection
-            streamingDevices={streamingDevices}
-            onUpdateStreamingDevices={onUpdateStreamingDevices}
-          />
-        </div>
-      </Tab>
-      <Tab eventKey="border" title="Appearance">
-        <div className="tab-content-container">
-          <AppearanceSection />
-        </div>
-      </Tab>
-      <Tab eventKey="control" title="Control">
-        <div className="tab-content-container">
-          <ControlSection
-            streamingDevices={streamingDevices}
-            onUpdateStreamingDevices={onUpdateStreamingDevices}
-          />
-        </div>
-      </Tab>
-      <Tab eventKey="overlay" title="Overlay">
-        <div className="tab-content-container">
-          <OverlaySection />
-        </div>
-      </Tab>
-      <Tab eventKey="about" title="About">
-        <div className="tab-content-container">
-          <AboutSection />
-        </div>
-      </Tab>
-    </Tabs>
-  );
-}
-
 function App() {
   const [streamingDevices, setStreamingDevices] = useState([]);
+  const onDeletedDeviceRef = useRef(null);
 
   useEffect(() => {
     // Load initial settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.deviceList) {
-        console.log("Settings loaded", settings.control.deviceList);
-        setStreamingDevices(settings.control.deviceList);
+        handleUpdateStreamingDevices(settings.control.deviceList);
       }
     });
   }, []);
 
   const handleUpdateStreamingDevices = (devices) => {
     setStreamingDevices(devices);
-
+    console.log("Updating streaming devices", devices.length);
     electronAPI.sendSync("shared-window-channel", {
       type: "set-control-list",
       payload: devices,
     });
+  };
+
+  const handleDeletedDevice = (deviceId) => {
+    if (onDeletedDeviceRef.current) {
+      onDeletedDeviceRef.current(deviceId);
+    }
   };
 
   return (
@@ -92,10 +60,45 @@ function App() {
         <h1 className="header" style={{ textAlign: "center" }}>
           Carabiner
         </h1>
-        <SettingsScreen
-          streamingDevices={streamingDevices}
-          onUpdateStreamingDevices={handleUpdateStreamingDevices}
-        />
+        <Tabs
+          defaultActiveKey="display"
+          id="settings-tabs"
+          className="custom-tabs"
+        >
+          <Tab eventKey="display" title="General">
+            <div className="tab-content-container">
+              <GeneralSection
+                streamingDevices={streamingDevices}
+                onUpdateStreamingDevices={handleUpdateStreamingDevices}
+                onDeletedDeviceRef={onDeletedDeviceRef}
+              />
+            </div>
+          </Tab>
+          <Tab eventKey="border" title="Appearance">
+            <div className="tab-content-container">
+              <AppearanceSection />
+            </div>
+          </Tab>
+          <Tab eventKey="control" title="Control">
+            <div className="tab-content-container">
+              <ControlSection
+                streamingDevices={streamingDevices}
+                onUpdateStreamingDevices={handleUpdateStreamingDevices}
+                onDeletedDevice={handleDeletedDevice}
+              />
+            </div>
+          </Tab>
+          <Tab eventKey="overlay" title="Overlay">
+            <div className="tab-content-container">
+              <OverlaySection />
+            </div>
+          </Tab>
+          <Tab eventKey="about" title="About">
+            <div className="tab-content-container">
+              <AboutSection />
+            </div>
+          </Tab>
+        </Tabs>
       </Container>
     </Container>
   );
