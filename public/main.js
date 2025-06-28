@@ -220,6 +220,23 @@ app.whenReady().then(async () => {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
 
+  // Add macOS focus management - hide app when both windows are hidden
+  if (isMacOS) {
+    mainWindow.on("hide", () => {
+      // Hide app if both windows are hidden
+      if (!displayWindow.isVisible()) {
+        app.hide();
+      }
+    });
+
+    displayWindow.on("hide", () => {
+      // Hide app if both windows are hidden
+      if (!mainWindow.isVisible()) {
+        app.hide();
+      }
+    });
+  }
+
   ipcMain.on("shared-window-channel", (event, arg) => {
     displayWindow.webContents.send("shared-window-channel", arg);
     saveFlag = true;
