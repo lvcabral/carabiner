@@ -18,11 +18,7 @@ import Alert from "react-bootstrap/Alert";
 
 const { electronAPI } = window;
 
-function ControlSection({
-  streamingDevices,
-  onUpdateStreamingDevices,
-  onDeletedDevice,
-}) {
+function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedDevice }) {
   const [ipAddress, setIpAddress] = useState("");
   const [alias, setAlias] = useState("");
   const [deviceType, setDeviceType] = useState("roku");
@@ -92,9 +88,7 @@ function ControlSection({
 
   const handleDeleteDevice = () => {
     onDeletedDevice(selectedDevice);
-    const newDeviceList = streamingDevices.filter(
-      (device) => device.id !== selectedDevice
-    );
+    const newDeviceList = streamingDevices.filter((device) => device.id !== selectedDevice);
     onUpdateStreamingDevices(newDeviceList);
     setSelectedDevice("");
   };
@@ -112,10 +106,7 @@ function ControlSection({
       <Card>
         <Card.Body>
           <Form>
-            <Form.Group
-              controlId="formIpAddress"
-              className="form-group-spacing"
-            >
+            <Form.Group controlId="formIpAddress" className="form-group-spacing">
               <Row>
                 <Col>
                   <Form.Control
@@ -136,10 +127,7 @@ function ControlSection({
                 </Col>
               </Row>
             </Form.Group>
-            <Form.Group
-              controlId="formDeviceType"
-              className="form-group-spacing"
-            >
+            <Form.Group controlId="formDeviceType" className="form-group-spacing">
               <Row>
                 <Col xs="auto" className="d-flex align-items-center">
                   <Form.Check
@@ -174,20 +162,13 @@ function ControlSection({
                   />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center ml-auto">
-                  <Button
-                    title="Add Device"
-                    variant="primary"
-                    onClick={handleAddDevice}
-                  >
+                  <Button title="Add Device" variant="primary" onClick={handleAddDevice}>
                     &#x271A;
                   </Button>
                 </Col>
               </Row>
             </Form.Group>
-            <Form.Group
-              controlId="formDeviceList"
-              className="form-group-spacing"
-            >
+            <Form.Group controlId="formDeviceList" className="form-group-spacing">
               {errorMessage && (
                 <Alert variant="danger" className="custom-alert">
                   {errorMessage}
@@ -196,27 +177,18 @@ function ControlSection({
               <Form.Label>Streaming Device List</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
-                  <Form.Control
-                    as="select"
-                    value={selectedDevice}
-                    onChange={handleDeviceSelect}
-                  >
+                  <Form.Control as="select" value={selectedDevice} onChange={handleDeviceSelect}>
                     <option value="">Select a device to delete</option>
                     {streamingDevices.map((device, index) => (
                       <option key={index} value={device.id}>
-                        {device.type}:{" "}
-                        {device.alias ? device.alias + " - " : ""}
+                        {device.type}: {device.alias ? device.alias + " - " : ""}
                         {device.ipAddress}
                       </option>
                     ))}
                   </Form.Control>
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
-                  <Button
-                    title="Delete Device"
-                    variant="primary"
-                    onClick={handleDeleteDevice}
-                  >
+                  <Button title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
                     &#x232B;
                   </Button>
                 </Col>
@@ -229,11 +201,7 @@ function ControlSection({
                   <Form.Control type="text" readOnly value={adbPath} />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
-                  <Button
-                    title="Select ADB Path"
-                    variant="primary"
-                    onClick={handleSelectAdbPath}
-                  >
+                  <Button title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
                     &#x2026;
                   </Button>
                 </Col>

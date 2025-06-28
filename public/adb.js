@@ -61,11 +61,11 @@ function sendADBText(text) {
     // Escape special characters for shell safety
     // Handle single quotes, backslashes, and other special shell characters
     const escapedText = text
-      .replace(/\\/g, '\\\\')           // Escape backslashes first
-      .replace(/'/g, "'\"'\"'")         // Escape single quotes
-      .replace(/"/g, '\\"')             // Escape double quotes
-      .replace(/`/g, '\\`')             // Escape backticks
-      .replace(/\$/g, '\\$');           // Escape dollar signs
+      .replace(/\\/g, "\\\\") // Escape backslashes first
+      .replace(/'/g, "'\"'\"'") // Escape single quotes
+      .replace(/"/g, '\\"') // Escape double quotes
+      .replace(/`/g, "\\`") // Escape backticks
+      .replace(/\$/g, "\\$"); // Escape dollar signs
 
     console.log(`[ADB] Sending text: "${text}"`);
     exec(`${adbPath} shell input text '${escapedText}'`, puts);
