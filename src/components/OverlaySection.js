@@ -10,6 +10,8 @@
 import React, { useState } from "react";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
+import Container from "react-bootstrap/Container";
+import Card from "react-bootstrap/Card";
 
 const { electronAPI } = window;
 
@@ -32,25 +34,29 @@ function OverlaySection() {
   };
 
   return (
-    <div>
-      <Form.Group controlId="formImagePath">
-        <Form.Label>Image Path</Form.Label>
-        <Form.Control type="text" readOnly value={imagePath} />
-        <Button variant="primary" onClick={handleLoadImage} className="mt-2">
-          Load Image
-        </Button>
-      </Form.Group>
-      <Form.Group controlId="formOpacity" className="mt-3">
-        <Form.Label>Opacity ({Math.round(opacity * 100)}%)</Form.Label>
-        <Form.Range
-          min="0"
-          max="1"
-          step="0.01"
-          value={opacity}
-          onChange={handleOpacityChange}
-        />
-      </Form.Group>
-    </div>
+    <Container className="p-2">
+      <Card>
+        <Card.Body>
+          <Form.Group controlId="formImagePath">
+            <Form.Label>Image Path</Form.Label>
+            <Form.Control type="text" readOnly value={imagePath} />
+            <Button variant="primary" onClick={handleLoadImage} className="mt-2">
+              Load Image
+            </Button>
+          </Form.Group>
+          <Form.Group controlId="formOpacity" className="mt-2">
+            <Form.Label>Opacity ({Math.round(opacity * 100)}%)</Form.Label>
+            <Form.Range
+              min="0"
+              max="1"
+              step="0.01"
+              value={opacity}
+              onChange={handleOpacityChange}
+            />
+          </Form.Group>
+        </Card.Body>
+      </Card>
+    </Container>
   );
 }
 

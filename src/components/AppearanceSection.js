@@ -81,7 +81,7 @@ function AppearanceSection() {
   };
 
   return (
-    <Container className="p-3">
+    <Container className="p-2">
       <Card>
         <Card.Body>
           <h6>Display Border</h6>
@@ -105,8 +105,8 @@ function AppearanceSection() {
               </Form.Group>
             </Col>
           </Row>
-          <hr className="mt-4" />
-          <Row className="mt-3">
+          <hr className="mt-3" />
+          <Row className="mt-2">
             <Col>
               <SelectResolution value={resolution} onChange={handleResolutionChange} />
             </Col>

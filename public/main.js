@@ -105,9 +105,9 @@ function createMainWindow() {
   const win = createWindow(
     "mainWindow",
     {
-      height: isMacOS ? 605 : 630,
+      height: isMacOS ? 620 : 645,
       width: 600,
-      minHeight: isMacOS ? 605 : 630,
+      minHeight: isMacOS ? 620 : 645,
       minWidth: 600,
       maximizable: false,
       resizable: false,
@@ -282,6 +282,9 @@ app.whenReady().then(async () => {
       }
     } else if (arg.type && arg.type === "send-adb-key") {
       sendADBKey(arg.payload);
+    } else if (arg.type && arg.type === "set-audio-enabled") {
+      settings.display.audioEnabled = arg.payload;
+      saveFlag = true;
     }
     if (saveFlag) {
       saveSettings(settings);
@@ -315,6 +318,11 @@ app.whenReady().then(async () => {
     saveSettings(settings);
 
     setAlwaysOnTop(alwaysOnTop, displayWindow);
+  });
+
+  ipcMain.on("save-audio-enabled", (event, audioEnabled) => {
+    settings.display.audioEnabled = audioEnabled;
+    saveSettings(settings);
   });
 
   ipcMain.on("show-context-menu", (event) => {
