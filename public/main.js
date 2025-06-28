@@ -144,6 +144,16 @@ function createDisplayWindow() {
   win.on("move", () => {
     win.webContents.send("window-moved");
   });
+
+  // Handle paste operations for macOS system menu
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.meta && input.key === "v" && input.type === "keyDown") {
+      console.debug("[Main] Paste shortcut detected via before-input-event");
+      win.webContents.send("handle-paste");
+      event.preventDefault();
+    }
+  });
+
   return win;
 }
 
