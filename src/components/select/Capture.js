@@ -14,14 +14,74 @@ const Capture = ({ value, onChange }) => {
   useEffect(() => {
     electronAPI.onMessageReceived("shared-window-channel", (_, message) => {
       if (message.type === "set-capture-devices") {
-        setCaptureDevices(JSON.parse(message.payload));
-        electronAPI.invoke("load-settings").then((settings) => {
-          if (settings.display && settings.display.deviceId) {
-            onChange({ target: { value: settings.display.deviceId } });
-          } else if(message.payload?.length) {
-            onChange({ target: { value: message.payload[0].deviceId } });
+        try {
+          // Safely parse the JSON payload
+          let devices = [];
+          if (message.payload && typeof message.payload === "string") {
+            devices = JSON.parse(message.payload);
+          } else if (Array.isArray(message.payload)) {
+            devices = message.payload;
           }
-        });
+
+          // Validate that devices is an array and has valid structure
+          if (!Array.isArray(devices)) {
+            console.error("[Carabiner] Invalid devices data: not an array");
+            setErrorOccurred(true);
+            return;
+          }
+
+          // Filter out invalid devices and ensure required properties exist
+          const validDevices = devices.filter(
+            (device) => device?.deviceId && typeof device.deviceId === "string"
+          );
+
+          if (validDevices.length === 0) {
+            console.warn("[Carabiner] No valid capture devices found");
+            setCaptureDevices([]);
+            setErrorOccurred(true);
+            return;
+          }
+
+          setCaptureDevices(validDevices);
+
+          electronAPI
+            .invoke("load-settings")
+            .then((settings) => {
+              let selectedDeviceId = null;
+
+              // Check if the saved device ID exists in available devices
+              if (settings?.display?.deviceId) {
+                const savedDeviceExists = validDevices.find(
+                  (device) => device.deviceId === settings.display.deviceId
+                );
+                if (savedDeviceExists) {
+                  selectedDeviceId = settings.display.deviceId;
+                }
+              }
+
+              // If saved device doesn't exist or no saved device, use first available
+              if (!selectedDeviceId && validDevices.length > 0) {
+                selectedDeviceId = validDevices[0].deviceId;
+                console.debug(
+                  "[Carabiner] Previous capture device not found, falling back to first available device"
+                );
+              }
+
+              if (selectedDeviceId) {
+                onChange({ target: { value: selectedDeviceId } });
+              }
+            })
+            .catch((error) => {
+              console.error("[Carabiner] Error loading settings:", error);
+              // Fallback to first device if settings can't be loaded
+              if (validDevices.length > 0) {
+                onChange({ target: { value: validDevices[0].deviceId } });
+              }
+            });
+        } catch (error) {
+          console.error("[Carabiner] Error parsing capture devices:", error);
+          setErrorOccurred(true);
+        }
       }
     });
   }, []);
@@ -29,15 +89,10 @@ const Capture = ({ value, onChange }) => {
   return (
     <div>
       {errorOccurred ? (
-        <Alert
-          variant="danger"
-          onClose={() => setErrorOccurred(false)}
-          dismissible
-        >
+        <Alert variant="danger" onClose={() => setErrorOccurred(false)} dismissible>
           <Alert.Heading>An error occurred!</Alert.Heading>
           <p>
-            Either you have not allowed access to your webcam or your browser
-            does not support the{" "}
+            Either you have not allowed access to your webcam or your browser does not support the{" "}
             <a
               href="https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API"
               target="_blank"
