@@ -18,11 +18,7 @@ let captureDevice = "";
 let captureResolution = "1280|720";
 let currentLinked = "";
 
-function GeneralSection({
-  streamingDevices,
-  onUpdateStreamingDevices,
-  onDeletedDeviceRef,
-}) {
+function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedDeviceRef }) {
   const [deviceId, setDeviceId] = useState("");
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
@@ -57,10 +53,7 @@ function GeneralSection({
       if (settings.display && settings.display.launchAppAtLogin !== undefined) {
         setLaunchAppAtLogin(settings.display.launchAppAtLogin);
       }
-      if (
-        settings.display &&
-        settings.display.showSettingsOnStart !== undefined
-      ) {
+      if (settings.display && settings.display.showSettingsOnStart !== undefined) {
         setShowSettingsOnStart(settings.display.showSettingsOnStart);
       }
       if (settings.display && settings.display.alwaysOnTop !== undefined) {
@@ -70,30 +63,19 @@ function GeneralSection({
         setAudioEnabled(settings.display.audioEnabled);
       }
     });
-    window.electronAPI.onMessageReceived(
-      "open-display-tab",
-      handleOpenDisplayTab
-    );
-    window.electronAPI.onMessageReceived(
-      "update-always-on-top",
-      (event, value) => {
-        setAlwaysOnTop(value);
-      }
-    );
-    window.electronAPI.onMessageReceived(
-      "update-capture-device",
-      (event, value) => {
-        captureDevice = value;
-        setDeviceId(value);
-        notifyCaptureChange(value);
-        const linked = streamingDevicesRef.current.find(
-          (device) => device.linked === value
-        );
-        currentLinked = linked?.id ?? "";
-        setLinkedDevice(currentLinked);
-        notifyControlChange("set-control-selected", currentLinked);
-      }
-    );
+    window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
+    window.electronAPI.onMessageReceived("update-always-on-top", (event, value) => {
+      setAlwaysOnTop(value);
+    });
+    window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
+      captureDevice = value;
+      setDeviceId(value);
+      notifyCaptureChange(value);
+      const linked = streamingDevicesRef.current.find((device) => device.linked === value);
+      currentLinked = linked?.id ?? "";
+      setLinkedDevice(currentLinked);
+      notifyControlChange("set-control-selected", currentLinked);
+    });
 
     return () => {
       window.electronAPI.removeListener("open-display-tab");
@@ -114,9 +96,7 @@ function GeneralSection({
     captureDevice = e.target.value;
     setDeviceId(captureDevice);
     notifyCaptureChange(captureDevice);
-    const linked = streamingDevicesRef.current.find(
-      (device) => device.linked === captureDevice
-    );
+    const linked = streamingDevicesRef.current.find((device) => device.linked === captureDevice);
     currentLinked = linked?.id ?? "";
     setLinkedDevice(currentLinked);
     notifyControlChange("set-control-selected", currentLinked);
@@ -173,20 +153,10 @@ function GeneralSection({
     <Container className="p-2">
       <Card>
         <Card.Body>
-          <SelectCapture
-            value={deviceId}
-            onChange={handleCaptureDeviceChange}
-          />
-          <Form.Group
-            controlId="formLinkedDevice"
-            className="form-group-spacing mt-2"
-          >
+          <SelectCapture value={deviceId} onChange={handleCaptureDeviceChange} />
+          <Form.Group controlId="formLinkedDevice" className="form-group-spacing mt-2">
             <Form.Label>Linked Streaming Device</Form.Label>
-            <Form.Control
-              as="select"
-              value={linkedDevice}
-              onChange={handleLinkedDeviceChange}
-            >
+            <Form.Control as="select" value={linkedDevice} onChange={handleLinkedDeviceChange}>
               <option value="">Select a device</option>
               {streamingDevices.map((device, index) => (
                 <option key={index} value={device.id}>
@@ -237,9 +207,7 @@ export function notifyCaptureChange(videoSource, resolution) {
   if (resolution) {
     captureResolution = resolution;
   }
-  const [width, height] = captureResolution
-    .split("|")
-    .map((dim) => parseInt(dim, 10));
+  const [width, height] = captureResolution.split("|").map((dim) => parseInt(dim, 10));
   const constraints = {
     video: {
       deviceId: {

@@ -31,8 +31,7 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
 
 function updateOverlayPosition() {
   const rect = videoPlayer.getBoundingClientRect();
-  const borderWidth =
-    parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
+  const borderWidth = parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
   overlayImage.style.position = "absolute";
   overlayImage.style.top = `${rect.top + borderWidth}px`;
   overlayImage.style.left = `${rect.left + borderWidth}px`;
@@ -102,45 +101,52 @@ async function updateAudioConstraints() {
   if (audioEnabled && currentConstraints.video && currentConstraints.video.deviceId) {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDeviceId = currentConstraints.video.deviceId.exact || currentConstraints.video.deviceId;
+      const videoDeviceId =
+        currentConstraints.video.deviceId.exact || currentConstraints.video.deviceId;
 
       // Find the video device to get its label for matching
-      const videoDevice = devices.find(device =>
-        device.kind === 'videoinput' && device.deviceId === videoDeviceId
+      const videoDevice = devices.find(
+        (device) => device.kind === "videoinput" && device.deviceId === videoDeviceId
       );
 
       if (videoDevice && videoDevice.label) {
         // Look for audio device with similar name/label (same capture card)
         // Many capture cards have audio and video with similar names
         const videoLabel = videoDevice.label.toLowerCase();
-        const audioDevice = devices.find(device => {
-          if (device.kind !== 'audioinput') return false;
+        const audioDevice = devices.find((device) => {
+          if (device.kind !== "audioinput") return false;
           const audioLabel = device.label.toLowerCase();
 
           // Check if audio device name contains parts of video device name
           // This handles cases like "USB Video", "USB Audio" or "Capture Card Video", "Capture Card Audio"
-          const videoWords = videoLabel.split(/[\s\-_]+/).filter(word => word.length > 2);
-          return videoWords.some(word => audioLabel.includes(word)) &&
-            !audioLabel.includes('microphone') &&
-            !audioLabel.includes('built-in') &&
-            !audioLabel.includes('default');
+          const videoWords = videoLabel.split(/[\s\-_]+/).filter((word) => word.length > 2);
+          return (
+            videoWords.some((word) => audioLabel.includes(word)) &&
+            !audioLabel.includes("microphone") &&
+            !audioLabel.includes("built-in") &&
+            !audioLabel.includes("default")
+          );
         });
 
         if (audioDevice) {
           currentConstraints.audio = {
-            deviceId: { exact: audioDevice.deviceId }
+            deviceId: { exact: audioDevice.deviceId },
           };
-          console.debug(`[Carabiner] Found matching audio device: ${audioDevice.label} for video device: ${videoDevice.label}`);
+          console.debug(
+            `[Carabiner] Found matching audio device: ${audioDevice.label} for video device: ${videoDevice.label}`
+          );
         } else {
           // If no matching audio device found, disable audio to avoid using microphone
           currentConstraints.audio = false;
-          console.debug(`[Carabiner] No matching audio device found for video device: ${videoDevice.label}, audio disabled`);
+          console.debug(
+            `[Carabiner] No matching audio device found for video device: ${videoDevice.label}, audio disabled`
+          );
         }
       } else {
         currentConstraints.audio = false;
       }
     } catch (error) {
-      console.error('[Carabiner] Error updating audio constraints:', error);
+      console.error("[Carabiner] Error updating audio constraints:", error);
       currentConstraints.audio = false;
     }
   } else {
@@ -177,9 +183,7 @@ function renderDisplay(constraints) {
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then(async (stream) => {
-      deviceLabel.textContent = await getCaptureDeviceLabel(
-        constraints.video.deviceId.exact
-      );
+      deviceLabel.textContent = await getCaptureDeviceLabel(constraints.video.deviceId.exact);
       videoPlayer.srcObject = stream;
       videoPlayer.play();
       currentConstraints = constraints;
@@ -211,9 +215,7 @@ async function getCaptureDeviceLabel(deviceId) {
     (device) => device.deviceId === deviceId && device.kind === "videoinput"
   );
   let deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
-  const streamDevice = controlList.find(
-    (device) => device.linked === captureDevice.deviceId
-  );
+  const streamDevice = controlList.find((device) => device.linked === captureDevice.deviceId);
   if (streamDevice) {
     deviceLabel += ` - ${streamDevice.type} ${streamDevice.alias ?? streamDevice.ipAddress}`;
   }
@@ -238,15 +240,12 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  window.electronAPI.onMessageReceived(
-    "shared-window-channel",
-    (_, message) => {
-      const handler = eventHandlers[message.type];
-      if (handler) {
-        handler(message.payload);
-      }
+  window.electronAPI.onMessageReceived("shared-window-channel", (_, message) => {
+    const handler = eventHandlers[message.type];
+    if (handler) {
+      handler(message.payload);
     }
-  );
+  });
 
   // Handle video streaming control
   window.electronAPI.onMessageReceived("stop-video-stream", function () {
@@ -293,9 +292,7 @@ window.addEventListener("DOMContentLoaded", function () {
     const canvas = getScreenshotCanvas();
     const now = new Date();
     const datePart = now.toLocaleDateString("en-CA");
-    const timePart = now
-      .toLocaleTimeString("en-CA", { hour12: false })
-      .replace(/:/g, "");
+    const timePart = now.toLocaleTimeString("en-CA", { hour12: false }).replace(/:/g, "");
     const filename = `carabiner-${datePart}-${timePart}.png`;
     canvas.toBlob(function (blob) {
       const a = document.createElement("a");
@@ -406,9 +403,7 @@ async function handleControlSelected(data) {
 }
 
 function handleControlList(data) {
-  const found = data.find(
-    (device) => device.id === `${controlIp}|${controlType}`
-  );
+  const found = data.find((device) => device.id === `${controlIp}|${controlType}`);
   if (!found) {
     controlIp = "";
     controlType = "ecp";
@@ -549,8 +544,9 @@ function handleKeyboardEvent(event, mod) {
   }
 
   // Handle paste shortcut
-  const isPasteShortcut = (isMacOS && event.metaKey && event.key === 'v') ||
-    (!isMacOS && event.ctrlKey && event.key === 'v');
+  const isPasteShortcut =
+    (isMacOS && event.metaKey && event.key === "v") ||
+    (!isMacOS && event.ctrlKey && event.key === "v");
 
   if (isPasteShortcut && mod === 0) {
     event.preventDefault();
@@ -588,7 +584,7 @@ async function handlePaste() {
     // Read text from clipboard
     const clipboardText = await navigator.clipboard.readText();
 
-    if (!clipboardText || clipboardText.trim() === '') {
+    if (!clipboardText || clipboardText.trim() === "") {
       showToast("Clipboard is empty or contains no text!", 3000, true);
       return;
     }
@@ -597,42 +593,37 @@ async function handlePaste() {
 
     // Type each character using the sendKey function
     await typeText(clipboardText);
-
   } catch (error) {
-    console.error('[Carabiner] Error reading clipboard:', error);
+    console.error("[Carabiner] Error reading clipboard:", error);
   }
 }
 
 // Type text character by character with proper timing
 async function typeText(text) {
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-
-    // Handle special characters and line breaks
-    if (char === '\n' || char === '\r') {
-      // Send Enter key for line breaks
-      if (controlType === "ecp") {
-        sendKey("select", -1);
-      } else if (controlType === "adb") {
-        sendKey("66", 0); // Enter key for ADB
-      }
-    } else {
+  // Clean the text by replacing special characters with spaces
+  const cleanText = text.replace(/[\r\n\t\v\f]/g, " ");
+  if (!cleanText) {
+    showToast("No valid text to paste after cleaning special characters", 3000, true);
+    return;
+  }
+  console.debug(`[Carabiner] Cleaned text for pasting: "${cleanText}"`);
+  if (controlType === "adb") {
+    // For ADB, send the entire text at once to avoid character ordering issues
+    window.electronAPI.sendSync("shared-window-channel", {
+      type: "send-adb-text",
+      payload: cleanText,
+    });
+  } else if (controlType === "ecp") {
+    // For ECP, send character by character
+    for (let i = 0; i < cleanText.length; i++) {
+      const char = cleanText[i];
       // Type the character
-      if (controlType === "ecp") {
-        sendKey(`lit_${encodeURIComponent(char)}`, -1);
-      } else if (controlType === "adb") {
-        // For ADB, we need to send the text differently
-        // ADB text input is handled by the main process
-        window.electronAPI.sendSync("shared-window-channel", {
-          type: "send-adb-text",
-          payload: char,
-        });
-      }
-    }
+      sendKey(`lit_${encodeURIComponent(char)}`, -1);
 
-    // Add small delay between characters to avoid overwhelming the device
-    if (i < text.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Add small delay between characters to avoid overwhelming the device
+      if (i < cleanText.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
     }
   }
 }

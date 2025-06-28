@@ -24,16 +24,10 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
-const {
-  createMenu,
-  updateAlwaysOnTopMenuItem,
-  updateScreenshotMenuItems,
-} = require("./menu");
-const packageInfo = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
-);
+const { createMenu, updateAlwaysOnTopMenuItem, updateScreenshotMenuItems } = require("./menu");
+const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
-if (require('electron-squirrel-startup') === true) app.quit();
+if (require("electron-squirrel-startup") === true) app.quit();
 
 const isMacOS = process.platform === "darwin";
 const settings = loadSettings();
@@ -275,9 +269,7 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-border-color") {
       settings.border.color = arg.payload;
     } else if (arg.type && arg.type === "set-control-list") {
-      const found = arg.payload.find(
-        (device) => device.id === settings.control.deviceId
-      );
+      const found = arg.payload.find((device) => device.id === settings.control.deviceId);
       if (!found) {
         settings.control.deviceId = "";
         if (isADBConnected) {
@@ -394,24 +386,16 @@ app.whenReady().then(async () => {
     if (captureDevices) {
       menu.append(new MenuItem({ type: "separator" }));
       captureDevices.forEach((device) => {
-        let deviceLabel =
-          device.label || `Device ${videoDevices.indexOf(device) + 1}`;
-        const found = settings.control.deviceList.find(
-          (d) => d.linked === device.deviceId
-        );
-        deviceLabel += found
-          ? ` - ${found.type} ${found.alias ?? found.ipAddress}`
-          : "";
+        let deviceLabel = device.label || `Device ${videoDevices.indexOf(device) + 1}`;
+        const found = settings.control.deviceList.find((d) => d.linked === device.deviceId);
+        deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
         menu.append(
           new MenuItem({
             label: deviceLabel,
             type: "radio",
             checked: settings.display.deviceId === device.deviceId,
             click: () => {
-              mainWindow.webContents.send(
-                "update-capture-device",
-                device.deviceId
-              );
+              mainWindow.webContents.send("update-capture-device", device.deviceId);
             },
           })
         );
@@ -434,9 +418,7 @@ app.whenReady().then(async () => {
         label: "Keyboard Control Help",
         accelerator: "CmdOrCtrl+F1",
         click: () => {
-          shell.openExternal(
-            `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
-          );
+          shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
         },
       })
     );
@@ -469,10 +451,7 @@ app.whenReady().then(async () => {
     } else {
       const imagePath = result.filePaths[0];
       const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
-      displayWindow.webContents.send(
-        "image-loaded",
-        `data:image/png;base64,${imageData}`
-      );
+      displayWindow.webContents.send("image-loaded", `data:image/png;base64,${imageData}`);
       return imagePath;
     }
   });
