@@ -319,7 +319,6 @@ window.addEventListener("DOMContentLoaded", function () {
   if (isMacOS) {
     // Listen for the standard 'paste' event on the document
     document.addEventListener("paste", (event) => {
-      console.debug("[Carabiner] Paste event detected via document listener");
       event.preventDefault();
       handlePaste();
     });
@@ -327,7 +326,6 @@ window.addEventListener("DOMContentLoaded", function () {
     // Also listen for beforeinput events which can capture paste operations
     document.addEventListener("beforeinput", (event) => {
       if (event.inputType === "insertFromPaste" || event.inputType === "insertCompositionText") {
-        console.debug("[Carabiner] Paste operation detected via beforeinput event");
         event.preventDefault();
         handlePaste();
       }
