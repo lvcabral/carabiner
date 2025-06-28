@@ -56,6 +56,14 @@ function sendADBKey(key) {
   }
 }
 
+function sendADBText(text) {
+  if (isADBConnected && typeof text === "string" && adbPath !== "") {
+    // Escape single quotes and backslashes for shell safety
+    const escapedText = text.replace(/'/g, "'\"'\"'").replace(/\\/g, '\\\\');
+    exec(`${adbPath} shell input text '${escapedText}'`, puts);
+  }
+}
+
 function isNumeric(str) {
   return /^\d+$/.test(str);
 }
@@ -69,4 +77,5 @@ module.exports = {
   connectADB,
   disconnectADB,
   sendADBKey,
+  sendADBText,
 };

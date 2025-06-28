@@ -23,7 +23,7 @@ const {
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
-const { connectADB, disconnectADB, sendADBKey } = require("./adb");
+const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
 const {
   createMenu,
   updateAlwaysOnTopMenuItem,
@@ -297,6 +297,8 @@ app.whenReady().then(async () => {
       }
     } else if (arg.type && arg.type === "send-adb-key") {
       sendADBKey(arg.payload);
+    } else if (arg.type && arg.type === "send-adb-text") {
+      sendADBText(arg.payload);
     } else if (arg.type && arg.type === "set-audio-enabled") {
       settings.display.audioEnabled = arg.payload;
       saveFlag = true;
@@ -361,6 +363,16 @@ app.whenReady().then(async () => {
         accelerator: "CmdOrCtrl+S",
         click: () => {
           displayWindow.webContents.send("save-screenshot");
+        },
+      })
+    );
+    menu.append(new MenuItem({ type: "separator" }));
+    menu.append(
+      new MenuItem({
+        label: "Paste Text",
+        accelerator: "CmdOrCtrl+V",
+        click: () => {
+          displayWindow.webContents.send("handle-paste");
         },
       })
     );
