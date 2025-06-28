@@ -58,8 +58,16 @@ function sendADBKey(key) {
 
 function sendADBText(text) {
   if (isADBConnected && typeof text === "string" && adbPath !== "") {
-    // Escape single quotes and backslashes for shell safety
-    const escapedText = text.replace(/'/g, "'\"'\"'").replace(/\\/g, '\\\\');
+    // Escape special characters for shell safety
+    // Handle single quotes, backslashes, and other special shell characters
+    const escapedText = text
+      .replace(/\\/g, '\\\\')           // Escape backslashes first
+      .replace(/'/g, "'\"'\"'")         // Escape single quotes
+      .replace(/"/g, '\\"')             // Escape double quotes
+      .replace(/`/g, '\\`')             // Escape backticks
+      .replace(/\$/g, '\\$');           // Escape dollar signs
+    
+    console.log(`[ADB] Sending text: "${text}"`);
     exec(`${adbPath} shell input text '${escapedText}'`, puts);
   }
 }

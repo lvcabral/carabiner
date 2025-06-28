@@ -605,34 +605,47 @@ async function handlePaste() {
 
 // Type text character by character with proper timing
 async function typeText(text) {
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-
-    // Handle special characters and line breaks
-    if (char === '\n' || char === '\r') {
-      // Send Enter key for line breaks
-      if (controlType === "ecp") {
-        sendKey("select", -1);
-      } else if (controlType === "adb") {
-        sendKey("66", 0); // Enter key for ADB
-      }
-    } else {
-      // Type the character
-      if (controlType === "ecp") {
-        sendKey(`lit_${encodeURIComponent(char)}`, -1);
-      } else if (controlType === "adb") {
-        // For ADB, we need to send the text differently
-        // ADB text input is handled by the main process
+  if (controlType === "adb") {
+    // For ADB, send the entire text at once to avoid character ordering issues
+    // Split by line breaks and handle them separately
+    const lines = text.split(/\r?\n/);
+    
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
+      
+      if (line.length > 0) {
+        // Send the entire line as one command
         window.electronAPI.sendSync("shared-window-channel", {
           type: "send-adb-text",
-          payload: char,
+          payload: line,
         });
       }
+      
+      // Send Enter key for line breaks (except for the last line)
+      if (lineIndex < lines.length - 1) {
+        sendKey("66", 0); // Enter key for ADB
+        // Small delay after Enter
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
-
-    // Add small delay between characters to avoid overwhelming the device
-    if (i < text.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 50));
+  } else if (controlType === "ecp") {
+    // For ECP, send character by character as before
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      
+      // Handle special characters and line breaks
+      if (char === '\n' || char === '\r') {
+        // Send Enter key for line breaks
+        sendKey("select", -1);
+      } else {
+        // Type the character
+        sendKey(`lit_${encodeURIComponent(char)}`, -1);
+      }
+      
+      // Add small delay between characters to avoid overwhelming the device
+      if (i < text.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     }
   }
 }
