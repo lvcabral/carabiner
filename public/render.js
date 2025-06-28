@@ -312,6 +312,11 @@ window.addEventListener("DOMContentLoaded", function () {
     overlayImage.src = imageData;
   });
 
+  // Listen for paste command from context menu
+  window.electronAPI.onMessageReceived("handle-paste", (event) => {
+    handlePaste();
+  });
+
   // Configure the overlay image
   overlayImage.style.position = "absolute";
   updateOverlayPosition();
@@ -542,6 +547,17 @@ function handleKeyboardEvent(event, mod) {
   } else if (event.metaKey && !keyCode.startsWith("Meta")) {
     keyCode = "Meta+" + keyCode;
   }
+
+  // Handle paste shortcut
+  const isPasteShortcut = (isMacOS && event.metaKey && event.key === 'v') ||
+    (!isMacOS && event.ctrlKey && event.key === 'v');
+
+  if (isPasteShortcut && mod === 0) {
+    event.preventDefault();
+    handlePaste();
+    return;
+  }
+
   if (controlType === "ecp") {
     const key = ecpKeysMap.get(keyCode);
     if (key && key.toLowerCase() !== "ignore") {
@@ -556,6 +572,67 @@ function handleKeyboardEvent(event, mod) {
     const key = adbKeysMap.get(keyCode);
     if (key) {
       sendKey(key, mod);
+    }
+  }
+}
+
+// Handle paste functionality
+async function handlePaste() {
+  try {
+    // Check if we have a valid control connection
+    if (!isValidIP(controlIp)) {
+      showToast("No streaming device connected for paste operation!", 3000, true);
+      return;
+    }
+
+    // Read text from clipboard
+    const clipboardText = await navigator.clipboard.readText();
+
+    if (!clipboardText || clipboardText.trim() === '') {
+      showToast("Clipboard is empty or contains no text!", 3000, true);
+      return;
+    }
+
+    console.debug(`[Carabiner] Pasting text: "${clipboardText}"`);
+
+    // Type each character using the sendKey function
+    await typeText(clipboardText);
+
+  } catch (error) {
+    console.error('[Carabiner] Error reading clipboard:', error);
+  }
+}
+
+// Type text character by character with proper timing
+async function typeText(text) {
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    // Handle special characters and line breaks
+    if (char === '\n' || char === '\r') {
+      // Send Enter key for line breaks
+      if (controlType === "ecp") {
+        sendKey("select", -1);
+      } else if (controlType === "adb") {
+        sendKey("66", 0); // Enter key for ADB
+      }
+    } else {
+      // Type the character
+      if (controlType === "ecp") {
+        sendKey(`lit_${encodeURIComponent(char)}`, -1);
+      } else if (controlType === "adb") {
+        // For ADB, we need to send the text differently
+        // ADB text input is handled by the main process
+        window.electronAPI.sendSync("shared-window-channel", {
+          type: "send-adb-text",
+          payload: char,
+        });
+      }
+    }
+
+    // Add small delay between characters to avoid overwhelming the device
+    if (i < text.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
 }
