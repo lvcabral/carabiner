@@ -58,14 +58,14 @@ function sendADBKey(key) {
 
 function sendADBText(text) {
   if (isADBConnected && typeof text === "string" && adbPath !== "") {
-    console.log(`[ADB] Sending text character by character: "${text}"`);
+    console.debug(`[ADB] Sending text character by character: "${text}"`);
 
     const chars = text.split("");
     let index = 0;
 
     function sendNextChar() {
       if (index >= chars.length) {
-        console.log("[ADB] Finished sending text character by character");
+        console.debug("[ADB] Finished sending text character by character");
         return;
       }
 
