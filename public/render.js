@@ -13,14 +13,19 @@ const settingsButton = document.getElementById("settings-button");
 const deviceLabel = document.getElementById("device-label");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 let currentColor = "#662D91";
-let currentConstraints = { video: true };
+let currentConstraints = { video: true, audio: false };
 let videoState = "stopped";
 let resizeTimeout;
+let audioEnabled = false;
 
 // Load settings from main process
-window.electronAPI.invoke("load-settings").then((settings) => {
+window.electronAPI.invoke("load-settings").then(async (settings) => {
   if (settings.control && settings.control.deviceId) {
     handleControlSelected(settings.control.deviceId);
+  }
+  if (settings.display && settings.display.audioEnabled !== undefined) {
+    audioEnabled = settings.display.audioEnabled;
+    // Note: updateAudioConstraints() will be called when video stream is set
   }
 });
 
@@ -78,9 +83,10 @@ function handleSetBorderColor(borderColor) {
   }
 }
 
-function handleSetVideoStream(constraints) {
+async function handleSetVideoStream(constraints) {
   currentConstraints = constraints;
-  renderDisplay(constraints);
+  await updateAudioConstraints();
+  renderDisplay(currentConstraints);
 }
 
 function handleSetTransparency(data) {
@@ -92,6 +98,65 @@ function handleOverlayOpacity(opacity) {
   overlayImage.style.opacity = opacity;
 }
 
+async function updateAudioConstraints() {
+  if (audioEnabled && currentConstraints.video && currentConstraints.video.deviceId) {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDeviceId = currentConstraints.video.deviceId.exact || currentConstraints.video.deviceId;
+
+      // Find the video device to get its label for matching
+      const videoDevice = devices.find(device =>
+        device.kind === 'videoinput' && device.deviceId === videoDeviceId
+      );
+
+      if (videoDevice && videoDevice.label) {
+        // Look for audio device with similar name/label (same capture card)
+        // Many capture cards have audio and video with similar names
+        const videoLabel = videoDevice.label.toLowerCase();
+        const audioDevice = devices.find(device => {
+          if (device.kind !== 'audioinput') return false;
+          const audioLabel = device.label.toLowerCase();
+
+          // Check if audio device name contains parts of video device name
+          // This handles cases like "USB Video", "USB Audio" or "Capture Card Video", "Capture Card Audio"
+          const videoWords = videoLabel.split(/[\s\-_]+/).filter(word => word.length > 2);
+          return videoWords.some(word => audioLabel.includes(word)) &&
+            !audioLabel.includes('microphone') &&
+            !audioLabel.includes('built-in') &&
+            !audioLabel.includes('default');
+        });
+
+        if (audioDevice) {
+          currentConstraints.audio = {
+            deviceId: { exact: audioDevice.deviceId }
+          };
+          console.debug(`[Carabiner] Found matching audio device: ${audioDevice.label} for video device: ${videoDevice.label}`);
+        } else {
+          // If no matching audio device found, disable audio to avoid using microphone
+          currentConstraints.audio = false;
+          console.debug(`[Carabiner] No matching audio device found for video device: ${videoDevice.label}, audio disabled`);
+        }
+      } else {
+        currentConstraints.audio = false;
+      }
+    } catch (error) {
+      console.error('[Carabiner] Error updating audio constraints:', error);
+      currentConstraints.audio = false;
+    }
+  } else {
+    currentConstraints.audio = false;
+  }
+}
+
+async function handleSetAudioEnabled(enabled) {
+  audioEnabled = enabled;
+  // Update the current constraints with proper audio settings
+  await updateAudioConstraints();
+  if (videoState !== "stopped") {
+    renderDisplay(currentConstraints);
+  }
+}
+
 const eventHandlers = {
   "set-border-width": handleSetBorderWidth,
   "set-border-style": handleSetBorderStyle,
@@ -101,6 +166,7 @@ const eventHandlers = {
   "set-control-list": handleControlList,
   "set-control-selected": handleControlSelected,
   "set-overlay-opacity": handleOverlayOpacity,
+  "set-audio-enabled": handleSetAudioEnabled,
 };
 
 function renderDisplay(constraints) {
@@ -149,9 +215,7 @@ async function getCaptureDeviceLabel(deviceId) {
     (device) => device.linked === captureDevice.deviceId
   );
   if (streamDevice) {
-    deviceLabel += ` - ${streamDevice.type} ${
-      streamDevice.alias ?? streamDevice.ipAddress
-    }`;
+    deviceLabel += ` - ${streamDevice.type} ${streamDevice.alias ?? streamDevice.ipAddress}`;
   }
   return deviceLabel;
 }

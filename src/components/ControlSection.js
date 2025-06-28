@@ -108,7 +108,7 @@ function ControlSection({
   };
 
   return (
-    <Container className="p-3">
+    <Container className="p-2">
       <Card>
         <Card.Body>
           <Form>

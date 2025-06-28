@@ -29,6 +29,7 @@ function GeneralSection({
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(true);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [linkedDevice, setLinkedDevice] = useState("");
+  const [audioEnabled, setAudioEnabled] = useState(false);
 
   const streamingDevicesRef = useRef(streamingDevices);
 
@@ -64,6 +65,9 @@ function GeneralSection({
       }
       if (settings.display && settings.display.alwaysOnTop !== undefined) {
         setAlwaysOnTop(settings.display.alwaysOnTop);
+      }
+      if (settings.display && settings.display.audioEnabled !== undefined) {
+        setAudioEnabled(settings.display.audioEnabled);
       }
     });
     window.electronAPI.onMessageReceived(
@@ -116,7 +120,7 @@ function GeneralSection({
     currentLinked = linked?.id ?? "";
     setLinkedDevice(currentLinked);
     notifyControlChange("set-control-selected", currentLinked);
-};
+  };
 
   const handleShortcutChange = (value) => {
     setShortcut(value);
@@ -138,6 +142,17 @@ function GeneralSection({
     electronAPI.send("save-always-on-top", e.target.checked);
   };
 
+  const handleAudioEnabledChange = (e) => {
+    setAudioEnabled(e.target.checked);
+    // Notify the render process
+    electronAPI.sendSync("shared-window-channel", {
+      type: "set-audio-enabled",
+      payload: e.target.checked,
+    });
+    // Save to settings
+    electronAPI.send("save-audio-enabled", e.target.checked);
+  };
+
   const handleLinkedDeviceChange = (e) => {
     currentLinked = e.target.value;
     setLinkedDevice(currentLinked);
@@ -155,7 +170,7 @@ function GeneralSection({
   };
 
   return (
-    <Container className="p-3">
+    <Container className="p-2">
       <Card>
         <Card.Body>
           <SelectCapture
@@ -164,7 +179,7 @@ function GeneralSection({
           />
           <Form.Group
             controlId="formLinkedDevice"
-            className="form-group-spacing mt-3"
+            className="form-group-spacing mt-2"
           >
             <Form.Label>Linked Streaming Device</Form.Label>
             <Form.Control
@@ -181,7 +196,7 @@ function GeneralSection({
               ))}
             </Form.Control>
           </Form.Group>
-          <Row className="mt-3">
+          <Row className="mt-2">
             <Col>
               <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
             </Col>
@@ -203,6 +218,12 @@ function GeneralSection({
                 label="Always on Top"
                 checked={alwaysOnTop}
                 onChange={handleAlwaysOnTopChange}
+              />
+              <Form.Check
+                type="checkbox"
+                label="Enable Audio"
+                checked={audioEnabled}
+                onChange={handleAudioEnabledChange}
               />
             </Col>
           </Row>

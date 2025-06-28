@@ -43,7 +43,7 @@ function AboutSection() {
   };
 
   return (
-    <Container className="text-center mt-4">
+    <Container className="text-center mt-2">
       <Row>
         <Col>
           <p>Version {version}</p>
