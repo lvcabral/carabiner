@@ -84,8 +84,30 @@ function sendADBText(text) {
       } else {
         // Escape the character for shell safety
         const escapedChar = char
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "'\\''");
+          .replace(/\\/g, "\\\\")       // Escape backslashes first
+          .replace(/'/g, "'\\''")       // Escape single quotes
+          .replace(/"/g, '\\"')         // Escape double quotes
+          .replace(/=/g, "\\=")         // Escape equals signs
+          .replace(/&/g, "\\&")         // Escape ampersands
+          .replace(/\|/g, "\\|")        // Escape pipes
+          .replace(/;/g, "\\;")         // Escape semicolons
+          .replace(/</g, "\\<")         // Escape less than
+          .replace(/>/g, "\\>")         // Escape greater than
+          .replace(/\(/g, "\\(")        // Escape opening parenthesis
+          .replace(/\)/g, "\\)")        // Escape closing parenthesis
+          .replace(/\[/g, "\\[")        // Escape opening bracket
+          .replace(/\]/g, "\\]")        // Escape closing bracket
+          .replace(/\{/g, "\\{")        // Escape opening brace
+          .replace(/\}/g, "\\}")        // Escape closing brace
+          .replace(/\$/g, "\\$")        // Escape dollar signs
+          .replace(/`/g, "\\`")         // Escape backticks
+          .replace(/!/g, "\\!")         // Escape exclamation marks
+          .replace(/#/g, "\\#")         // Escape hash/pound signs
+          .replace(/%/g, "\\%")         // Escape percent signs
+          .replace(/\^/g, "\\^")        // Escape caret
+          .replace(/\*/g, "\\*")        // Escape asterisks
+          .replace(/\?/g, "\\?")        // Escape question marks
+          .replace(/~/g, "\\~");        // Escape tildes
         
         exec(`${adbPath} shell input text '${escapedChar}'`, (error, stdout, stderr) => {
           if (error) {
