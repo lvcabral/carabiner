@@ -314,6 +314,29 @@ window.addEventListener("DOMContentLoaded", function () {
     handlePaste();
   });
 
+  // Additional paste detection for macOS system menu paste
+  // Listen for clipboard events and paste operations
+  if (isMacOS) {
+    // Listen for the standard 'paste' event on the document
+    document.addEventListener("paste", (event) => {
+      event.preventDefault();
+      handlePaste();
+    });
+
+    // Also listen for beforeinput events which can capture paste operations
+    document.addEventListener("beforeinput", (event) => {
+      if (event.inputType === "insertFromPaste" || event.inputType === "insertCompositionText") {
+        event.preventDefault();
+        handlePaste();
+      }
+    });
+
+    // Set focus to document to ensure it can receive paste events
+    document.addEventListener("click", () => {
+      document.focus();
+    });
+  }
+
   // Configure the overlay image
   overlayImage.style.position = "absolute";
   updateOverlayPosition();
