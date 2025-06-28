@@ -59,20 +59,20 @@ function sendADBKey(key) {
 function sendADBText(text) {
   if (isADBConnected && typeof text === "string" && adbPath !== "") {
     console.log(`[ADB] Sending text character by character: "${text}"`);
-    
-    const chars = text.split('');
+
+    const chars = text.split("");
     let index = 0;
-    
+
     function sendNextChar() {
       if (index >= chars.length) {
-        console.log('[ADB] Finished sending text character by character');
+        console.log("[ADB] Finished sending text character by character");
         return;
       }
-      
+
       const char = chars[index];
-      
+
       // Skip spaces by sending a space keyevent instead of text
-      if (char === ' ') {
+      if (char === " ") {
         exec(`${adbPath} shell input keyevent 62`, (error, stdout, stderr) => {
           if (error) {
             console.error(`[ADB] Error sending space:`, error.message);
@@ -84,31 +84,31 @@ function sendADBText(text) {
       } else {
         // Escape the character for shell safety
         const escapedChar = char
-          .replace(/\\/g, "\\\\")       // Escape backslashes first
-          .replace(/'/g, "'\\''")       // Escape single quotes
-          .replace(/"/g, '\\"')         // Escape double quotes
-          .replace(/=/g, "\\=")         // Escape equals signs
-          .replace(/&/g, "\\&")         // Escape ampersands
-          .replace(/\|/g, "\\|")        // Escape pipes
-          .replace(/;/g, "\\;")         // Escape semicolons
-          .replace(/</g, "\\<")         // Escape less than
-          .replace(/>/g, "\\>")         // Escape greater than
-          .replace(/\(/g, "\\(")        // Escape opening parenthesis
-          .replace(/\)/g, "\\)")        // Escape closing parenthesis
-          .replace(/\[/g, "\\[")        // Escape opening bracket
-          .replace(/\]/g, "\\]")        // Escape closing bracket
-          .replace(/\{/g, "\\{")        // Escape opening brace
-          .replace(/\}/g, "\\}")        // Escape closing brace
-          .replace(/\$/g, "\\$")        // Escape dollar signs
-          .replace(/`/g, "\\`")         // Escape backticks
-          .replace(/!/g, "\\!")         // Escape exclamation marks
-          .replace(/#/g, "\\#")         // Escape hash/pound signs
-          .replace(/%/g, "\\%")         // Escape percent signs
-          .replace(/\^/g, "\\^")        // Escape caret
-          .replace(/\*/g, "\\*")        // Escape asterisks
-          .replace(/\?/g, "\\?")        // Escape question marks
-          .replace(/~/g, "\\~");        // Escape tildes
-        
+          .replace(/\\/g, "\\\\") // Escape backslashes first
+          .replace(/'/g, "'\\''") // Escape single quotes
+          .replace(/"/g, '\\"') // Escape double quotes
+          .replace(/=/g, "\\=") // Escape equals signs
+          .replace(/&/g, "\\&") // Escape ampersands
+          .replace(/\|/g, "\\|") // Escape pipes
+          .replace(/;/g, "\\;") // Escape semicolons
+          .replace(/</g, "\\<") // Escape less than
+          .replace(/>/g, "\\>") // Escape greater than
+          .replace(/\(/g, "\\(") // Escape opening parenthesis
+          .replace(/\)/g, "\\)") // Escape closing parenthesis
+          .replace(/\[/g, "\\[") // Escape opening bracket
+          .replace(/\]/g, "\\]") // Escape closing bracket
+          .replace(/\{/g, "\\{") // Escape opening brace
+          .replace(/\}/g, "\\}") // Escape closing brace
+          .replace(/\$/g, "\\$") // Escape dollar signs
+          .replace(/`/g, "\\`") // Escape backticks
+          .replace(/!/g, "\\!") // Escape exclamation marks
+          .replace(/#/g, "\\#") // Escape hash/pound signs
+          .replace(/%/g, "\\%") // Escape percent signs
+          .replace(/\^/g, "\\^") // Escape caret
+          .replace(/\*/g, "\\*") // Escape asterisks
+          .replace(/\?/g, "\\?") // Escape question marks
+          .replace(/~/g, "\\~"); // Escape tildes
+
         exec(`${adbPath} shell input text '${escapedChar}'`, (error, stdout, stderr) => {
           if (error) {
             console.error(`[ADB] Error sending character '${char}':`, error.message);
@@ -119,7 +119,7 @@ function sendADBText(text) {
         });
       }
     }
-    
+
     sendNextChar();
   }
 }
