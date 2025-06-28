@@ -58,22 +58,66 @@ function sendADBKey(key) {
 
 function sendADBText(text) {
   if (isADBConnected && typeof text === "string" && adbPath !== "") {
-    // For ADB, we need to be very careful with escaping
-    // The safest approach is to escape spaces and use single quotes with proper escaping
+    console.log(`[ADB] Sending text: "${text}"`);
+    
+    // Try using printf to avoid shell parsing issues with spaces
+    // This approach uses printf to output the text and pipes it to the input method
     const escapedText = text
-      .replace(/\\/g, "\\\\")      // Escape backslashes first
-      .replace(/'/g, "'\\''")      // Escape single quotes (exit quote, add escaped quote, enter quote again)
+      .replace(/\\/g, "\\\\")      // Escape backslashes
+      .replace(/"/g, '\\"')        // Escape double quotes
+      .replace(/'/g, "\\'")        // Escape single quotes
+      .replace(/\$/g, "\\$")       // Escape dollar signs
+      .replace(/`/g, "\\`")        // Escape backticks
       .replace(/\n/g, " ")         // Replace newlines with spaces
       .replace(/\r/g, " ")         // Replace carriage returns with spaces  
       .replace(/\t/g, " ");        // Replace tabs with spaces
 
-    console.log(`[ADB] Sending text: "${text}"`);
     console.log(`[ADB] Escaped text: "${escapedText}"`);
     
-    // Use single quotes which are safer for preserving spaces and most special characters
-    // The single quote escaping method above handles embedded single quotes
-    exec(`${adbPath} shell input text '${escapedText}'`, puts);
+    // Use printf with %s to safely handle the text, then pipe to input text
+    exec(`${adbPath} shell "printf '%s' \\"${escapedText}\\" | input text /dev/stdin"`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[ADB] Error with printf method, trying alternative:', error.message);
+        // Fallback: try character by character for problematic text
+        sendADBTextCharByChar(text);
+      } else {
+        console.log('[ADB] Text sent successfully via printf');
+        if (stdout) console.log('[ADB] stdout:', stdout);
+      }
+    });
   }
+}
+
+// Fallback method: send character by character
+function sendADBTextCharByChar(text) {
+  console.log(`[ADB] Sending text character by character: "${text}"`);
+  
+  const chars = text.split('');
+  let index = 0;
+  
+  function sendNextChar() {
+    if (index >= chars.length) {
+      console.log('[ADB] Finished sending text character by character');
+      return;
+    }
+    
+    const char = chars[index];
+    const escapedChar = char
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "'\\''")
+      .replace(/"/g, '\\"');
+    
+    exec(`${adbPath} shell input text '${escapedChar}'`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`[ADB] Error sending character '${char}':`, error.message);
+      }
+      index++;
+      // Small delay between characters
+      setTimeout(sendNextChar, 50);
+    });
+  }
+  
+  sendNextChar();
 }
 
 function isNumeric(str) {
