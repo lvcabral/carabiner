@@ -58,17 +58,31 @@ function sendADBKey(key) {
 
 function sendADBText(text) {
   if (isADBConnected && typeof text === "string" && adbPath !== "") {
-    // Escape special characters for shell safety
-    // Handle single quotes, backslashes, and other special shell characters
+    // Use a more robust escaping approach for shell safety
+    // We'll use double quotes and escape characters that have special meaning in double-quoted strings
     const escapedText = text
-      .replace(/\\/g, "\\\\") // Escape backslashes first
-      .replace(/'/g, "'\"'\"'") // Escape single quotes
-      .replace(/"/g, '\\"') // Escape double quotes
-      .replace(/`/g, "\\`") // Escape backticks
-      .replace(/\$/g, "\\$"); // Escape dollar signs
+      .replace(/\\/g, "\\\\")      // Escape backslashes first
+      .replace(/"/g, '\\"')        // Escape double quotes
+      .replace(/`/g, "\\`")        // Escape backticks
+      .replace(/\$/g, "\\$")       // Escape dollar signs
+      .replace(/!/g, "\\!")        // Escape exclamation marks (history expansion)
+      .replace(/=/g, "\\=")        // Escape equals signs (for ADB safety)
+      .replace(/&/g, "\\&")        // Escape ampersands
+      .replace(/\|/g, "\\|")       // Escape pipes
+      .replace(/;/g, "\\;")        // Escape semicolons
+      .replace(/</g, "\\<")        // Escape less than
+      .replace(/>/g, "\\>")        // Escape greater than
+      .replace(/\(/g, "\\(")       // Escape opening parenthesis
+      .replace(/\)/g, "\\)")       // Escape closing parenthesis
+      .replace(/\n/g, "\\n")       // Escape newlines
+      .replace(/\r/g, "\\r")       // Escape carriage returns
+      .replace(/\t/g, "\\t");      // Escape tabs
 
     console.log(`[ADB] Sending text: "${text}"`);
-    exec(`${adbPath} shell input text '${escapedText}'`, puts);
+    console.log(`[ADB] Escaped text: "${escapedText}"`);
+    
+    // Use double quotes instead of single quotes to allow for better escaping
+    exec(`${adbPath} shell input text "${escapedText}"`, puts);
   }
 }
 
