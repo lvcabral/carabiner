@@ -58,31 +58,21 @@ function sendADBKey(key) {
 
 function sendADBText(text) {
   if (isADBConnected && typeof text === "string" && adbPath !== "") {
-    // Use a more robust escaping approach for shell safety
-    // We'll use double quotes and escape characters that have special meaning in double-quoted strings
+    // For ADB, we need to be very careful with escaping
+    // The safest approach is to escape spaces and use single quotes with proper escaping
     const escapedText = text
       .replace(/\\/g, "\\\\")      // Escape backslashes first
-      .replace(/"/g, '\\"')        // Escape double quotes
-      .replace(/`/g, "\\`")        // Escape backticks
-      .replace(/\$/g, "\\$")       // Escape dollar signs
-      .replace(/!/g, "\\!")        // Escape exclamation marks (history expansion)
-      .replace(/=/g, "\\=")        // Escape equals signs (for ADB safety)
-      .replace(/&/g, "\\&")        // Escape ampersands
-      .replace(/\|/g, "\\|")       // Escape pipes
-      .replace(/;/g, "\\;")        // Escape semicolons
-      .replace(/</g, "\\<")        // Escape less than
-      .replace(/>/g, "\\>")        // Escape greater than
-      .replace(/\(/g, "\\(")       // Escape opening parenthesis
-      .replace(/\)/g, "\\)")       // Escape closing parenthesis
-      .replace(/\n/g, "\\n")       // Escape newlines
-      .replace(/\r/g, "\\r")       // Escape carriage returns
-      .replace(/\t/g, "\\t");      // Escape tabs
+      .replace(/'/g, "'\\''")      // Escape single quotes (exit quote, add escaped quote, enter quote again)
+      .replace(/\n/g, " ")         // Replace newlines with spaces
+      .replace(/\r/g, " ")         // Replace carriage returns with spaces  
+      .replace(/\t/g, " ");        // Replace tabs with spaces
 
     console.log(`[ADB] Sending text: "${text}"`);
     console.log(`[ADB] Escaped text: "${escapedText}"`);
     
-    // Use double quotes instead of single quotes to allow for better escaping
-    exec(`${adbPath} shell input text "${escapedText}"`, puts);
+    // Use single quotes which are safer for preserving spaces and most special characters
+    // The single quote escaping method above handles embedded single quotes
+    exec(`${adbPath} shell input text '${escapedText}'`, puts);
   }
 }
 
