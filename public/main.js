@@ -387,7 +387,7 @@ app.whenReady().then(async () => {
       menu.append(new MenuItem({ type: "separator" }));
       captureDevices.forEach((device) => {
         let deviceLabel = device.label || `Device ${videoDevices.indexOf(device) + 1}`;
-        const found = settings.control.deviceList.find((d) => d.linked === device.deviceId);
+        const found = settings.control?.deviceList?.find((d) => d.linked === device.deviceId);
         deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
         menu.append(
           new MenuItem({
