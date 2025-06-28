@@ -144,7 +144,6 @@ function createDisplayWindow() {
   win.on("move", () => {
     win.webContents.send("window-moved");
   });
-
   return win;
 }
 
