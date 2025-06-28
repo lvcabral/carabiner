@@ -66,7 +66,7 @@ function sendADBText(text) {
       .replace(/"/g, '\\"')             // Escape double quotes
       .replace(/`/g, '\\`')             // Escape backticks
       .replace(/\$/g, '\\$');           // Escape dollar signs
-    
+
     console.log(`[ADB] Sending text: "${text}"`);
     exec(`${adbPath} shell input text '${escapedText}'`, puts);
   }
