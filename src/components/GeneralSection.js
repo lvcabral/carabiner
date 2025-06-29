@@ -181,6 +181,38 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
           <Row className="mt-2">
             <Col>
               <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
+              {isMacOS && (
+                <Form.Group className="mt-3">
+                  <Form.Label>App Display Mode</Form.Label>
+                  <div className="d-flex">
+                    <Form.Check
+                      type="radio"
+                      label="Dock"
+                      name="displayMode"
+                      value="dock"
+                      checked={showInDock}
+                      onChange={() => {
+                        setShowInDock(true);
+                        electronAPI.send("save-show-in-dock", true);
+                      }}
+                      inline
+                    />
+                    <Form.Check
+                      type="radio"
+                      label="Menubar"
+                      name="displayMode"
+                      value="menubar"
+                      checked={!showInDock}
+                      onChange={() => {
+                        setShowInDock(false);
+                        electronAPI.send("save-show-in-dock", false);
+                      }}
+                      inline
+                      className="ms-4"
+                    />
+                  </div>
+                </Form.Group>
+              )}
             </Col>
             <Col className="d-flex flex-column align-items-start">
               <Form.Check
@@ -207,14 +239,6 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 checked={audioEnabled}
                 onChange={handleAudioEnabledChange}
               />
-              {isMacOS && (
-                <Form.Check
-                  type="checkbox"
-                  label="Show in Dock"
-                  checked={showInDock}
-                  onChange={handleShowInDockChange}
-                />
-              )}
             </Col>
           </Row>
         </Card.Body>
