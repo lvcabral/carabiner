@@ -241,24 +241,7 @@ function createTrayMenu(mainWindow, displayWindow) {
       },
     },
   ]);
-  if (captureDevices) {
-    trayMenu.append(new MenuItem({ type: "separator" }));
-    captureDevices.forEach((device) => {
-      let deviceLabel = device.label || `Device ${videoDevices.indexOf(device) + 1}`;
-      const found = settings.control?.deviceList?.find((d) => d.linked === device.deviceId);
-      deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
-      trayMenu.append(
-        new MenuItem({
-          label: deviceLabel,
-          type: "radio",
-          checked: settings.display.deviceId === device.deviceId,
-          click: () => {
-            mainWindow.webContents.send("update-capture-device", device.deviceId);
-          },
-        })
-      );
-    });
-  }
+  appendCaptureDevicesMenu(trayMenu, mainWindow);
   trayMenu.append(new MenuItem({ type: "separator" }));
   trayMenu.append(
     new MenuItem({
@@ -309,6 +292,29 @@ function createTrayMenu(mainWindow, displayWindow) {
   updateTrayRecordingMenuItems(isCurrentlyRecording);
   // Set the context menu for the tray
   tray.setContextMenu(trayContextMenu);
+}
+
+function appendCaptureDevicesMenu(menu, mainWindow) {
+  if (!captureDevices || captureDevices.length === 0) {
+    // If no capture devices are available, just return
+    return;
+  }
+  menu.append(new MenuItem({ type: "separator" }));
+  captureDevices.forEach((device) => {
+    let deviceLabel = device.label || `Device ${videoDevices.indexOf(device) + 1}`;
+    const found = settings.control?.deviceList?.find((d) => d.linked === device.deviceId);
+    deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
+    menu.append(
+      new MenuItem({
+        label: deviceLabel,
+        type: "radio",
+        checked: settings.display.deviceId === device.deviceId,
+        click: () => {
+          mainWindow.webContents.send("update-capture-device", device.deviceId);
+        },
+      })
+    );
+  });
 }
 
 function updateTrayRecordingMenuItems(isRecording) {
@@ -619,24 +625,7 @@ app.whenReady().then(async () => {
         },
       })
     );
-    if (captureDevices) {
-      menu.append(new MenuItem({ type: "separator" }));
-      captureDevices.forEach((device) => {
-        let deviceLabel = device.label || `Device ${videoDevices.indexOf(device) + 1}`;
-        const found = settings.control?.deviceList?.find((d) => d.linked === device.deviceId);
-        deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
-        menu.append(
-          new MenuItem({
-            label: deviceLabel,
-            type: "radio",
-            checked: settings.display.deviceId === device.deviceId,
-            click: () => {
-              mainWindow.webContents.send("update-capture-device", device.deviceId);
-            },
-          })
-        );
-      });
-    }
+    appendCaptureDevicesMenu(menu, mainWindow);
     menu.append(new MenuItem({ type: "separator" }));
     menu.append(
       new MenuItem({
