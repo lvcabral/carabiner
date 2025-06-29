@@ -24,7 +24,12 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
-const { createMenu, updateAlwaysOnTopMenuItem, updateScreenshotMenuItems } = require("./menu");
+const {
+  createMenu,
+  updateAlwaysOnTopMenuItem,
+  updateScreenshotMenuItems,
+  updateRecordingMenuItems,
+} = require("./menu");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
@@ -37,6 +42,7 @@ let controlType = "";
 let isADBConnected = false;
 let isQuitting = false;
 let captureDevices;
+let isCurrentlyRecording = false;
 
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
@@ -84,11 +90,13 @@ function createWindow(name, options, showOnStart = true) {
     win.on("hide", () => {
       win.webContents.send("stop-video-stream");
       updateScreenshotMenuItems(false);
+      updateRecordingMenuItems(false, false);
     });
 
     win.on("show", () => {
       win.webContents.send("start-video-stream");
       updateScreenshotMenuItems(true);
+      updateRecordingMenuItems(true, false);
     });
   }
 
@@ -361,6 +369,29 @@ app.whenReady().then(async () => {
     menu.append(new MenuItem({ type: "separator" }));
     menu.append(
       new MenuItem({
+        id: "start-recording-ctx",
+        label: "Start Recording",
+        accelerator: "CmdOrCtrl+Shift+R",
+        enabled: !isCurrentlyRecording,
+        click: () => {
+          displayWindow.webContents.send("start-recording");
+        },
+      })
+    );
+    menu.append(
+      new MenuItem({
+        id: "stop-recording-ctx",
+        label: "Stop Recording",
+        accelerator: "CmdOrCtrl+Shift+S",
+        enabled: isCurrentlyRecording,
+        click: () => {
+          displayWindow.webContents.send("stop-recording");
+        },
+      })
+    );
+    menu.append(new MenuItem({ type: "separator" }));
+    menu.append(
+      new MenuItem({
         label: "Paste Text",
         accelerator: "CmdOrCtrl+V",
         click: () => {
@@ -462,6 +493,41 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("get-package-info", async () => {
     return packageInfo;
+  });
+
+  // Save video recording dialog
+  ipcMain.handle("save-video-dialog", async (event, filename, bufferData) => {
+    try {
+      const result = await dialog.showSaveDialog(displayWindow, {
+        title: "Save Video Recording",
+        defaultPath: filename,
+        filters: [
+          { name: "Video Files", extensions: ["mp4", "webm"] },
+          { name: "MP4 Files", extensions: ["mp4"] },
+          { name: "WebM Files", extensions: ["webm"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+
+      if (!result.canceled && result.filePath) {
+        const fs = require("fs");
+        // Convert the received data to a proper Buffer
+        const buffer = Buffer.from(bufferData);
+        await fs.promises.writeFile(result.filePath, buffer);
+        return { success: true, filePath: result.filePath };
+      } else {
+        return { success: false, canceled: true };
+      }
+    } catch (error) {
+      console.error("Error saving video file:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Recording state management
+  ipcMain.on("recording-state-changed", (event, isRecording) => {
+    isCurrentlyRecording = isRecording;
+    updateRecordingMenuItems(true, isRecording);
   });
 
   app.on("activate", () => {

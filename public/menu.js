@@ -1,9 +1,20 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const { Menu, BrowserWindow, app, shell } = require("electron");
 
 let devToolsAccelerator = "Cmd+Option+I";
 let alwaysOnTopMenuItem;
 let copyScreenshotMenuItem;
 let saveScreenshotMenuItem;
+let startRecordingMenuItem;
+let stopRecordingMenuItem;
 
 function createMenu(mainWindow, displayWindow, packageInfo) {
   const template = [
@@ -67,6 +78,29 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
           click: () => {
             if (displayWindow && displayWindow.isVisible()) {
               displayWindow.webContents.send("save-screenshot");
+            }
+          },
+        },
+        { type: "separator" },
+        {
+          id: "start-recording",
+          label: "Start Recording",
+          accelerator: "CmdOrCtrl+Shift+R",
+          enabled: false,
+          click: () => {
+            if (displayWindow && displayWindow.isVisible()) {
+              displayWindow.webContents.send("start-recording");
+            }
+          },
+        },
+        {
+          id: "stop-recording",
+          label: "Stop Recording",
+          accelerator: "CmdOrCtrl+Shift+S",
+          enabled: false,
+          click: () => {
+            if (displayWindow && displayWindow.isVisible()) {
+              displayWindow.webContents.send("stop-recording");
             }
           },
         },
@@ -150,9 +184,7 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
           label: "Keyboard Control",
           accelerator: "CmdOrCtrl+F1",
           click: () => {
-            shell.openExternal(
-              `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
-            );
+            shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
           },
         },
         { type: "separator" },
@@ -165,9 +197,7 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
         {
           label: "View License",
           click: () => {
-            shell.openExternal(
-              `${packageInfo.repository.url}/blob/main/LICENSE`
-            );
+            shell.openExternal(`${packageInfo.repository.url}/blob/main/LICENSE`);
           },
         },
       ],
@@ -179,6 +209,8 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
   alwaysOnTopMenuItem = menu.getMenuItemById("on-top");
   copyScreenshotMenuItem = menu.getMenuItemById("copy-screen");
   saveScreenshotMenuItem = menu.getMenuItemById("save-screenshot");
+  startRecordingMenuItem = menu.getMenuItemById("start-recording");
+  stopRecordingMenuItem = menu.getMenuItemById("stop-recording");
 }
 
 function updateAlwaysOnTopMenuItem(value) {
@@ -196,4 +228,18 @@ function updateScreenshotMenuItems(enabled) {
   }
 }
 
-module.exports = { createMenu, updateAlwaysOnTopMenuItem, updateScreenshotMenuItems };
+function updateRecordingMenuItems(displayVisible, isRecording) {
+  if (startRecordingMenuItem) {
+    startRecordingMenuItem.enabled = displayVisible && !isRecording;
+  }
+  if (stopRecordingMenuItem) {
+    stopRecordingMenuItem.enabled = displayVisible && isRecording;
+  }
+}
+
+module.exports = {
+  createMenu,
+  updateAlwaysOnTopMenuItem,
+  updateScreenshotMenuItems,
+  updateRecordingMenuItems,
+};
