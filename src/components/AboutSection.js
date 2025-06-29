@@ -46,7 +46,17 @@ function AboutSection() {
     <Container className="text-center mt-2">
       <Row>
         <Col>
-          <p>Version {version}</p>
+          <p>
+            <a
+              href={`${repository}/releases`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleLinkClick}
+              style={{ textDecoration: 'none' }}
+            >
+              Version {version}
+            </a>
+          </p>
           <p>{copyright}</p>
           <p>
             <a
@@ -54,8 +64,20 @@ function AboutSection() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleLinkClick}
+              style={{ textDecoration: 'none' }}
             >
               GitHub Repository
+            </a>
+          </p>
+          <p>
+            <a
+              href="https://paypal.me/lvcabral"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleLinkClick}
+              style={{ textDecoration: 'none' }}
+            >
+              Enjoying the app? Buy me a Coffee ☕
             </a>
           </p>
         </Col>
