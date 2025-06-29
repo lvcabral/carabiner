@@ -10,16 +10,12 @@
 const path = require("path");
 const {
   app,
-  shell,
   BrowserWindow,
   dialog,
   ipcMain,
   Notification,
   systemPreferences,
   globalShortcut,
-  Menu,
-  MenuItem,
-  Tray,
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
@@ -30,6 +26,11 @@ const {
   updateAlwaysOnTopMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
+  createTrayMenu,
+  updateTrayRecordingMenuItems,
+  toggleDockIcon,
+  createContextMenu,
+  getTray,
 } = require("./menu");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
@@ -44,10 +45,6 @@ let isADBConnected = false;
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
-let tray = null;
-let trayContextMenu = null;
-let trayStartRecordingItem = null;
-let trayStopRecordingItem = null;
 
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
@@ -182,179 +179,6 @@ function registerShortcut(shortcut, window) {
   });
 }
 
-function createTray(mainWindow, displayWindow) {
-  if (!isMacOS) return;
-
-  // Create tray icon - use the dedicated menuicon.png
-  let trayIconPath = path.join(__dirname, "../images/menuicon.png");
-
-  tray = new Tray(trayIconPath);
-  // Try to set template mode if the method exists
-  if (typeof tray.setTemplate === "function") {
-    tray.setTemplate(true);
-  }
-
-  createTrayMenu(mainWindow, displayWindow);
-  tray.setToolTip("Carabiner - Screen Capture and Remote Control");
-
-  // Click to show context menu (no window toggling)
-  tray.on("click", () => {
-    tray.popUpContextMenu();
-  });
-}
-
-function createTrayMenu(mainWindow, displayWindow) {
-  const trayMenu = Menu.buildFromTemplate([
-    {
-      label: "Show Carabiner",
-      click: () => {
-        // Only show the display window (screen capture window)
-        if (displayWindow && !displayWindow.isVisible()) {
-          displayWindow.show();
-        }
-      },
-    },
-    { type: "separator" },
-    {
-      label: "Start Recording",
-      id: "tray-start-recording",
-      accelerator: "CmdOrCtrl+Shift+R",
-      enabled: false,
-      click: () => {
-        if (displayWindow) {
-          if (!displayWindow.isVisible()) {
-            displayWindow.show();
-          }
-          displayWindow.webContents.send("start-recording");
-        }
-      },
-    },
-    {
-      label: "Stop Recording",
-      id: "tray-stop-recording",
-      accelerator: "CmdOrCtrl+Shift+S",
-      enabled: false,
-      click: () => {
-        if (displayWindow) {
-          displayWindow.webContents.send("stop-recording");
-        }
-      },
-    },
-  ]);
-  appendCaptureDevicesMenu(trayMenu, mainWindow);
-  trayMenu.append(new MenuItem({ type: "separator" }));
-  trayMenu.append(
-    new MenuItem({
-      label: "Settings...",
-      accelerator: "CmdOrCtrl+,",
-      click: () => {
-        mainWindow.webContents.send("open-display-tab");
-        mainWindow.show();
-      },
-    })
-  );
-  trayMenu.append(new MenuItem({ type: "separator" }));
-
-  trayMenu.append(
-    new MenuItem({
-      label: "Documentation",
-      accelerator: "F1",
-      click: () => {
-        shell.openExternal(`${packageInfo.repository.url}#readme`);
-      },
-    })
-  );
-  trayMenu.append(
-    new MenuItem({
-      label: "Keyboard Control",
-      accelerator: "CmdOrCtrl+F1",
-      click: () => {
-        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
-      },
-    })
-  );
-  trayMenu.append(
-    new MenuItem({
-      label: "Release Notes",
-      click: () => {
-        shell.openExternal(`${packageInfo.repository.url}/releases`);
-      },
-    })
-  );
-  trayMenu.append(new MenuItem({ type: "separator" }));
-  trayMenu.append(new MenuItem({ role: "quit" }));
-
-  // Set the tray context menu
-  trayContextMenu = trayMenu;
-  // Store references to the recording menu items for later updates
-  trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
-  trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
-  updateTrayRecordingMenuItems(isCurrentlyRecording);
-  // Set the context menu for the tray
-  tray.setContextMenu(trayContextMenu);
-}
-
-function appendCaptureDevicesMenu(menu, mainWindow) {
-  if (!captureDevices || captureDevices.length === 0) {
-    // If no capture devices are available, just return
-    return;
-  }
-  menu.append(new MenuItem({ type: "separator" }));
-  captureDevices.forEach((device) => {
-    let deviceLabel = device.label || `Device ${videoDevices.indexOf(device) + 1}`;
-    const found = settings.control?.deviceList?.find((d) => d.linked === device.deviceId);
-    deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
-    menu.append(
-      new MenuItem({
-        label: deviceLabel,
-        type: "radio",
-        checked: settings.display.deviceId === device.deviceId,
-        click: () => {
-          mainWindow.webContents.send("update-capture-device", device.deviceId);
-        },
-      })
-    );
-  });
-}
-
-function updateTrayRecordingMenuItems(isRecording) {
-  if (!tray || !trayStartRecordingItem || !trayStopRecordingItem) return;
-
-  // Start recording is always enabled when not recording (it can show the window if needed)
-  trayStartRecordingItem.enabled = !isRecording;
-
-  // Stop recording is only enabled when currently recording
-  trayStopRecordingItem.enabled = isRecording;
-}
-
-function toggleDockIcon(showInDock, mainWindow, displayWindow = null) {
-  if (!isMacOS) return;
-
-  // Ensure we have window references
-  const display =
-    displayWindow ||
-    BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes("display.html"));
-
-  if (showInDock) {
-    app.dock.show();
-    if (tray) {
-      tray.destroy();
-      tray = null;
-      trayContextMenu = null;
-      trayStartRecordingItem = null;
-      trayStopRecordingItem = null;
-    }
-  } else {
-    // Create tray first
-    if (!tray && mainWindow && display) {
-      createTray(mainWindow, display);
-    }
-
-    // Hide dock icon
-    app.dock.hide();
-  }
-}
-
 app.whenReady().then(async () => {
   if (process.platform !== "linux") {
     try {
@@ -389,7 +213,7 @@ app.whenReady().then(async () => {
     createMenu(mainWindow, displayWindow, packageInfo);
     // Initialize dock/tray mode based on user setting
     const showInDock = settings.display.showInDock !== false; // Default to true
-    toggleDockIcon(showInDock, mainWindow, displayWindow);
+    toggleDockIcon(showInDock, mainWindow, displayWindow, packageInfo);
   }
   if (
     typeof settings?.control?.deviceId === "string" &&
@@ -426,8 +250,9 @@ app.whenReady().then(async () => {
     if (arg.type && arg.type === "set-capture-devices") {
       captureDevices = JSON.parse(arg.payload);
       mainWindow.webContents.send("shared-window-channel", arg);
+      const tray = getTray();
       if (tray) {
-        createTrayMenu(mainWindow, displayWindow);
+        createTrayMenu(mainWindow, displayWindow, packageInfo, captureDevices, settings, isCurrentlyRecording);
       }
     } else if (arg.type && arg.type === "set-video-stream") {
       saveFlag = false;
@@ -542,7 +367,7 @@ app.whenReady().then(async () => {
     }
 
     // Toggle dock/tray mode
-    toggleDockIcon(showInDock, mainWindow);
+    toggleDockIcon(showInDock, mainWindow, null, packageInfo);
 
     // If switching to menubar mode (unchecking), ensure window stays visible
     if (!showInDock) {
@@ -552,101 +377,7 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("show-context-menu", (event) => {
-    const menu = new Menu();
-    let fullscreenAcc = "F11";
-    if (isMacOS) {
-      fullscreenAcc = "Cmd+Ctrl+F";
-    }
-    menu.append(
-      new MenuItem({
-        label: "Copy Screenshot",
-        accelerator: "CmdOrCtrl+Shift+C",
-        click: () => {
-          displayWindow.webContents.send("copy-screenshot");
-        },
-      })
-    );
-    menu.append(
-      new MenuItem({
-        label: "Save Screenshot As...",
-        accelerator: "CmdOrCtrl+S",
-        click: () => {
-          displayWindow.webContents.send("save-screenshot");
-        },
-      })
-    );
-    menu.append(new MenuItem({ type: "separator" }));
-    menu.append(
-      new MenuItem({
-        id: "start-recording-ctx",
-        label: "Start Recording",
-        accelerator: "CmdOrCtrl+Shift+R",
-        enabled: !isCurrentlyRecording,
-        click: () => {
-          displayWindow.webContents.send("start-recording");
-        },
-      })
-    );
-    menu.append(
-      new MenuItem({
-        id: "stop-recording-ctx",
-        label: "Stop Recording",
-        accelerator: "CmdOrCtrl+Shift+S",
-        enabled: isCurrentlyRecording,
-        click: () => {
-          displayWindow.webContents.send("stop-recording");
-        },
-      })
-    );
-    menu.append(new MenuItem({ type: "separator" }));
-    menu.append(
-      new MenuItem({
-        label: "Paste Text",
-        accelerator: "CmdOrCtrl+V",
-        click: () => {
-          displayWindow.webContents.send("handle-paste");
-        },
-      })
-    );
-    menu.append(new MenuItem({ type: "separator" }));
-    menu.append(
-      new MenuItem({
-        role: "togglefullscreen",
-        accelerator: fullscreenAcc,
-      })
-    );
-    menu.append(
-      new MenuItem({
-        label: "Hide Screen",
-        click: () => {
-          displayWindow.hide();
-        },
-      })
-    );
-    appendCaptureDevicesMenu(menu, mainWindow);
-    menu.append(new MenuItem({ type: "separator" }));
-    menu.append(
-      new MenuItem({
-        label: "Settings...",
-        accelerator: "CmdOrCtrl+,",
-        click: () => {
-          mainWindow.webContents.send("open-display-tab");
-          mainWindow.show();
-        },
-      })
-    );
-    menu.append(new MenuItem({ type: "separator" }));
-    menu.append(
-      new MenuItem({
-        label: "Keyboard Control Help",
-        accelerator: "CmdOrCtrl+F1",
-        click: () => {
-          shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
-        },
-      })
-    );
-    menu.append(new MenuItem({ type: "separator" }));
-    menu.append(new MenuItem({ role: "quit" }));
+    const menu = createContextMenu(mainWindow, displayWindow, packageInfo, isCurrentlyRecording, captureDevices, settings);
     menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
 
