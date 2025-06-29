@@ -204,7 +204,6 @@ function createTray(mainWindow, displayWindow) {
 }
 
 function createTrayMenu(mainWindow, displayWindow) {
-    // Create context menu for tray
   const trayMenu = Menu.buildFromTemplate([
     {
       label: "Show Carabiner",
@@ -272,12 +271,30 @@ function createTrayMenu(mainWindow, displayWindow) {
     })
   );
   trayMenu.append(new MenuItem({ type: "separator" }));
+
   trayMenu.append(
     new MenuItem({
-      label: "Keyboard Control Help",
+      label: "Documentation",
+      accelerator: "F1",
+      click: () => {
+        shell.openExternal(`${packageInfo.repository.url}#readme`);
+      },
+    })
+  );
+  trayMenu.append(
+    new MenuItem({
+      label: "Keyboard Control",
       accelerator: "CmdOrCtrl+F1",
       click: () => {
         shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
+      },
+    })
+  );
+  trayMenu.append(
+    new MenuItem({
+      label: "Release Notes",
+      click: () => {
+        shell.openExternal(`${packageInfo.repository.url}/releases`);
       },
     })
   );
@@ -293,7 +310,6 @@ function createTrayMenu(mainWindow, displayWindow) {
   // Set the context menu for the tray
   tray.setContextMenu(trayContextMenu);
 }
-
 
 function updateTrayRecordingMenuItems(isRecording) {
   if (!tray || !trayStartRecordingItem || !trayStopRecordingItem) return;
@@ -406,7 +422,7 @@ app.whenReady().then(async () => {
     if (arg.type && arg.type === "set-capture-devices") {
       captureDevices = JSON.parse(arg.payload);
       mainWindow.webContents.send("shared-window-channel", arg);
-      if (tray){
+      if (tray) {
         createTrayMenu(mainWindow, displayWindow);
       }
     } else if (arg.type && arg.type === "set-video-stream") {
