@@ -18,6 +18,11 @@ let videoState = "stopped";
 let resizeTimeout;
 let audioEnabled = false;
 
+// Video recording variables
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+
 // Load settings from main process
 window.electronAPI.invoke("load-settings").then(async (settings) => {
   if (settings.control && settings.control.deviceId) {
@@ -196,6 +201,11 @@ function renderDisplay(constraints) {
 }
 
 function stopVideoStream() {
+  // Stop any ongoing recording when video stream stops
+  if (isRecording && mediaRecorder) {
+    stopRecording();
+  }
+
   videoPlayer.pause();
   const stream = videoPlayer.srcObject;
   if (stream) {
@@ -270,6 +280,137 @@ window.addEventListener("DOMContentLoaded", function () {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
     return canvas;
+  }
+
+  // Video Recording Functions
+  function startRecording() {
+    if (isRecording || !videoPlayer.srcObject) {
+      console.log("[Carabiner] Cannot start recording: already recording or no video stream");
+      return;
+    }
+
+    try {
+      const stream = videoPlayer.srcObject;
+      recordedChunks = [];
+
+      // Configure recording options - Chromium 126+ supports MP4 recording
+      const options = {
+        videoBitsPerSecond: 2500000, // 2.5 Mbps
+      };
+
+      // Try MP4 formats first (supported in Chromium 126+)
+      if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) {
+        options.mimeType = "video/mp4;codecs=h264,aac";
+      } else if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264")) {
+        options.mimeType = "video/mp4;codecs=h264";
+      } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+        options.mimeType = "video/mp4";
+      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
+        options.mimeType = "video/webm;codecs=vp9,opus";
+      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
+        options.mimeType = "video/webm;codecs=vp8,opus";
+      } else {
+        options.mimeType = "video/webm";
+      }
+
+      mediaRecorder = new MediaRecorder(stream, options);
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        saveRecording();
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error("[Carabiner] MediaRecorder error:", event.error);
+        showToast("Recording error occurred!", 5000, true);
+        isRecording = false;
+        window.electronAPI.send("recording-state-changed", isRecording);
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      window.electronAPI.send("recording-state-changed", isRecording);
+      showToast("Recording started...");
+    } catch (error) {
+      console.error("[Carabiner] Error starting recording:", error);
+      showToast("Failed to start recording!", 5000, true);
+      isRecording = false;
+      window.electronAPI.send("recording-state-changed", isRecording);
+    }
+  }
+
+  function stopRecording() {
+    if (!isRecording || !mediaRecorder) {
+      console.debug("[Carabiner] Cannot stop recording: not currently recording");
+      return;
+    }
+
+    try {
+      mediaRecorder.stop();
+      isRecording = false;
+      window.electronAPI.send("recording-state-changed", isRecording);
+    } catch (error) {
+      console.error("[Carabiner] Error stopping recording:", error);
+      showToast("Error stopping recording!", 5000, true);
+      isRecording = false;
+      window.electronAPI.send("recording-state-changed", isRecording);
+    }
+  }
+
+  async function saveRecording() {
+    if (recordedChunks.length === 0) {
+      showToast("No recording data to save!", 5000, true);
+      return;
+    }
+
+    try {
+      const blob = new Blob(recordedChunks, { type: recordedChunks[0].type });
+
+      const now = new Date();
+      const datePart = now.toLocaleDateString("en-CA");
+      const timePart = now.toLocaleTimeString("en-CA", { hour12: false }).replace(/:/g, "");
+
+      // Determine file extension based on mime type
+      let extension = "mp4"; // Default to mp4
+      if (recordedChunks[0].type.includes("webm")) {
+        extension = "webm";
+      }
+
+      const filename = `carabiner-recording-${datePart}-${timePart}.${extension}`;
+
+      // Convert blob to buffer for saving
+      const arrayBuffer = await blob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // Convert to regular array for IPC serialization
+      const bufferData = Array.from(uint8Array);
+
+      // Show save dialog and save file
+      const result = await window.electronAPI.invoke("save-video-dialog", filename, bufferData);
+
+      if (result.success) {
+        const savedFilename = result.filePath.split(/[\\/]/).pop(); // Extract filename from path
+        showToast(`Recording saved as ${savedFilename}`);
+        console.debug("[Carabiner] Recording saved:", result.filePath);
+      } else if (result.canceled) {
+        // User canceled - don't show any message
+        console.debug("[Carabiner] Recording save canceled by user");
+      } else {
+        showToast("Failed to save recording!", 5000, true);
+        console.error("[Carabiner] Error saving recording:", result.error);
+      }
+
+      recordedChunks = [];
+    } catch (error) {
+      console.error("[Carabiner] Error saving recording:", error);
+      showToast("Failed to save recording!", 5000, true);
+      recordedChunks = [];
+    }
   }
 
   window.electronAPI.onMessageReceived("copy-screenshot", function () {
@@ -399,6 +540,15 @@ window.addEventListener("DOMContentLoaded", function () {
   settingsButton.addEventListener("click", () => {
     settingsButton.blur();
     window.electronAPI.showContextMenu();
+  });
+
+  // Handle Recording Requests
+  window.electronAPI.onMessageReceived("start-recording", function () {
+    startRecording();
+  });
+
+  window.electronAPI.onMessageReceived("stop-recording", function () {
+    stopRecording();
   });
 });
 
