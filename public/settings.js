@@ -19,7 +19,9 @@ function saveSettings(settings) {
 
 function loadSettings() {
   const defaultSettings = {
-    display: {},
+    display: {
+      showInDock: true, // macOS: true = dock mode, false = menubar mode
+    },
     border: {},
     control: {
       deviceList: [],

@@ -19,6 +19,7 @@ const {
   globalShortcut,
   Menu,
   MenuItem,
+  Tray,
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
@@ -43,6 +44,10 @@ let isADBConnected = false;
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
+let tray = null;
+let trayContextMenu = null;
+let trayStartRecordingItem = null;
+let trayStopRecordingItem = null;
 
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
@@ -91,12 +96,14 @@ function createWindow(name, options, showOnStart = true) {
       win.webContents.send("stop-video-stream");
       updateScreenshotMenuItems(false);
       updateRecordingMenuItems(false, false);
+      updateTrayRecordingMenuItems(false, isCurrentlyRecording);
     });
 
     win.on("show", () => {
       win.webContents.send("start-video-stream");
       updateScreenshotMenuItems(true);
       updateRecordingMenuItems(true, false);
+      updateTrayRecordingMenuItems(true, isCurrentlyRecording);
     });
   }
 
@@ -175,6 +182,147 @@ function registerShortcut(shortcut, window) {
   });
 }
 
+function createTray(mainWindow, displayWindow) {
+  if (!isMacOS) return;
+
+  // Create tray icon - use the dedicated menuicon.png
+  let trayIconPath = path.join(__dirname, "../images/menuicon.png");
+
+  // Check if the file exists, if not try alternative paths
+  if (!fs.existsSync(trayIconPath)) {
+    trayIconPath = path.join(process.cwd(), "images/menuicon.png");
+  }
+  if (!fs.existsSync(trayIconPath)) {
+    trayIconPath = path.join(__dirname, "images/menuicon.png");
+  }
+
+  console.log("Tray icon path:", trayIconPath);
+  console.log("Icon exists:", fs.existsSync(trayIconPath));
+
+  tray = new Tray(trayIconPath);
+  // Try to set template mode if the method exists
+  if (typeof tray.setTemplate === "function") {
+    tray.setTemplate(true);
+  }
+
+  // Create context menu for tray
+  trayContextMenu = Menu.buildFromTemplate([
+    {
+      label: "Show Carabiner",
+      click: () => {
+        // Only show the display window (screen capture window)
+        if (displayWindow && !displayWindow.isVisible()) {
+          displayWindow.show();
+        }
+      },
+    },
+    {
+      label: "Settings...",
+      click: () => {
+        mainWindow.webContents.send("open-display-tab");
+        mainWindow.show();
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Start Recording",
+      id: "tray-start-recording",
+      enabled: false,
+      click: () => {
+        if (displayWindow) {
+          if (!displayWindow.isVisible()) {
+            displayWindow.show();
+          }
+          displayWindow.webContents.send("start-recording");
+        }
+      },
+    },
+    {
+      label: "Stop Recording",
+      id: "tray-stop-recording",
+      enabled: false,
+      click: () => {
+        if (displayWindow) {
+          displayWindow.webContents.send("stop-recording");
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit Carabiner",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  // Store references to the recording menu items for later updates
+  trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
+  trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
+
+  tray.setContextMenu(trayContextMenu);
+  tray.setToolTip("Carabiner - Screen Capture and Remote Control");
+
+  // Click to show context menu (no window toggling)
+  tray.on("click", () => {
+    tray.popUpContextMenu();
+  });
+}
+
+function updateTrayRecordingMenuItems(displayVisible, isRecording) {
+  if (!tray || !trayStartRecordingItem || !trayStopRecordingItem) return;
+
+  // Start recording is always enabled when not recording (it can show the window if needed)
+  trayStartRecordingItem.enabled = !isRecording;
+
+  // Stop recording is only enabled when currently recording
+  trayStopRecordingItem.enabled = isRecording;
+}
+
+function toggleDockIcon(showInDock, mainWindow = null, displayWindow = null) {
+  if (!isMacOS) return;
+
+  console.log("toggleDockIcon called with showInDock:", showInDock);
+
+  if (showInDock) {
+    console.log("Showing dock icon");
+    app.dock.show();
+    if (tray) {
+      console.log("Destroying existing tray");
+      tray.destroy();
+      tray = null;
+    }
+  } else {
+    console.log("Hiding dock icon");
+    app.dock.hide();
+    if (!tray) {
+      console.log("Creating tray");
+      // Use provided windows or find them
+      const main =
+        mainWindow ||
+        BrowserWindow.getAllWindows().find(
+          (win) =>
+            win.webContents.getURL().includes("localhost") ||
+            win.webContents.getURL().includes("index.html")
+        );
+      const display =
+        displayWindow ||
+        BrowserWindow.getAllWindows().find((win) =>
+          win.webContents.getURL().includes("display.html")
+        );
+      if (main && display) {
+        createTray(main, display);
+        console.log("Tray created successfully");
+      } else {
+        console.log("Could not find main or display window for tray creation");
+      }
+    } else {
+      console.log("Tray already exists");
+    }
+  }
+}
+
 app.whenReady().then(async () => {
   if (process.platform !== "linux") {
     try {
@@ -207,6 +355,9 @@ app.whenReady().then(async () => {
   setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
   if (isMacOS) {
     createMenu(mainWindow, displayWindow, packageInfo);
+    // Initialize dock/tray mode based on user setting
+    const showInDock = settings.display.showInDock !== false; // Default to true
+    toggleDockIcon(showInDock, mainWindow, displayWindow);
   }
   if (
     typeof settings?.control?.deviceId === "string" &&
@@ -222,16 +373,16 @@ app.whenReady().then(async () => {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
 
-  // Hide app when both windows are hidden in macOS
+  // Hide app when both windows are hidden in macOS (only in dock mode)
   if (isMacOS) {
     mainWindow.on("hide", () => {
-      if (!displayWindow.isVisible()) {
+      if (!displayWindow.isVisible() && settings.display.showInDock !== false) {
         app.hide();
       }
     });
 
     displayWindow.on("hide", () => {
-      if (!mainWindow.isVisible()) {
+      if (!mainWindow.isVisible() && settings.display.showInDock !== false) {
         app.hide();
       }
     });
@@ -340,6 +491,25 @@ app.whenReady().then(async () => {
   ipcMain.on("save-audio-enabled", (event, audioEnabled) => {
     settings.display.audioEnabled = audioEnabled;
     saveSettings(settings);
+  });
+
+  ipcMain.on("save-show-in-dock", (event, showInDock) => {
+    settings.display.showInDock = showInDock;
+    saveSettings(settings);
+
+    // Find the main window to ensure it stays visible
+    const mainWindow = BrowserWindow.getAllWindows().find(
+      (win) =>
+        win.webContents.getURL().includes("localhost") ||
+        win.webContents.getURL().includes("index.html")
+    );
+
+    toggleDockIcon(showInDock);
+
+    // Ensure the settings window remains visible after toggling
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
   });
 
   ipcMain.on("show-context-menu", (event) => {
@@ -528,6 +698,7 @@ app.whenReady().then(async () => {
   ipcMain.on("recording-state-changed", (event, isRecording) => {
     isCurrentlyRecording = isRecording;
     updateRecordingMenuItems(true, isRecording);
+    updateTrayRecordingMenuItems(false, isRecording); // displayVisible parameter is now ignored
   });
 
   app.on("activate", () => {

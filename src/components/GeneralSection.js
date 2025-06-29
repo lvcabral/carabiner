@@ -26,6 +26,9 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [linkedDevice, setLinkedDevice] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
+
+  const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 
   const streamingDevicesRef = useRef(streamingDevices);
 
@@ -61,6 +64,9 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
       }
       if (settings.display && settings.display.audioEnabled !== undefined) {
         setAudioEnabled(settings.display.audioEnabled);
+      }
+      if (settings.display && settings.display.showInDock !== undefined) {
+        setShowInDock(settings.display.showInDock);
       }
     });
     window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
@@ -133,6 +139,12 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     electronAPI.send("save-audio-enabled", e.target.checked);
   };
 
+  const handleShowInDockChange = (e) => {
+    setShowInDock(e.target.checked);
+    // Save to settings and apply immediately
+    electronAPI.send("save-show-in-dock", e.target.checked);
+  };
+
   const handleLinkedDeviceChange = (e) => {
     currentLinked = e.target.value;
     setLinkedDevice(currentLinked);
@@ -195,6 +207,14 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 checked={audioEnabled}
                 onChange={handleAudioEnabledChange}
               />
+              {isMacOS && (
+                <Form.Check
+                  type="checkbox"
+                  label="Show in Dock"
+                  checked={showInDock}
+                  onChange={handleShowInDockChange}
+                />
+              )}
             </Col>
           </Row>
         </Card.Body>
