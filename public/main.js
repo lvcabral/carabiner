@@ -96,14 +96,14 @@ function createWindow(name, options, showOnStart = true) {
       win.webContents.send("stop-video-stream");
       updateScreenshotMenuItems(false);
       updateRecordingMenuItems(false, false);
-      updateTrayRecordingMenuItems(false, isCurrentlyRecording);
+      updateTrayRecordingMenuItems(isCurrentlyRecording);
     });
 
     win.on("show", () => {
       win.webContents.send("start-video-stream");
       updateScreenshotMenuItems(true);
       updateRecordingMenuItems(true, false);
-      updateTrayRecordingMenuItems(true, isCurrentlyRecording);
+      updateTrayRecordingMenuItems(isCurrentlyRecording);
     });
   }
 
@@ -188,25 +188,24 @@ function createTray(mainWindow, displayWindow) {
   // Create tray icon - use the dedicated menuicon.png
   let trayIconPath = path.join(__dirname, "../images/menuicon.png");
 
-  // Check if the file exists, if not try alternative paths
-  if (!fs.existsSync(trayIconPath)) {
-    trayIconPath = path.join(process.cwd(), "images/menuicon.png");
-  }
-  if (!fs.existsSync(trayIconPath)) {
-    trayIconPath = path.join(__dirname, "images/menuicon.png");
-  }
-
-  console.log("Tray icon path:", trayIconPath);
-  console.log("Icon exists:", fs.existsSync(trayIconPath));
-
   tray = new Tray(trayIconPath);
   // Try to set template mode if the method exists
   if (typeof tray.setTemplate === "function") {
     tray.setTemplate(true);
   }
 
-  // Create context menu for tray
-  trayContextMenu = Menu.buildFromTemplate([
+  createTrayMenu(mainWindow, displayWindow);
+  tray.setToolTip("Carabiner - Screen Capture and Remote Control");
+
+  // Click to show context menu (no window toggling)
+  tray.on("click", () => {
+    tray.popUpContextMenu();
+  });
+}
+
+function createTrayMenu(mainWindow, displayWindow) {
+    // Create context menu for tray
+  const trayMenu = Menu.buildFromTemplate([
     {
       label: "Show Carabiner",
       click: () => {
@@ -216,17 +215,11 @@ function createTray(mainWindow, displayWindow) {
         }
       },
     },
-    {
-      label: "Settings...",
-      click: () => {
-        mainWindow.webContents.send("open-display-tab");
-        mainWindow.show();
-      },
-    },
     { type: "separator" },
     {
       label: "Start Recording",
       id: "tray-start-recording",
+      accelerator: "CmdOrCtrl+Shift+R",
       enabled: false,
       click: () => {
         if (displayWindow) {
@@ -240,6 +233,7 @@ function createTray(mainWindow, displayWindow) {
     {
       label: "Stop Recording",
       id: "tray-stop-recording",
+      accelerator: "CmdOrCtrl+Shift+S",
       enabled: false,
       click: () => {
         if (displayWindow) {
@@ -247,30 +241,61 @@ function createTray(mainWindow, displayWindow) {
         }
       },
     },
-    { type: "separator" },
-    {
-      label: "Quit Carabiner",
-      click: () => {
-        isQuitting = true;
-        app.quit();
-      },
-    },
   ]);
+  if (captureDevices) {
+    trayMenu.append(new MenuItem({ type: "separator" }));
+    captureDevices.forEach((device) => {
+      let deviceLabel = device.label || `Device ${videoDevices.indexOf(device) + 1}`;
+      const found = settings.control?.deviceList?.find((d) => d.linked === device.deviceId);
+      deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
+      trayMenu.append(
+        new MenuItem({
+          label: deviceLabel,
+          type: "radio",
+          checked: settings.display.deviceId === device.deviceId,
+          click: () => {
+            mainWindow.webContents.send("update-capture-device", device.deviceId);
+          },
+        })
+      );
+    });
+  }
+  trayMenu.append(new MenuItem({ type: "separator" }));
+  trayMenu.append(
+    new MenuItem({
+      label: "Settings...",
+      accelerator: "CmdOrCtrl+,",
+      click: () => {
+        mainWindow.webContents.send("open-display-tab");
+        mainWindow.show();
+      },
+    })
+  );
+  trayMenu.append(new MenuItem({ type: "separator" }));
+  trayMenu.append(
+    new MenuItem({
+      label: "Keyboard Control Help",
+      accelerator: "CmdOrCtrl+F1",
+      click: () => {
+        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
+      },
+    })
+  );
+  trayMenu.append(new MenuItem({ type: "separator" }));
+  trayMenu.append(new MenuItem({ role: "quit" }));
 
+  // Set the tray context menu
+  trayContextMenu = trayMenu;
   // Store references to the recording menu items for later updates
   trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
   trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
-
+  updateTrayRecordingMenuItems(isCurrentlyRecording);
+  // Set the context menu for the tray
   tray.setContextMenu(trayContextMenu);
-  tray.setToolTip("Carabiner - Screen Capture and Remote Control");
-
-  // Click to show context menu (no window toggling)
-  tray.on("click", () => {
-    tray.popUpContextMenu();
-  });
 }
 
-function updateTrayRecordingMenuItems(displayVisible, isRecording) {
+
+function updateTrayRecordingMenuItems(isRecording) {
   if (!tray || !trayStartRecordingItem || !trayStopRecordingItem) return;
 
   // Start recording is always enabled when not recording (it can show the window if needed)
@@ -280,46 +305,31 @@ function updateTrayRecordingMenuItems(displayVisible, isRecording) {
   trayStopRecordingItem.enabled = isRecording;
 }
 
-function toggleDockIcon(showInDock, mainWindow = null, displayWindow = null) {
+function toggleDockIcon(showInDock, mainWindow, displayWindow = null) {
   if (!isMacOS) return;
 
-  console.log("toggleDockIcon called with showInDock:", showInDock);
+  // Ensure we have window references
+  const display =
+    displayWindow ||
+    BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes("display.html"));
 
   if (showInDock) {
-    console.log("Showing dock icon");
     app.dock.show();
     if (tray) {
-      console.log("Destroying existing tray");
       tray.destroy();
       tray = null;
+      trayContextMenu = null;
+      trayStartRecordingItem = null;
+      trayStopRecordingItem = null;
     }
   } else {
-    console.log("Hiding dock icon");
-    app.dock.hide();
-    if (!tray) {
-      console.log("Creating tray");
-      // Use provided windows or find them
-      const main =
-        mainWindow ||
-        BrowserWindow.getAllWindows().find(
-          (win) =>
-            win.webContents.getURL().includes("localhost") ||
-            win.webContents.getURL().includes("index.html")
-        );
-      const display =
-        displayWindow ||
-        BrowserWindow.getAllWindows().find((win) =>
-          win.webContents.getURL().includes("display.html")
-        );
-      if (main && display) {
-        createTray(main, display);
-        console.log("Tray created successfully");
-      } else {
-        console.log("Could not find main or display window for tray creation");
-      }
-    } else {
-      console.log("Tray already exists");
+    // Create tray first
+    if (!tray && mainWindow && display) {
+      createTray(mainWindow, display);
     }
+
+    // Hide dock icon
+    app.dock.hide();
   }
 }
 
@@ -376,13 +386,15 @@ app.whenReady().then(async () => {
   // Hide app when both windows are hidden in macOS (only in dock mode)
   if (isMacOS) {
     mainWindow.on("hide", () => {
-      if (!displayWindow.isVisible() && settings.display.showInDock !== false) {
+      // Only hide app if we're in dock mode AND display window is not visible
+      if (!displayWindow.isVisible() && settings.display.showInDock) {
         app.hide();
       }
     });
 
     displayWindow.on("hide", () => {
-      if (!mainWindow.isVisible() && settings.display.showInDock !== false) {
+      // Only hide app if we're in dock mode AND main window is not visible
+      if (!mainWindow.isVisible() && settings.display.showInDock) {
         app.hide();
       }
     });
@@ -394,6 +406,9 @@ app.whenReady().then(async () => {
     if (arg.type && arg.type === "set-capture-devices") {
       captureDevices = JSON.parse(arg.payload);
       mainWindow.webContents.send("shared-window-channel", arg);
+      if (tray){
+        createTrayMenu(mainWindow, displayWindow);
+      }
     } else if (arg.type && arg.type === "set-video-stream") {
       saveFlag = false;
       if (arg.payload?.video?.deviceId?.exact) {
@@ -497,18 +512,22 @@ app.whenReady().then(async () => {
     settings.display.showInDock = showInDock;
     saveSettings(settings);
 
-    // Find the main window to ensure it stays visible
-    const mainWindow = BrowserWindow.getAllWindows().find(
-      (win) =>
-        win.webContents.getURL().includes("localhost") ||
-        win.webContents.getURL().includes("index.html")
+    // Find the main window
+    const mainWindow = BrowserWindow.getAllWindows().find((win) =>
+      win.webContents.getURL().includes("index.html")
     );
 
-    toggleDockIcon(showInDock);
+    if (!mainWindow) {
+      return;
+    }
 
-    // Ensure the settings window remains visible after toggling
-    if (mainWindow && !mainWindow.isVisible()) {
+    // Toggle dock/tray mode
+    toggleDockIcon(showInDock, mainWindow);
+
+    // If switching to menubar mode (unchecking), ensure window stays visible
+    if (!showInDock) {
       mainWindow.show();
+      mainWindow.focus();
     }
   });
 
@@ -698,7 +717,7 @@ app.whenReady().then(async () => {
   ipcMain.on("recording-state-changed", (event, isRecording) => {
     isCurrentlyRecording = isRecording;
     updateRecordingMenuItems(true, isRecording);
-    updateTrayRecordingMenuItems(false, isRecording); // displayVisible parameter is now ignored
+    updateTrayRecordingMenuItems(isRecording);
   });
 
   app.on("activate", () => {
