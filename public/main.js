@@ -408,14 +408,12 @@ app.whenReady().then(async () => {
   // Hide app when both windows are hidden in macOS (only in dock mode)
   if (isMacOS) {
     mainWindow.on("hide", () => {
-      // Only hide app if we're in dock mode AND display window is not visible
       if (!displayWindow.isVisible() && settings.display.showInDock) {
         app.hide();
       }
     });
 
     displayWindow.on("hide", () => {
-      // Only hide app if we're in dock mode AND main window is not visible
       if (!mainWindow.isVisible() && settings.display.showInDock) {
         app.hide();
       }
