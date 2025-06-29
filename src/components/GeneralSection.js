@@ -26,6 +26,9 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [linkedDevice, setLinkedDevice] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
+
+  const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 
   const streamingDevicesRef = useRef(streamingDevices);
 
@@ -61,6 +64,9 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
       }
       if (settings.display && settings.display.audioEnabled !== undefined) {
         setAudioEnabled(settings.display.audioEnabled);
+      }
+      if (settings.display && settings.display.showInDock !== undefined) {
+        setShowInDock(settings.display.showInDock);
       }
     });
     window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
@@ -133,6 +139,12 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     electronAPI.send("save-audio-enabled", e.target.checked);
   };
 
+  const handleShowInDockChange = (e) => {
+    setShowInDock(e.target.checked);
+    // Save to settings and apply immediately
+    electronAPI.send("save-show-in-dock", e.target.checked);
+  };
+
   const handleLinkedDeviceChange = (e) => {
     currentLinked = e.target.value;
     setLinkedDevice(currentLinked);
@@ -169,6 +181,38 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
           <Row className="mt-2">
             <Col>
               <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
+              {isMacOS && (
+                <Form.Group className="mt-3">
+                  <Form.Label>App Display Mode</Form.Label>
+                  <div className="d-flex">
+                    <Form.Check
+                      type="radio"
+                      label="Dock"
+                      name="displayMode"
+                      value="dock"
+                      checked={showInDock}
+                      onChange={() => {
+                        setShowInDock(true);
+                        electronAPI.send("save-show-in-dock", true);
+                      }}
+                      inline
+                    />
+                    <Form.Check
+                      type="radio"
+                      label="Menubar"
+                      name="displayMode"
+                      value="menubar"
+                      checked={!showInDock}
+                      onChange={() => {
+                        setShowInDock(false);
+                        electronAPI.send("save-show-in-dock", false);
+                      }}
+                      inline
+                      className="ms-4"
+                    />
+                  </div>
+                </Form.Group>
+              )}
             </Col>
             <Col className="d-flex flex-column align-items-start">
               <Form.Check
