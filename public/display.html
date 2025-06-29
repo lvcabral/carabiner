@@ -13,6 +13,19 @@
             .interactive {
                 -webkit-app-region: no-drag;
             }
+            @keyframes recording-pulse {
+                0%, 100% {
+                    opacity: 0.3;
+                    transform: scale(1);
+                }
+                50% {
+                    opacity: 0.8;
+                    transform: scale(1.1);
+                }
+            }
+            .recording-active {
+                animation: recording-pulse 2s infinite !important;
+            }
         </style>
         <link href="../node_modules/toastify-js/src/toastify.css" rel="stylesheet" />
     </head>
@@ -37,6 +50,22 @@
             playsinlines
         ></video>
         <img id="overlay-image" style="opacity: 0" />
+        <div
+            id="recording-indicator"
+            style="
+                position: fixed;
+                top: 25px;
+                left: 30px;
+                width: 12px;
+                height: 12px;
+                background-color: #ff4444;
+                border-radius: 50%;
+                opacity: 0;
+                transition: opacity 0.3s;
+                z-index: 1001;
+                box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+            "
+        ></div>
         <button
             id="settings-button"
             style="opacity: 0"

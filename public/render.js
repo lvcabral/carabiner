@@ -11,6 +11,7 @@ const videoPlayer = document.getElementById("video-player");
 const overlayImage = document.getElementById("overlay-image");
 const settingsButton = document.getElementById("settings-button");
 const deviceLabel = document.getElementById("device-label");
+const recordingIndicator = document.getElementById("recording-indicator");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 let currentColor = "#662D91";
 let currentConstraints = { video: true, audio: false };
@@ -329,17 +330,23 @@ window.addEventListener("DOMContentLoaded", function () {
         console.error("[Carabiner] MediaRecorder error:", event.error);
         showToast("Recording error occurred!", 5000, true);
         isRecording = false;
+        recordingIndicator.style.opacity = "0"; // Hide recording indicator on error
+        recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation on error
         window.electronAPI.send("recording-state-changed", isRecording);
       };
 
       mediaRecorder.start();
       isRecording = true;
+      recordingIndicator.style.opacity = "1"; // Show recording indicator
+      recordingIndicator.classList.add("recording-active"); // Start pulsing animation
       window.electronAPI.send("recording-state-changed", isRecording);
       showToast("Recording started...");
     } catch (error) {
       console.error("[Carabiner] Error starting recording:", error);
       showToast("Failed to start recording!", 5000, true);
       isRecording = false;
+      recordingIndicator.style.opacity = "0"; // Hide recording indicator on error
+      recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation on error
       window.electronAPI.send("recording-state-changed", isRecording);
     }
   }
@@ -353,11 +360,15 @@ window.addEventListener("DOMContentLoaded", function () {
     try {
       mediaRecorder.stop();
       isRecording = false;
+      recordingIndicator.style.opacity = "0"; // Hide recording indicator
+      recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation
       window.electronAPI.send("recording-state-changed", isRecording);
     } catch (error) {
       console.error("[Carabiner] Error stopping recording:", error);
       showToast("Error stopping recording!", 5000, true);
       isRecording = false;
+      recordingIndicator.style.opacity = "0"; // Hide recording indicator on error
+      recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation on error
       window.electronAPI.send("recording-state-changed", isRecording);
     }
   }
