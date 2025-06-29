@@ -1,6 +1,6 @@
 <p align="center">
   <img  src="src/carabiner-icon.png" height="125px" alt="Carabiner logo"> <br/><br/>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/v0.4.0"><img  src="https://img.shields.io/badge/Version-0.4.0-blue.svg" alt="Version 0.4.0" /></a>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/v0.5.0"><img  src="https://img.shields.io/badge/Version-0.5.0-blue.svg" alt="Version 0.5.0" /></a>
   <img  src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
@@ -26,30 +26,6 @@ It is perfect for developers and QA engineers to execute and test applications u
 - [Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)
 - [Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)
 
-## Features
-
-**Carabiner** offers a wide range of features and settings:
-
-- Freely resizable floating window including fullscreen support
-- Option to select the capture device
-- Option to Link a capture device with a streaming device
-- Option to select the resolution of the capture device
-- Option to set the transparency of the floating window
-- Fully configurable border to the floating window
-- Create your list of streaming devices to connect and control
-- Configure the path to the ADB executable
-- Overlay a picture to check "design vs app screen" for pixel perfect UI
-- Configurable global shortcut to show/hide the floating window
-- Dropdown menu with options to Copy and Save a screenshot of streaming display
-- Option to show/hide the settings window on app start
-- Option to launch the app on system login
-- Option to enable/disable the always on top for the floating window
-
-### Future Improvements
-
-- Allow user to record captured video to mp4/mkv file
-- Detect the list streaming devices in the network (SSDP)
-
 ## Installation
 
 **Carabiner** is available on macOS, Windows and Linux. You can download the installers from the [releases](https://github.com/lvcabral/carabiner/releases) page.
@@ -62,11 +38,11 @@ It is perfect for developers and QA engineers to execute and test applications u
 4. To control Fire TV and Google TV, make sure your computer has the ADB executable installed and you configured the path in the settings. Get the latest version of the platform tools [here](https://developer.android.com/studio/releases/platform-tools.html).
 5. First time you connect to your Fire TV or Google TV device, you will need to authorize the connection.
 
-> **Note:** Carabiner is a prototype at this point. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we only have code signing certificate for MacOS, so you might have to allow the app to run on your system.
+> **Note:** Carabiner is still in development. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we only have code signing certificate for MacOS, so you might have to allow the app to run on your system.
 
-## Usage
+## Usage and Features
 
-After installing Carabiner, launch the application and customize the settings to your preferences. Once you have configured the settings, you can minimize or close the settings window and start using the floating window.
+After installing Carabiner, launch the application and customize the settings to your preferences. Once you have configured the settings, you can minimize or close the settings window and start using the floating display window.
 
 ### Controlling Streaming Devices
 
@@ -74,6 +50,7 @@ After installing Carabiner, launch the application and customize the settings to
 2. **Add a Streaming Device**: In the `Control` tab, add a new streaming device with IP, Alias and Type.
 3. **Select a Linked Device**: In the `General` tab, link your streaming device to the capture device.
 4. **Keyboard Controls**: When the floating display window is focused, you can use your keyboard to control and type text on the selected device. Refer to the [keyboard control mappings](./docs/key-mappings.md) documentation to learn how to operate your device.
+5. **Paste Text**: You can paste text into the streaming device by using the `Ctrl + V` (or `Cmd + V` on Mac) keyboard shortcut. This is useful for entering long text or e-mails and passwords.
 
 ### Taking Screenshots
 
@@ -89,6 +66,12 @@ You can load an overlay image on top of the video capture to help you compare a 
 - **Borders**: Add or customize the border of the floating window.
 - **Always on Top**: Enable or disable the floating window to be always on top.
 - **Global Shortcut**: Set a global shortcut to show/hide the floating window.
+- **Enable/Disable Audio**: Toggle audio capture from the video capture device, allowing you to test TTS and other audio features.
+- **Launch on Login**: Enable the app to launch on system login.
+- **Settings at Start**: Option to show/hide the settings window on app start.
+- **Capture Device Resolution**: Select the resolution of the capture device.
+- **Link Capture Device**: Link a capture device with a streaming device for easier control.
+- **ADB Path**: Configure the path to the ADB executable for controlling Android devices.
 
 ## Contributing
 
@@ -97,6 +80,7 @@ If you want to contribute to Carabiner, you can do so by:
 - Reporting bugs
 - Fixing bugs
 - Suggesting and adding new features
+- [Donating to the developer](https://paypal.me/lvcabral)
 
 ## Building from source
 
