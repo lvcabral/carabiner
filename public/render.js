@@ -279,6 +279,176 @@ window.addEventListener("DOMContentLoaded", function () {
   const newHeight = window.innerHeight - 15;
   handleSetResolution({ width: `${newWidth}px`, height: `${newHeight}px` });
 
+  // Keyboard Events
+  document.addEventListener("keydown", keyDownHandler);
+  document.addEventListener("keyup", keyUpHandler);
+
+  // Keyboard handlers
+  function keyDownHandler(event) {
+    if (!event.repeat) {
+      // Handle menu shortcuts
+      if (handleMenuShortcuts(event)) {
+        event.preventDefault();
+        return;
+      }
+      handleKeyboardEvent(event, 0);
+    }
+  }
+
+  function keyUpHandler(event) {
+    handleKeyboardEvent(event, 100);
+  }
+
+  function handleMenuShortcuts(event) {
+    // Handle context menu shortcuts
+    let handled = false;
+    // Copy Screenshot: Ctrl+Shift+C / Cmd+Shift+C
+    const isCopyScreenshot =
+      (isMacOS && event.metaKey && event.shiftKey && event.key === "c") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && event.key === "c");
+    if (isCopyScreenshot) {
+      handleCopyScreenshot();
+      handled = true;
+    }
+    // Save Screenshot: Ctrl+S / Cmd+S
+    const isSaveScreenshot =
+      (isMacOS && event.metaKey && !event.shiftKey && event.key === "s") ||
+      (!isMacOS && event.ctrlKey && !event.shiftKey && event.key === "s");
+
+    if (isSaveScreenshot) {
+      handleSaveScreenshot();
+      handled = true;
+    }
+    // Start Recording: Ctrl+Shift+R / Cmd+Shift+R
+    const isStartRecording =
+      (isMacOS && event.metaKey && event.shiftKey && event.key === "r") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && event.key === "r");
+    if (isStartRecording) {
+      handleStartRecording();
+      handled = true;
+    }
+    // Stop Recording: Ctrl+Shift+S / Cmd+Shift+S
+    const isStopRecording =
+      (isMacOS && event.metaKey && event.shiftKey && event.key === "s") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && event.key === "s");
+    if (isStopRecording) {
+      handleStopRecording();
+      handled = true;
+    }
+    // Paste: Ctrl+V / Cmd+V
+    const isPasteShortcut =
+      (isMacOS && event.metaKey && event.key === "v") ||
+      (!isMacOS && event.ctrlKey && event.key === "v");
+
+    if (isPasteShortcut) {
+      handlePaste();
+      handled = true;
+    }
+    // Toggle Fullscreen: F11 / Cmd+Ctrl+F
+    const isToggleFullscreen =
+      (!isMacOS && event.key === "F11") ||
+      (isMacOS && event.metaKey && event.ctrlKey && event.key === "f");
+    if (isToggleFullscreen) {
+      window.electronAPI.send("toggle-fullscreen-window");
+      handled = true;
+    }
+    // Settings: Ctrl+, / Cmd+,
+    const isOpenSettings =
+      (isMacOS && event.metaKey && event.key === ",") ||
+      (!isMacOS && event.ctrlKey && event.key === ",");
+    if (isOpenSettings) {
+      window.electronAPI.send("open-settings-from-display");
+      handled = true;
+    }
+    return handled;
+  }
+
+  function handleKeyboardEvent(event, mod) {
+    let keyCode = event.code;
+    if (event.shiftKey && !keyCode.startsWith("Shift")) {
+      keyCode = "Shift+" + keyCode;
+    } else if (event.ctrlKey && !keyCode.startsWith("Control")) {
+      keyCode = "Control+" + keyCode;
+    } else if (event.altKey && !keyCode.startsWith("Alt")) {
+      keyCode = "Alt+" + keyCode;
+    } else if (event.metaKey && !keyCode.startsWith("Meta")) {
+      keyCode = "Meta+" + keyCode;
+    }
+    if (controlType === "ecp") {
+      const key = ecpKeysMap.get(keyCode);
+      if (key && key.toLowerCase() !== "ignore") {
+        sendKey(key, mod);
+      } else if (
+        !["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key) &&
+        mod === 0
+      ) {
+        sendKey(`lit_${encodeURIComponent(event.key)}`, -1);
+      }
+    } else if (controlType === "adb") {
+      const key = adbKeysMap.get(keyCode);
+      if (key) {
+        sendKey(key, mod);
+      }
+    }
+  }
+
+  // Handle copy screenshot functionality
+  function handleCopyScreenshot() {
+    const canvas = getScreenshotCanvas();
+    canvas.toBlob(function (blob) {
+      const item = new ClipboardItem({ "image/png": blob });
+      navigator.clipboard
+        .write([item])
+        .then(() => {
+          showToast("Screenshot copied to clipboard!");
+        })
+        .catch((err) => {
+          showToast("Error copying screenshot to clipboard!", 5000, true);
+          console.log(`error copying screenshot to clipboard: ${err.message}`);
+        });
+    });
+  }
+
+  // Handle save screenshot functionality
+  function handleSaveScreenshot() {
+    const canvas = getScreenshotCanvas();
+    const now = new Date();
+    const datePart = now.toLocaleDateString("en-CA");
+    const timePart = now.toLocaleTimeString("en-CA", { hour12: false }).replace(/:/g, "");
+    const filename = `carabiner-${datePart}-${timePart}.png`;
+    canvas.toBlob(function (blob) {
+      const a = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  // Handle paste functionality
+  async function handlePaste() {
+    try {
+      // Check if we have a valid control connection
+      if (!isValidIP(controlIp)) {
+        showToast("No streaming device connected for paste operation!", 3000, true);
+        return;
+      }
+
+      // Read text from clipboard
+      const clipboardText = await navigator.clipboard.readText();
+
+      if (!clipboardText || clipboardText.trim() === "") {
+        showToast("Clipboard is empty or contains no text!", 3000, true);
+        return;
+      }
+      // Type each character using the sendKey function
+      await typeText(clipboardText);
+    } catch (error) {
+      console.error("[Carabiner] Error reading clipboard:", error);
+    }
+  }
+
   // Handle Screenshot Requests
   function getScreenshotCanvas() {
     const canvas = document.createElement("canvas");
@@ -290,7 +460,7 @@ window.addEventListener("DOMContentLoaded", function () {
   }
 
   // Video Recording Functions
-  function startRecording() {
+  function handleStartRecording() {
     if (isRecording || !videoPlayer.srcObject) {
       console.log("[Carabiner] Cannot start recording: already recording or no video stream");
       return;
@@ -357,7 +527,7 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function stopRecording() {
+  function handleStopRecording() {
     if (!isRecording || !mediaRecorder) {
       console.debug("[Carabiner] Cannot stop recording: not currently recording");
       return;
@@ -430,37 +600,9 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  window.electronAPI.onMessageReceived("copy-screenshot", function () {
-    const canvas = getScreenshotCanvas();
-    canvas.toBlob(function (blob) {
-      const item = new ClipboardItem({ "image/png": blob });
-      navigator.clipboard
-        .write([item])
-        .then(() => {
-          showToast("Screenshot copied to clipboard!");
-        })
-        .catch((err) => {
-          showToast("Error copying screenshot to clipboard!", 5000, true);
-          console.log(`error copying screenshot to clipboard: ${err.message}`);
-        });
-    });
-  });
-
-  window.electronAPI.onMessageReceived("save-screenshot", function () {
-    const canvas = getScreenshotCanvas();
-    const now = new Date();
-    const datePart = now.toLocaleDateString("en-CA");
-    const timePart = now.toLocaleTimeString("en-CA", { hour12: false }).replace(/:/g, "");
-    const filename = `carabiner-${datePart}-${timePart}.png`;
-    canvas.toBlob(function (blob) {
-      const a = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-  });
+  // Handle copy and save screenshot requests
+  window.electronAPI.onMessageReceived("copy-screenshot", handleCopyScreenshot);
+  window.electronAPI.onMessageReceived("save-screenshot", handleSaveScreenshot);
 
   // Listen for the image-loaded event
   window.electronAPI.onMessageReceived("image-loaded", (event, imageData) => {
@@ -480,9 +622,7 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 
   // Listen for paste command from context menu
-  window.electronAPI.onMessageReceived("handle-paste", (event) => {
-    handlePaste();
-  });
+  window.electronAPI.onMessageReceived("handle-paste", handlePaste);
 
   // Additional paste detection for macOS system menu paste
   // Listen for clipboard events and paste operations
@@ -572,13 +712,8 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 
   // Handle Recording Requests
-  window.electronAPI.onMessageReceived("start-recording", function () {
-    startRecording();
-  });
-
-  window.electronAPI.onMessageReceived("stop-recording", function () {
-    stopRecording();
-  });
+  window.electronAPI.onMessageReceived("start-recording", handleStartRecording);
+  window.electronAPI.onMessageReceived("stop-recording", handleStopRecording);
 });
 
 // Video Events
@@ -612,10 +747,6 @@ function handleControlList(data) {
   }
   controlList = data;
 }
-
-// Keyboard Events
-document.addEventListener("keydown", keyDownHandler);
-document.addEventListener("keyup", keyUpHandler);
 
 // ECP Keyboard Mapping
 const ecpKeysMap = new Map();
@@ -723,82 +854,6 @@ adbKeysMap.set("Shift+Digit7", "\\&");
 adbKeysMap.set("Shift+Digit8", "\\*");
 adbKeysMap.set("Shift+Digit9", "162");
 adbKeysMap.set("Shift+Digit0", "163");
-
-// Keyboard handlers
-function keyDownHandler(event) {
-  if (!event.repeat) {
-    handleKeyboardEvent(event, 0);
-  }
-}
-function keyUpHandler(event) {
-  handleKeyboardEvent(event, 100);
-}
-function handleKeyboardEvent(event, mod) {
-  let keyCode = event.code;
-  if (event.shiftKey && !keyCode.startsWith("Shift")) {
-    keyCode = "Shift+" + keyCode;
-  } else if (event.ctrlKey && !keyCode.startsWith("Control")) {
-    keyCode = "Control+" + keyCode;
-  } else if (event.altKey && !keyCode.startsWith("Alt")) {
-    keyCode = "Alt+" + keyCode;
-  } else if (event.metaKey && !keyCode.startsWith("Meta")) {
-    keyCode = "Meta+" + keyCode;
-  }
-
-  // Handle paste shortcut
-  const isPasteShortcut =
-    (isMacOS && event.metaKey && event.key === "v") ||
-    (!isMacOS && event.ctrlKey && event.key === "v");
-
-  if (isPasteShortcut && mod === 0) {
-    event.preventDefault();
-    handlePaste();
-    return;
-  }
-
-  if (controlType === "ecp") {
-    const key = ecpKeysMap.get(keyCode);
-    if (key && key.toLowerCase() !== "ignore") {
-      sendKey(key, mod);
-    } else if (
-      !["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key) &&
-      mod === 0
-    ) {
-      sendKey(`lit_${encodeURIComponent(event.key)}`, -1);
-    }
-  } else if (controlType === "adb") {
-    const key = adbKeysMap.get(keyCode);
-    if (key) {
-      sendKey(key, mod);
-    }
-  }
-}
-
-// Handle paste functionality
-async function handlePaste() {
-  try {
-    // Check if we have a valid control connection
-    if (!isValidIP(controlIp)) {
-      showToast("No streaming device connected for paste operation!", 3000, true);
-      return;
-    }
-
-    // Read text from clipboard
-    const clipboardText = await navigator.clipboard.readText();
-
-    if (!clipboardText || clipboardText.trim() === "") {
-      showToast("Clipboard is empty or contains no text!", 3000, true);
-      return;
-    }
-
-    console.debug(`[Carabiner] Pasting text: "${clipboardText}"`);
-
-    // Type each character using the sendKey function
-    await typeText(clipboardText);
-  } catch (error) {
-    console.error("[Carabiner] Error reading clipboard:", error);
-  }
-}
 
 // Type text character by character with proper timing
 async function typeText(text) {

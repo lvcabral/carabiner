@@ -33,9 +33,7 @@ const {
   createContextMenu,
   getTray,
 } = require("./menu");
-const packageInfo = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
-);
+const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
 
@@ -215,37 +213,37 @@ app.whenReady().then(async () => {
   if (isMacOS) {
     createMenu(mainWindow, displayWindow, packageInfo);
   }
-  
+
   // Initialize dock/tray mode based on user setting (both macOS and Windows)
   if (isMacOS || process.platform === "win32") {
     const showInDock = settings.display.showInDock !== false; // Default to true
     toggleDockIcon(showInDock, mainWindow, displayWindow, packageInfo);
   }
-  
+
   if (
     typeof settings?.control?.deviceId === "string" &&
     settings.control.deviceId.includes("|adb")
   ) {
     [controlIp, controlType] = settings.control.deviceId.split("|");
     if (!isADBConnected) {
-      isADBConnected = connectADB(controlIp, settings.control.adbPath);
+      isADBConnected = connectADB(controlIp, settings.control?.adbPath);
     }
   }
 
-  if (settings.display.shortcut) {
+  if (settings.display?.shortcut) {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
 
   // Hide app when both windows are hidden in macOS (only in dock mode)
   if (isMacOS) {
     mainWindow.on("hide", () => {
-      if (!displayWindow.isVisible() && settings.display.showInDock) {
+      if (!displayWindow.isVisible() && settings.display?.showInDock) {
         app.hide();
       }
     });
 
     displayWindow.on("hide", () => {
-      if (!mainWindow.isVisible() && settings.display.showInDock) {
+      if (!mainWindow.isVisible() && settings.display?.showInDock) {
         app.hide();
       }
     });
@@ -254,7 +252,7 @@ app.whenReady().then(async () => {
     displayWindow.on("resize", () => {
       const [width, height] = displayWindow.getSize();
       // Send resize notification to main window
-      mainWindow.webContents.send("shared-window-channel", {
+      mainWindow.webContents?.send("shared-window-channel", {
         type: "window-resized",
         payload: { width, height },
       });
@@ -262,11 +260,11 @@ app.whenReady().then(async () => {
   }
 
   ipcMain.on("shared-window-channel", (event, arg) => {
-    displayWindow.webContents.send("shared-window-channel", arg);
+    displayWindow?.webContents?.send("shared-window-channel", arg);
     saveFlag = true;
     if (arg.type && arg.type === "set-capture-devices") {
       captureDevices = JSON.parse(arg.payload);
-      mainWindow.webContents.send("shared-window-channel", arg);
+      mainWindow?.webContents?.send("shared-window-channel", arg);
       const tray = getTray();
       if (tray) {
         createTrayMenu(
@@ -312,9 +310,7 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-border-color") {
       settings.border.color = arg.payload;
     } else if (arg.type && arg.type === "set-control-list") {
-      const found = arg.payload.find(
-        (device) => device.id === settings.control.deviceId
-      );
+      const found = arg.payload.find((device) => device.id === settings.control.deviceId);
       if (!found) {
         settings.control.deviceId = "";
         if (isADBConnected) {
@@ -330,7 +326,7 @@ app.whenReady().then(async () => {
         isADBConnected = disconnectADB();
       }
       if (!isADBConnected && controlType === "adb") {
-        isADBConnected = connectADB(controlIp, settings.control.adbPath);
+        isADBConnected = connectADB(controlIp, settings.control?.adbPath);
       }
     } else if (arg.type && arg.type === "send-adb-key") {
       sendADBKey(arg.payload);
@@ -342,14 +338,14 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "clear-overlay-image") {
       saveFlag = false;
       // Clear the overlay image by sending a specific clear message
-      displayWindow.webContents.send("clear-overlay-image");
+      displayWindow?.webContents?.send("clear-overlay-image");
     } else if (arg.type && arg.type === "set-display-size") {
       saveFlag = false;
       const { width, height } = arg.payload;
       if (displayWindow && width && height) {
         displayWindow.setSize(width, height);
         // Send resize notification back to appearance section
-        mainWindow.webContents.send("shared-window-channel", {
+        mainWindow?.webContents?.send("shared-window-channel", {
           type: "window-resized",
           payload: { width, height },
         });
@@ -412,9 +408,29 @@ app.whenReady().then(async () => {
 
     // If switching to menubar mode (unchecking), ensure window stays visible
     if (!showInDock) {
-      mainWindow.show();
-      mainWindow.focus();
+      mainWindow?.show();
+      mainWindow?.focus();
     }
+  });
+
+  ipcMain.on("toggle-fullscreen-window", (event) => {
+    if (!displayWindow) {
+      return;
+    }
+    if (displayWindow.isFullScreen()) {
+      displayWindow.setFullScreen(false);
+    } else {
+      displayWindow.setFullScreen(true);
+    }
+  });
+
+  ipcMain.on("open-settings-from-display", (event) => {
+    if (!mainWindow) {
+      return;
+    }
+    mainWindow.webContents?.send("open-display-tab");
+    mainWindow.show();
+    mainWindow.focus();
   });
 
   ipcMain.on("show-context-menu", (event) => {
@@ -441,10 +457,7 @@ app.whenReady().then(async () => {
       } else if (ext === "webp") {
         mimeType = "image/webp";
       }
-      displayWindow.webContents.send(
-        "image-loaded",
-        `data:${mimeType};base64,${imageData}`
-      );
+      displayWindow?.webContents?.send("image-loaded", `data:${mimeType};base64,${imageData}`);
       return true;
     } catch (error) {
       console.error("Error loading image:", error);
