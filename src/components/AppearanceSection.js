@@ -23,29 +23,33 @@ const { electronAPI } = window;
 
 // Convert resolution options to display size format, filtered by monitor size
 const getDisplaySizeOptions = (maxWidth, maxHeight) => {
-  return resolutionOptions.filter(option => {
-    const [width, height] = option.value.split('|').map(Number);
-    // Only include options that fit within the monitor dimensions
-    return width <= maxWidth && height <= maxHeight;
-  }).map(option => {
-    const [width, height] = option.value.split('|');
-    return {
-      value: `${width}x${height}`,
-      label: option.label
-    };
-  });
+  return resolutionOptions
+    .filter((option) => {
+      const [width, height] = option.value.split("|").map(Number);
+      // Only include options that fit within the monitor dimensions
+      return width <= maxWidth && height <= maxHeight;
+    })
+    .map((option) => {
+      const [width, height] = option.value.split("|");
+      return {
+        value: `${width}x${height}`,
+        label: option.label,
+      };
+    });
 };
 
 // Get list of predefined sizes for validation, filtered by monitor size
 const getPredefinedSizes = (maxWidth, maxHeight) => {
-  return resolutionOptions.filter(option => {
-    const [width, height] = option.value.split('|').map(Number);
-    // Only include options that fit within the monitor dimensions
-    return width <= maxWidth && height <= maxHeight;
-  }).map(option => {
-    const [width, height] = option.value.split('|');
-    return `${width}x${height}`;
-  });
+  return resolutionOptions
+    .filter((option) => {
+      const [width, height] = option.value.split("|").map(Number);
+      // Only include options that fit within the monitor dimensions
+      return width <= maxWidth && height <= maxHeight;
+    })
+    .map((option) => {
+      const [width, height] = option.value.split("|");
+      return `${width}x${height}`;
+    });
 };
 
 function AppearanceSection() {
@@ -54,7 +58,7 @@ function AppearanceSection() {
   const [borderColor, setBorderColor] = useState("#662D91");
   const [resolution, setResolution] = useState("1280|720");
   const [filter, setFilter] = useState("none");
-  const [displaySize, setDisplaySize] = useState("1280x720");
+  const [displaySize, setDisplaySize] = useState("custom"); // Default fallback
   const [mainDisplaySize, setMainDisplaySize] = useState({ width: 1920, height: 1080 }); // Default fallback
 
   useEffect(() => {
@@ -63,7 +67,7 @@ function AppearanceSection() {
         // Load main display size and settings in parallel
         const [displayInfo, settings] = await Promise.all([
           electronAPI.invoke("get-main-display-size"),
-          electronAPI.invoke("load-settings")
+          electronAPI.invoke("load-settings"),
         ]);
 
         // Set main display size
@@ -92,7 +96,11 @@ function AppearanceSection() {
         }
 
         // Set display size based on current window size and filtered predefined options
-        if (settings.displayWindow && settings.displayWindow.width && settings.displayWindow.height) {
+        if (
+          settings.displayWindow &&
+          settings.displayWindow.width &&
+          settings.displayWindow.height
+        ) {
           const windowSize = `${settings.displayWindow.width}x${settings.displayWindow.height}`;
           const predefinedSizes = getPredefinedSizes(displayInfo.width, displayInfo.height);
           if (predefinedSizes.includes(windowSize)) {
@@ -101,7 +109,6 @@ function AppearanceSection() {
             setDisplaySize("custom");
           }
         }
-
       } catch (error) {
         console.warn("Failed to load display size or settings:", error);
         // Keep default fallback values
@@ -116,7 +123,7 @@ function AppearanceSection() {
         const { width, height } = message.payload;
         const windowSize = `${width}x${height}`;
         const predefinedSizes = getPredefinedSizes(mainDisplaySize.width, mainDisplaySize.height);
-        
+
         if (predefinedSizes.includes(windowSize)) {
           setDisplaySize(windowSize);
         } else {
@@ -126,7 +133,7 @@ function AppearanceSection() {
     };
 
     electronAPI.onMessageReceived("shared-window-channel", handleWindowResize);
-    
+
     return () => {
       // Cleanup listener if needed
     };
@@ -161,10 +168,10 @@ function AppearanceSection() {
   const handleDisplaySizeChange = (e) => {
     const size = e.target.value;
     setDisplaySize(size);
-    
+
     // Only apply predefined sizes, ignore "custom" selection
     if (size !== "custom") {
-      const [width, height] = size.split('x').map(Number);
+      const [width, height] = size.split("x").map(Number);
       notifyDisplaySizeChange(width, height);
     }
     // Note: Custom selection just shows in dropdown, no window resize happens
@@ -209,11 +216,13 @@ function AppearanceSection() {
               <Form.Group>
                 <Form.Label>Display Size</Form.Label>
                 <Form.Control as="select" value={displaySize} onChange={handleDisplaySizeChange}>
-                  {getDisplaySizeOptions(mainDisplaySize.width, mainDisplaySize.height).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                  {getDisplaySizeOptions(mainDisplaySize.width, mainDisplaySize.height).map(
+                    (option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    )
+                  )}
                   <option value="custom">Custom</option>
                 </Form.Control>
               </Form.Group>
