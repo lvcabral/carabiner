@@ -283,13 +283,13 @@ function createTray(mainWindow, displayWindow, packageInfo) {
       tray.popUpContextMenu();
     });
   } else if (isWindows) {
-    // Windows: left-click to toggle main window, right-click for context menu
+    // Windows: left-click to toggle display window, right-click for context menu
     tray.on("click", () => {
-      if (mainWindow.isVisible()) {
-        mainWindow.hide();
+      if (displayWindow.isVisible()) {
+        displayWindow.hide();
       } else {
-        mainWindow.show();
-        mainWindow.focus();
+        displayWindow.show();
+        displayWindow.focus();
       }
     });
 
@@ -320,17 +320,6 @@ function createTrayMenu(
       },
     },
   ];
-
-  // Add Windows-specific "Show Settings" option at the top for better UX
-  if (isWindows) {
-    trayMenuTemplate.push({
-      label: "Show Settings",
-      click: () => {
-        mainWindow.show();
-        mainWindow.focus();
-      },
-    });
-  }
 
   trayMenuTemplate.push(
     { type: "separator" },
