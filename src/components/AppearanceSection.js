@@ -146,7 +146,7 @@ function AppearanceSection() {
     return () => {
       // Cleanup listener if needed
     };
-  }, []);
+  }, [mainDisplaySize.height, mainDisplaySize.width]);
 
   const handleWidthChange = (event) => {
     setBorderWidth(event.target.value);

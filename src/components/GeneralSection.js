@@ -139,12 +139,6 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     electronAPI.send("save-audio-enabled", e.target.checked);
   };
 
-  const handleShowInDockChange = (e) => {
-    setShowInDock(e.target.checked);
-    // Save to settings and apply immediately
-    electronAPI.send("save-show-in-dock", e.target.checked);
-  };
-
   const handleLinkedDeviceChange = (e) => {
     currentLinked = e.target.value;
     setLinkedDevice(currentLinked);
