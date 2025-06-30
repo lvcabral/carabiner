@@ -8,7 +8,6 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { useState, useEffect, useRef } from "react";
-import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
@@ -102,7 +101,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   };
 
   return (
-    <Container className="p-2" style={{ position: "relative" }}>
+    <div className="p-3" style={{ position: "relative" }}>
       <Card>
         <Card.Body>
           <Form>
@@ -223,7 +222,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
           </Form>
         </Card.Body>
       </Card>
-    </Container>
+    </div>
   );
 }
 

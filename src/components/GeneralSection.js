@@ -157,7 +157,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   };
 
   return (
-    <Container className="p-2">
+    <Container fluid className="p-2">
       <Card>
         <Card.Body>
           <SelectCapture value={deviceId} onChange={handleCaptureDeviceChange} />
@@ -194,7 +194,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                     />
                     <Form.Check
                       type="radio"
-                      label="Menubar"
+                      label="Menu Bar"
                       name="displayMode"
                       value="menubar"
                       checked={!showInDock}

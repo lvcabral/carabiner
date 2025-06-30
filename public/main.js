@@ -115,9 +115,9 @@ function createMainWindow() {
     "mainWindow",
     {
       height: isMacOS ? 620 : 645,
-      width: 650,
+      width: 630,
       minHeight: isMacOS ? 620 : 645,
-      minWidth: 650,
+      minWidth: 630,
       maximizable: false,
       resizable: false,
       autoHideMenuBar: true,
