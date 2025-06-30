@@ -16,6 +16,7 @@ const {
   Notification,
   systemPreferences,
   globalShortcut,
+  screen,
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
@@ -242,6 +243,16 @@ app.whenReady().then(async () => {
         app.hide();
       }
     });
+
+    // Listen for display window resize events
+    displayWindow.on("resize", () => {
+      const [width, height] = displayWindow.getSize();
+      // Send resize notification to main window
+      mainWindow.webContents.send("shared-window-channel", {
+        type: "window-resized",
+        payload: { width, height }
+      });
+    });
   }
 
   ipcMain.on("shared-window-channel", (event, arg) => {
@@ -324,6 +335,17 @@ app.whenReady().then(async () => {
       saveFlag = false;
       // Clear the overlay image by sending a specific clear message
       displayWindow.webContents.send("clear-overlay-image");
+    } else if (arg.type && arg.type === "set-display-size") {
+      saveFlag = false;
+      const { width, height } = arg.payload;
+      if (displayWindow && width && height) {
+        displayWindow.setSize(width, height);
+        // Send resize notification back to appearance section
+        mainWindow.webContents.send("shared-window-channel", {
+          type: "window-resized",
+          payload: { width, height }
+        });
+      }
     }
     if (saveFlag) {
       saveSettings(settings);
@@ -453,6 +475,14 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("get-package-info", async () => {
     return packageInfo;
+  });
+
+  ipcMain.handle("get-main-display-size", async () => {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    return {
+      width: primaryDisplay.size.width,
+      height: primaryDisplay.size.height,
+    };
   });
 
   // Handler for saving overlay recent files
