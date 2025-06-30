@@ -252,7 +252,14 @@ app.whenReady().then(async () => {
       mainWindow.webContents.send("shared-window-channel", arg);
       const tray = getTray();
       if (tray) {
-        createTrayMenu(mainWindow, displayWindow, packageInfo, captureDevices, settings, isCurrentlyRecording);
+        createTrayMenu(
+          mainWindow,
+          displayWindow,
+          packageInfo,
+          captureDevices,
+          settings,
+          isCurrentlyRecording
+        );
       }
     } else if (arg.type && arg.type === "set-video-stream") {
       saveFlag = false;
@@ -313,6 +320,10 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-audio-enabled") {
       settings.display.audioEnabled = arg.payload;
       saveFlag = true;
+    } else if (arg.type && arg.type === "clear-overlay-image") {
+      saveFlag = false;
+      // Clear the overlay image by sending a specific clear message
+      displayWindow.webContents.send("clear-overlay-image");
     }
     if (saveFlag) {
       saveSettings(settings);
@@ -377,9 +388,36 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("show-context-menu", (event) => {
-    const menu = createContextMenu(mainWindow, displayWindow, packageInfo, isCurrentlyRecording, captureDevices, settings);
+    const menu = createContextMenu(
+      mainWindow,
+      displayWindow,
+      packageInfo,
+      isCurrentlyRecording,
+      captureDevices,
+      settings
+    );
     menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
   });
+
+  // Reusable function for loading and sending image data to display window
+  const loadAndSendImage = (imagePath) => {
+    try {
+      const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
+      // Detect image type from file extension
+      const ext = imagePath.toLowerCase().split(".").pop();
+      let mimeType = "image/png"; // default
+      if (ext === "jpg" || ext === "jpeg") {
+        mimeType = "image/jpeg";
+      } else if (ext === "webp") {
+        mimeType = "image/webp";
+      }
+      displayWindow.webContents.send("image-loaded", `data:${mimeType};base64,${imageData}`);
+      return true;
+    } catch (error) {
+      console.error("Error loading image:", error);
+      return false;
+    }
+  };
 
   ipcMain.handle("select-adb-path", async () => {
     const result = await dialog.showOpenDialog({
@@ -404,9 +442,8 @@ app.whenReady().then(async () => {
       return "";
     } else {
       const imagePath = result.filePaths[0];
-      const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
-      displayWindow.webContents.send("image-loaded", `data:image/png;base64,${imageData}`);
-      return imagePath;
+      const success = loadAndSendImage(imagePath);
+      return success ? imagePath : "";
     }
   });
 
@@ -416,6 +453,54 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("get-package-info", async () => {
     return packageInfo;
+  });
+
+  // Handler for saving overlay recent files
+  ipcMain.on("save-overlay-recent-files", (event, recentFiles) => {
+    if (!settings.overlay) {
+      settings.overlay = {};
+    }
+    settings.overlay.recentFiles = recentFiles;
+    saveSettings(settings);
+  });
+
+  // Handler for saving overlay image path
+  ipcMain.on("save-overlay-image-path", (event, imagePath) => {
+    if (!settings.overlay) {
+      settings.overlay = {};
+    }
+    settings.overlay.imagePath = imagePath;
+    saveSettings(settings);
+  });
+
+  // Handler for saving overlay opacity
+  ipcMain.on("save-overlay-opacity", (event, opacity) => {
+    if (!settings.overlay) {
+      settings.overlay = {};
+    }
+    settings.overlay.opacity = parseFloat(opacity);
+    saveSettings(settings);
+  });
+
+  // Handler for checking if file exists
+  ipcMain.handle("check-file-exists", async (event, filePath) => {
+    try {
+      await fs.promises.access(filePath, fs.constants.F_OK);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  });
+
+  // Handler for showing message box dialogs
+  ipcMain.handle("show-message-box", async (event, options) => {
+    const result = await dialog.showMessageBox(mainWindow, options);
+    return result;
+  });
+
+  // Handler for loading image by path (unified for both file dialog and recent files)
+  ipcMain.handle("load-image-by-path", async (event, imagePath) => {
+    return loadAndSendImage(imagePath);
   });
 
   // Save video recording dialog

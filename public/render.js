@@ -458,7 +458,19 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Listen for the image-loaded event
   window.electronAPI.onMessageReceived("image-loaded", (event, imageData) => {
-    overlayImage.src = imageData;
+    if (imageData && imageData.trim() !== "") {
+      overlayImage.src = imageData;
+      overlayImage.style.display = "block";
+    } else {
+      overlayImage.src = "";
+      overlayImage.style.display = "none";
+    }
+  });
+
+  // Listen for the clear-overlay-image event
+  window.electronAPI.onMessageReceived("clear-overlay-image", (event) => {
+    overlayImage.src = "";
+    overlayImage.style.display = "none";
   });
 
   // Listen for paste command from context menu
