@@ -24,7 +24,8 @@
 
 .custom-container {
   padding: 5px;
-  min-width: 550px;
+  width: 100%;
+  box-sizing: border-box;
   max-height: 100vh;
   overflow: hidden;
 }
@@ -54,11 +55,6 @@
 /* Make components more compact */
 .card-body {
   padding: 1rem !important; /* Reduced default Bootstrap padding */
-}
-
-.container {
-  padding-left: 0.75rem !important;
-  padding-right: 0.75rem !important;
 }
 
 .mt-3 {

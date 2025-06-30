@@ -217,30 +217,6 @@ function OverlaySection() {
     }
   };
 
-  const getDisplayPath = (filePath) => {
-    const fileName = filePath.split(/[\\/]/).pop() || filePath;
-
-    // If path is too long, show beginning and end with ellipsis in the middle
-    if (filePath.length > 50) {
-      const maxLength = 47; // Account for "..." (3 chars)
-      const fileNameLength = fileName.length;
-      const pathWithoutFileName = filePath.substring(0, filePath.length - fileNameLength);
-
-      // Calculate how much space we have for the path part
-      const availableForPath = maxLength - fileNameLength - 3; // 3 for "..."
-
-      if (availableForPath > 0 && pathWithoutFileName.length > availableForPath) {
-        // Show beginning of path + "..." + filename
-        const pathStart = pathWithoutFileName.substring(0, availableForPath);
-        return pathStart + "..." + fileName;
-      } else if (availableForPath <= 0) {
-        // If filename itself is too long or takes up most space, just show "..." + filename
-        return "..." + fileName;
-      }
-    }
-    return filePath;
-  };
-
   const handleOpacityChange = (event) => {
     setOpacity(event.target.value);
     electronAPI.sendSync("shared-window-channel", {
@@ -379,7 +355,7 @@ function OverlaySection() {
                     title={filePath}
                     data-list-index={index}
                   >
-                    <span className="text-truncate d-block">{getDisplayPath(filePath)}</span>
+                    <span className="text-truncate d-block">{shortenPath(filePath, 53)}</span>
                   </ListGroup.Item>
                 ))}
               </ListGroup>
@@ -389,6 +365,29 @@ function OverlaySection() {
       )}
     </Container>
   );
+}
+
+// Function that shortens a path (based on code by https://stackoverflow.com/users/2149492/johnpan)
+function shortenPath(bigPath, maxLen) {
+    let path = bigPath;
+    if (path.length > maxLen) {
+        const splitter = bigPath.indexOf("/") > -1 ? "/" : "\\";
+        const tokens = bigPath.split(splitter);
+        const drive = bigPath.indexOf(":") > -1 ? tokens[0] : "";
+        const fileName = tokens[tokens.length - 1];
+        const len = drive.length + fileName.length;
+        const remLen = maxLen - len - 3; // remove the current length and also space for ellipsis char and 2 slashes
+        //remove first and last elements from the array
+        tokens.splice(0, 1);
+        tokens.splice(tokens.length - 1, 1);
+        //recreate our path
+        path = tokens.join(splitter);
+        //rebuild the path from beginning and end
+        const pathA = path.substring(0, Math.ceil(remLen / 2));
+        const pathB = path.substring(path.length - Math.floor(remLen / 2));
+        path = `${drive}${splitter}${pathA}…${pathB}${splitter}${fileName}`;
+    }
+    return path;
 }
 
 export default OverlaySection;

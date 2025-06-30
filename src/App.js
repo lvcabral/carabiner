@@ -11,7 +11,6 @@ import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import logo from "./carabiner-icon.png";
 
-import Container from "react-bootstrap/Container";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 
@@ -52,8 +51,8 @@ function App() {
   };
 
   return (
-    <Container className="p-3 custom-container">
-      <Container className="p-3 bg-light rounded-3">
+    <div className="p-3 custom-container">
+      <div className="p-3 bg-light rounded-3">
         <h1 className="header" style={{ textAlign: "center" }}>
           <img src={logo} alt="Carabiner Logo" height="65px" width="65px" />
         </h1>
@@ -99,8 +98,8 @@ function App() {
             </div>
           </Tab>
         </Tabs>
-      </Container>
-    </Container>
+      </div>
+    </div>
   );
 }
 

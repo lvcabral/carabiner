@@ -115,9 +115,9 @@ function createMainWindow() {
     "mainWindow",
     {
       height: isMacOS ? 620 : 645,
-      width: 600,
+      width: 630,
       minHeight: isMacOS ? 620 : 645,
-      minWidth: 600,
+      minWidth: 630,
       maximizable: false,
       resizable: false,
       autoHideMenuBar: true,
@@ -214,10 +214,14 @@ app.whenReady().then(async () => {
   setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
   if (isMacOS) {
     createMenu(mainWindow, displayWindow, packageInfo);
-    // Initialize dock/tray mode based on user setting
+  }
+  
+  // Initialize dock/tray mode based on user setting (both macOS and Windows)
+  if (isMacOS || process.platform === "win32") {
     const showInDock = settings.display.showInDock !== false; // Default to true
     toggleDockIcon(showInDock, mainWindow, displayWindow, packageInfo);
   }
+  
   if (
     typeof settings?.control?.deviceId === "string" &&
     settings.control.deviceId.includes("|adb")

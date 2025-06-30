@@ -9,7 +9,6 @@
  *--------------------------------------------------------------------------------------------*/
 import { useEffect, useState } from "react";
 import Form from "react-bootstrap/Form";
-import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -188,7 +187,7 @@ function AppearanceSection() {
   };
 
   return (
-    <Container className="p-2">
+    <div className="p-3">
       <Card>
         <Card.Body>
           <h6>Display Border</h6>
@@ -263,7 +262,7 @@ function AppearanceSection() {
           </Row>
         </Card.Body>
       </Card>
-    </Container>
+    </div>
   );
 }
 
