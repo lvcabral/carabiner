@@ -52,7 +52,7 @@ function AboutSection() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleLinkClick}
-              style={{ textDecoration: 'none' }}
+              style={{ textDecoration: "none" }}
             >
               Version {version}
             </a>
@@ -64,7 +64,7 @@ function AboutSection() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleLinkClick}
-              style={{ textDecoration: 'none' }}
+              style={{ textDecoration: "none" }}
             >
               GitHub Repository
             </a>
@@ -75,7 +75,7 @@ function AboutSection() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleLinkClick}
-              style={{ textDecoration: 'none' }}
+              style={{ textDecoration: "none" }}
             >
               Enjoying the app? Buy me a Coffee ☕
             </a>

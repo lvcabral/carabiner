@@ -94,9 +94,19 @@ async function handleSetVideoStream(constraints) {
   renderDisplay(currentConstraints);
 }
 
-function handleSetTransparency(data) {
-  videoPlayer.style.filter = data.filter;
-  videoPlayer.style["-webkit-filter"] = `-webkit-${data.filter}`;
+function handleSetTransparency(transparencyValue) {
+  // Convert numeric transparency to CSS filter
+  let filterValue = "none";
+  if (transparencyValue === 25) {
+    filterValue = "opacity(75%)";
+  } else if (transparencyValue === 50) {
+    filterValue = "opacity(50%)";
+  } else if (transparencyValue === 75) {
+    filterValue = "opacity(25%)";
+  }
+
+  videoPlayer.style.filter = filterValue;
+  videoPlayer.style["-webkit-filter"] = `-webkit-${filterValue}`;
 }
 
 function handleOverlayOpacity(opacity) {
