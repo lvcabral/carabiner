@@ -57,7 +57,7 @@ function AppearanceSection() {
   const [borderColor, setBorderColor] = useState("#662D91");
   const [resolution, setResolution] = useState("1280|720");
   const [displaySize, setDisplaySize] = useState("custom"); // Default fallback
-  const [transparency, setTransparency] = useState(0); // 0%, 25%, 50%, 75%
+  const [transparency, setTransparency] = useState(0);
   const [mainDisplaySize, setMainDisplaySize] = useState({ width: 1920, height: 1080 }); // Default fallback
 
   useEffect(() => {
@@ -229,8 +229,8 @@ function AppearanceSection() {
                 <Form.Label>Transparency ({transparency}%)</Form.Label>
                 <Form.Range
                   min="0"
-                  max="75"
-                  step="25"
+                  max="90"
+                  step="10"
                   value={transparency}
                   onChange={handleTransparencyChange}
                 />
