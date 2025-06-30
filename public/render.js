@@ -503,7 +503,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
     // Set focus to document to ensure it can receive paste events
     document.addEventListener("click", () => {
-      document.focus();
+      window.focus();
     });
   }
 

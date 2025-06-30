@@ -7,7 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Form from "react-bootstrap/Form";
 import Container from "react-bootstrap/Container";
 import Card from "react-bootstrap/Card";
@@ -58,18 +58,22 @@ function AppearanceSection() {
   const [resolution, setResolution] = useState("1280|720");
   const [displaySize, setDisplaySize] = useState("custom"); // Default fallback
   const [transparency, setTransparency] = useState(0);
-  const [mainDisplaySize, setMainDisplaySize] = useState({ width: 1920, height: 1080 }); // Default fallback
+  const [mainDisplaySize, setMainDisplaySize] = useState({
+    width: 1920,
+    height: 1080,
+  }); // Default fallback - largest monitor size
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load main display size and settings in parallel
+        // Load largest display size and settings in parallel
         const [displayInfo, settings] = await Promise.all([
-          electronAPI.invoke("get-main-display-size"),
+          electronAPI.invoke("get-largest-display-size"),
           electronAPI.invoke("load-settings"),
         ]);
 
-        // Set main display size
+        // Set largest display size
+        console.log("Largest display size:", displayInfo);
         setMainDisplaySize(displayInfo);
 
         // Load all settings
@@ -101,7 +105,10 @@ function AppearanceSection() {
           settings.displayWindow.height
         ) {
           const windowSize = `${settings.displayWindow.width}x${settings.displayWindow.height}`;
-          const predefinedSizes = getPredefinedSizes(displayInfo.width, displayInfo.height);
+          const predefinedSizes = getPredefinedSizes(
+            displayInfo.width,
+            displayInfo.height
+          );
           if (predefinedSizes.includes(windowSize)) {
             setDisplaySize(windowSize);
           } else {
@@ -109,7 +116,7 @@ function AppearanceSection() {
           }
         }
       } catch (error) {
-        console.warn("Failed to load display size or settings:", error);
+        console.warn("Failed to load largest display size or settings:", error);
         // Keep default fallback values
       }
     };
@@ -121,7 +128,10 @@ function AppearanceSection() {
       if (message.type === "window-resized") {
         const { width, height } = message.payload;
         const windowSize = `${width}x${height}`;
-        const predefinedSizes = getPredefinedSizes(mainDisplaySize.width, mainDisplaySize.height);
+        const predefinedSizes = getPredefinedSizes(
+          mainDisplaySize.width,
+          mainDisplaySize.height
+        );
 
         if (predefinedSizes.includes(windowSize)) {
           setDisplaySize(windowSize);
@@ -184,10 +194,16 @@ function AppearanceSection() {
           <h6>Display Border</h6>
           <Row>
             <Col>
-              <SelectBorderWidth value={borderWidth} onChange={handleWidthChange} />
+              <SelectBorderWidth
+                value={borderWidth}
+                onChange={handleWidthChange}
+              />
             </Col>
             <Col>
-              <SelectBorderStyle value={borderStyle} onChange={handleStyleChange} />
+              <SelectBorderStyle
+                value={borderStyle}
+                onChange={handleStyleChange}
+              />
             </Col>
             <Col>
               <Form.Group>
@@ -205,19 +221,27 @@ function AppearanceSection() {
           <hr className="mt-3" />
           <Row className="mt-2">
             <Col>
-              <SelectResolution value={resolution} onChange={handleResolutionChange} />
+              <SelectResolution
+                value={resolution}
+                onChange={handleResolutionChange}
+              />
             </Col>
             <Col>
               <Form.Group>
                 <Form.Label>Display Size</Form.Label>
-                <Form.Control as="select" value={displaySize} onChange={handleDisplaySizeChange}>
-                  {getDisplaySizeOptions(mainDisplaySize.width, mainDisplaySize.height).map(
-                    (option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    )
-                  )}
+                <Form.Control
+                  as="select"
+                  value={displaySize}
+                  onChange={handleDisplaySizeChange}
+                >
+                  {getDisplaySizeOptions(
+                    mainDisplaySize.width,
+                    mainDisplaySize.height
+                  ).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                   <option value="custom">Custom</option>
                 </Form.Control>
               </Form.Group>
