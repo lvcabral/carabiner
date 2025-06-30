@@ -264,9 +264,23 @@ function OverlaySection() {
   };
 
   return (
-    <Container className="p-2">
+    <Container className="p-2" style={{ position: "relative" }}>
       {showAlert && (
-        <Alert variant="info" dismissible onClose={() => setShowAlert(false)}>
+        <Alert
+          variant="info"
+          dismissible
+          onClose={() => setShowAlert(false)}
+          style={{
+            position: "absolute",
+            top: "10px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1050,
+            minWidth: "300px",
+            maxWidth: "90%",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          }}
+        >
           {alertMessage}
         </Alert>
       )}

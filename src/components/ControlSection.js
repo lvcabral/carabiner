@@ -45,13 +45,13 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const handleAddDevice = () => {
     if (!isValidIpAddress(ipAddress)) {
       setErrorMessage("Invalid IP address format.");
-      setTimeout(() => setErrorMessage(""), 7000);
+      setTimeout(() => setErrorMessage(""), 3000);
       return;
     }
 
     if (streamingDevices.some((device) => device.ipAddress === ipAddress)) {
       setErrorMessage("IP address already exists.");
-      setTimeout(() => setErrorMessage(""), 7000);
+      setTimeout(() => setErrorMessage(""), 3000);
       return;
     }
 
@@ -102,7 +102,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   };
 
   return (
-    <Container className="p-2">
+    <Container className="p-2" style={{ position: "relative" }}>
       <Card>
         <Card.Body>
           <Form>
@@ -170,7 +170,20 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
             </Form.Group>
             <Form.Group controlId="formDeviceList" className="form-group-spacing">
               {errorMessage && (
-                <Alert variant="danger" className="custom-alert">
+                <Alert
+                  variant="danger"
+                  className="custom-alert"
+                  style={{
+                    position: "absolute",
+                    top: "10px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 1050,
+                    minWidth: "300px",
+                    maxWidth: "90%",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  }}
+                >
                   {errorMessage}
                 </Alert>
               )}

@@ -87,9 +87,23 @@ const Capture = ({ value, onChange }) => {
   }, []);
 
   return (
-    <div>
+    <div style={{ position: "relative" }}>
       {errorOccurred ? (
-        <Alert variant="danger" onClose={() => setErrorOccurred(false)} dismissible>
+        <Alert
+          variant="danger"
+          onClose={() => setErrorOccurred(false)}
+          dismissible
+          style={{
+            position: "absolute",
+            top: "10px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1050,
+            minWidth: "300px",
+            maxWidth: "90%",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          }}
+        >
           <Alert.Heading>An error occurred!</Alert.Heading>
           <p>
             Either you have not allowed access to your webcam or your browser does not support the{" "}
