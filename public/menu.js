@@ -194,9 +194,7 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
           label: "Keyboard Control",
           accelerator: "CmdOrCtrl+F1",
           click: () => {
-            shell.openExternal(
-              `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
-            );
+            shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
           },
         },
         { type: "separator" },
@@ -209,9 +207,7 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
         {
           label: "View License",
           click: () => {
-            shell.openExternal(
-              `${packageInfo.repository.url}/blob/main/LICENSE`
-            );
+            shell.openExternal(`${packageInfo.repository.url}/blob/main/LICENSE`);
           },
         },
       ],
@@ -380,9 +376,7 @@ function createTrayMenu(
       label: "Keyboard Control",
       accelerator: "CmdOrCtrl+F1",
       click: () => {
-        shell.openExternal(
-          `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
-        );
+        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
       },
     })
   );
@@ -400,12 +394,8 @@ function createTrayMenu(
   // Set the tray context menu
   trayContextMenu = trayMenu;
   // Store references to the recording menu items for later updates
-  trayStartRecordingItem = trayContextMenu.getMenuItemById(
-    "tray-start-recording"
-  );
-  trayStopRecordingItem = trayContextMenu.getMenuItemById(
-    "tray-stop-recording"
-  );
+  trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
+  trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
   updateTrayRecordingMenuItems(isCurrentlyRecording);
   // Set the context menu for the tray
   if (tray) {
@@ -413,26 +403,16 @@ function createTrayMenu(
   }
 }
 
-function appendCaptureDevicesMenu(
-  menu,
-  mainWindow,
-  captureDevices = null,
-  settings = null
-) {
+function appendCaptureDevicesMenu(menu, mainWindow, captureDevices = null, settings = null) {
   if (!captureDevices || captureDevices.length === 0) {
     // If no capture devices are available, just return
     return;
   }
   menu.append(new MenuItem({ type: "separator" }));
   captureDevices.forEach((device) => {
-    let deviceLabel =
-      device.label || `Device ${captureDevices.indexOf(device) + 1}`;
-    const found = settings?.control?.deviceList?.find(
-      (d) => d.linked === device.deviceId
-    );
-    deviceLabel += found
-      ? ` - ${found.type} ${found.alias ?? found.ipAddress}`
-      : "";
+    let deviceLabel = device.label || `Device ${captureDevices.indexOf(device) + 1}`;
+    const found = settings?.control?.deviceList?.find((d) => d.linked === device.deviceId);
+    deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
     menu.append(
       new MenuItem({
         label: deviceLabel,
@@ -456,20 +436,13 @@ function updateTrayRecordingMenuItems(isRecording) {
   trayStopRecordingItem.enabled = isRecording;
 }
 
-function toggleDockIcon(
-  showInDock,
-  mainWindow,
-  displayWindow = null,
-  packageInfo = null
-) {
+function toggleDockIcon(showInDock, mainWindow, displayWindow = null, packageInfo = null) {
   if (!isMacOS && !isWindows) return null;
 
   // Ensure we have window references
   const display =
     displayWindow ||
-    BrowserWindow.getAllWindows().find((win) =>
-      win.webContents.getURL().includes("display.html")
-    );
+    BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes("display.html"));
 
   if (showInDock) {
     // Show in dock/taskbar
@@ -582,8 +555,15 @@ function createContextMenu(
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(
     new MenuItem({
-      role: "togglefullscreen",
+      label: "Toggle Fullscreen",
       accelerator: fullscreenAcc,
+      click: () => {
+        if (displayWindow.isFullScreen()) {
+          displayWindow.setFullScreen(false);
+        } else {
+          displayWindow.setFullScreen(true);
+        }
+      },
     })
   );
   menu.append(
@@ -612,9 +592,7 @@ function createContextMenu(
       label: "Keyboard Control Help",
       accelerator: "CmdOrCtrl+F1",
       click: () => {
-        shell.openExternal(
-          `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
-        );
+        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
       },
     })
   );
