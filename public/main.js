@@ -33,7 +33,9 @@ const {
   createContextMenu,
   getTray,
 } = require("./menu");
-const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
+const packageInfo = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../package.json"), "utf8")
+);
 
 if (require("electron-squirrel-startup") === true) app.quit();
 
@@ -306,7 +308,9 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-border-color") {
       settings.border.color = arg.payload;
     } else if (arg.type && arg.type === "set-control-list") {
-      const found = arg.payload.find((device) => device.id === settings.control.deviceId);
+      const found = arg.payload.find(
+        (device) => device.id === settings.control.deviceId
+      );
       if (!found) {
         settings.control.deviceId = "";
         if (isADBConnected) {
@@ -433,7 +437,10 @@ app.whenReady().then(async () => {
       } else if (ext === "webp") {
         mimeType = "image/webp";
       }
-      displayWindow.webContents.send("image-loaded", `data:${mimeType};base64,${imageData}`);
+      displayWindow.webContents.send(
+        "image-loaded",
+        `data:${mimeType};base64,${imageData}`
+      );
       return true;
     } catch (error) {
       console.error("Error loading image:", error);
@@ -477,11 +484,22 @@ app.whenReady().then(async () => {
     return packageInfo;
   });
 
-  ipcMain.handle("get-main-display-size", async () => {
-    const primaryDisplay = screen.getPrimaryDisplay();
+  ipcMain.handle("get-largest-display-size", async () => {
+    const displays = screen.getAllDisplays();
+    let largestDisplay = displays[0];
+    let largestArea = largestDisplay.size.width * largestDisplay.size.height;
+
+    for (const display of displays) {
+      const area = display.size.width * display.size.height;
+      if (area > largestArea) {
+        largestArea = area;
+        largestDisplay = display;
+      }
+    }
+
     return {
-      width: primaryDisplay.size.width,
-      height: primaryDisplay.size.height,
+      width: largestDisplay.size.width,
+      height: largestDisplay.size.height,
     };
   });
 
