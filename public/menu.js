@@ -10,7 +10,6 @@
 const { Menu, BrowserWindow, app, shell, Tray, MenuItem } = require("electron");
 const path = require("path");
 
-let devToolsAccelerator = "Cmd+Option+I";
 let alwaysOnTopMenuItem;
 let copyScreenshotMenuItem;
 let saveScreenshotMenuItem;
@@ -25,6 +24,8 @@ let trayStopRecordingItem = null;
 
 const isMacOS = process.platform === "darwin";
 const isWindows = process.platform === "win32";
+const devToolsAccelerator = isMacOS ? "Cmd+Option+I" : "F12";
+const fullscreenAcc = isMacOS ? "Cmd+Ctrl+F" : "F11";
 
 function createMenu(mainWindow, displayWindow, packageInfo) {
   const template = [
@@ -156,14 +157,7 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
           label: "Developer Tools",
           accelerator: devToolsAccelerator,
           click: (_, window) => {
-            if (!window) {
-              window = BrowserWindow.fromId(1);
-            }
-            if (window.webContents.isDevToolsOpened()) {
-              window.webContents.closeDevTools();
-            } else {
-              window.openDevTools({ mode: "detach" });
-            }
+            openDevTools(window);
           },
         },
         { type: "separator" },
@@ -185,14 +179,12 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
       submenu: [
         {
           label: "Documentation",
-          accelerator: "F1",
           click: () => {
             shell.openExternal(`${packageInfo.repository.url}#readme`);
           },
         },
         {
           label: "Keyboard Control",
-          accelerator: "CmdOrCtrl+F1",
           click: () => {
             shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
           },
@@ -365,7 +357,6 @@ function createTrayMenu(
   trayMenu.append(
     new MenuItem({
       label: "Documentation",
-      accelerator: "F1",
       click: () => {
         shell.openExternal(`${packageInfo.repository.url}#readme`);
       },
@@ -374,7 +365,6 @@ function createTrayMenu(
   trayMenu.append(
     new MenuItem({
       label: "Keyboard Control",
-      accelerator: "CmdOrCtrl+F1",
       click: () => {
         shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
       },
@@ -496,10 +486,6 @@ function createContextMenu(
   settings = null
 ) {
   const menu = new Menu();
-  let fullscreenAcc = "F11";
-  if (isMacOS) {
-    fullscreenAcc = "Cmd+Ctrl+F";
-  }
 
   menu.append(
     new MenuItem({
@@ -590,16 +576,37 @@ function createContextMenu(
   menu.append(
     new MenuItem({
       label: "Keyboard Control Help",
-      accelerator: "CmdOrCtrl+F1",
       click: () => {
         shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
       },
     })
   );
+  menu.append(
+    new MenuItem(
+      {
+        label: "Developer Tools",
+        accelerator: devToolsAccelerator,
+        click: (_, window) => {
+          openDevTools(window);
+        },
+      })
+  );
+
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(new MenuItem({ role: "quit" }));
 
   return menu;
+}
+
+function openDevTools(window) {
+  if (!window) {
+    window = BrowserWindow.fromId(1);
+  }
+  if (window.webContents.isDevToolsOpened()) {
+    window.webContents.closeDevTools();
+  } else {
+    window.openDevTools({ mode: "detach" });
+  }
 }
 
 // Getter functions for tray state
@@ -618,4 +625,5 @@ module.exports = {
   toggleDockIcon,
   createContextMenu,
   getTray,
+  openDevTools,
 };

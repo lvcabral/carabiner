@@ -302,18 +302,19 @@ window.addEventListener("DOMContentLoaded", function () {
   function handleMenuShortcuts(event) {
     // Handle context menu shortcuts
     let handled = false;
+    const key = event.key.toLowerCase();
     // Copy Screenshot: Ctrl+Shift+C / Cmd+Shift+C
     const isCopyScreenshot =
-      (isMacOS && event.metaKey && event.shiftKey && event.key === "c") ||
-      (!isMacOS && event.ctrlKey && event.shiftKey && event.key === "c");
+      (isMacOS && event.metaKey && event.shiftKey && key === "c") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && key === "c");
     if (isCopyScreenshot) {
       handleCopyScreenshot();
       handled = true;
     }
     // Save Screenshot: Ctrl+S / Cmd+S
     const isSaveScreenshot =
-      (isMacOS && event.metaKey && !event.shiftKey && event.key === "s") ||
-      (!isMacOS && event.ctrlKey && !event.shiftKey && event.key === "s");
+      (isMacOS && event.metaKey && !event.shiftKey && key === "s") ||
+      (!isMacOS && event.ctrlKey && !event.shiftKey && key === "s");
 
     if (isSaveScreenshot) {
       handleSaveScreenshot();
@@ -321,24 +322,24 @@ window.addEventListener("DOMContentLoaded", function () {
     }
     // Start Recording: Ctrl+Shift+R / Cmd+Shift+R
     const isStartRecording =
-      (isMacOS && event.metaKey && event.shiftKey && event.key === "r") ||
-      (!isMacOS && event.ctrlKey && event.shiftKey && event.key === "r");
+      (isMacOS && event.metaKey && event.shiftKey && key === "r") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && key === "r");
     if (isStartRecording) {
       handleStartRecording();
       handled = true;
     }
     // Stop Recording: Ctrl+Shift+S / Cmd+Shift+S
     const isStopRecording =
-      (isMacOS && event.metaKey && event.shiftKey && event.key === "s") ||
-      (!isMacOS && event.ctrlKey && event.shiftKey && event.key === "s");
+      (isMacOS && event.metaKey && event.shiftKey && key === "s") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && key === "s");
     if (isStopRecording) {
       handleStopRecording();
       handled = true;
     }
     // Paste: Ctrl+V / Cmd+V
     const isPasteShortcut =
-      (isMacOS && event.metaKey && event.key === "v") ||
-      (!isMacOS && event.ctrlKey && event.key === "v");
+      (isMacOS && event.metaKey && key === "v") ||
+      (!isMacOS && event.ctrlKey && key === "v");
 
     if (isPasteShortcut) {
       handlePaste();
@@ -347,19 +348,28 @@ window.addEventListener("DOMContentLoaded", function () {
     // Toggle Fullscreen: F11 / Cmd+Ctrl+F
     const isToggleFullscreen =
       (!isMacOS && event.key === "F11") ||
-      (isMacOS && event.metaKey && event.ctrlKey && event.key === "f");
+      (isMacOS && event.metaKey && event.ctrlKey && key === "f");
     if (isToggleFullscreen) {
       window.electronAPI.send("toggle-fullscreen-window");
       handled = true;
     }
     // Settings: Ctrl+, / Cmd+,
     const isOpenSettings =
-      (isMacOS && event.metaKey && event.key === ",") ||
-      (!isMacOS && event.ctrlKey && event.key === ",");
+      (isMacOS && event.metaKey && key === ",") ||
+      (!isMacOS && event.ctrlKey && key === ",");
     if (isOpenSettings) {
       window.electronAPI.send("open-settings-from-display");
       handled = true;
     }
+    // Toggle Fullscreen: F11 / Cmd+Ctrl+F
+    const isOpenDevTools =
+      (!isMacOS && event.key === "F12") ||
+      (isMacOS && event.metaKey && event.altKey && key === "i");
+    if (isOpenDevTools) {
+      window.electronAPI.send("open-display-devtools");
+      handled = true;
+    }
+
     return handled;
   }
 
