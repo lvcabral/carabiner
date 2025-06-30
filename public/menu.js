@@ -487,8 +487,11 @@ function toggleDockIcon(
     if (isMacOS) {
       app.dock.show();
     } else if (isWindows) {
-      // On Windows, ensure window shows in taskbar
+      // On Windows, ensure both windows show in taskbar
       mainWindow.setSkipTaskbar(false);
+      if (display) {
+        display.setSkipTaskbar(false);
+      }
     }
 
     // Destroy tray if it exists
@@ -511,8 +514,11 @@ function toggleDockIcon(
       // Hide dock icon
       app.dock.hide();
     } else if (isWindows) {
-      // On Windows, hide from taskbar
+      // On Windows, hide both windows from taskbar
       mainWindow.setSkipTaskbar(true);
+      if (display) {
+        display.setSkipTaskbar(true);
+      }
     }
   }
 
