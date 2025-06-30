@@ -32,6 +32,7 @@ const {
   toggleDockIcon,
   createContextMenu,
   getTray,
+  openDevTools,
 } = require("./menu");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
@@ -431,6 +432,13 @@ app.whenReady().then(async () => {
     mainWindow.webContents?.send("open-display-tab");
     mainWindow.show();
     mainWindow.focus();
+  });
+
+  ipcMain.on("open-display-devtools", (event) => {
+    if (!displayWindow) {
+      return;
+    }
+    openDevTools(displayWindow);
   });
 
   ipcMain.on("show-context-menu", (event) => {
