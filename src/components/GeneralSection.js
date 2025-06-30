@@ -29,6 +29,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+  const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
 
   const streamingDevicesRef = useRef(streamingDevices);
 
@@ -196,6 +197,38 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                       label="Menubar"
                       name="displayMode"
                       value="menubar"
+                      checked={!showInDock}
+                      onChange={() => {
+                        setShowInDock(false);
+                        electronAPI.send("save-show-in-dock", false);
+                      }}
+                      inline
+                      className="ms-4"
+                    />
+                  </div>
+                </Form.Group>
+              )}
+              {isWindows && (
+                <Form.Group className="mt-3">
+                  <Form.Label>App Icon Mode</Form.Label>
+                  <div className="d-flex">
+                    <Form.Check
+                      type="radio"
+                      label="Taskbar"
+                      name="displayMode"
+                      value="taskbar"
+                      checked={showInDock}
+                      onChange={() => {
+                        setShowInDock(true);
+                        electronAPI.send("save-show-in-dock", true);
+                      }}
+                      inline
+                    />
+                    <Form.Check
+                      type="radio"
+                      label="System Tray"
+                      name="displayMode"
+                      value="tray"
                       checked={!showInDock}
                       onChange={() => {
                         setShowInDock(false);

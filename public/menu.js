@@ -24,6 +24,7 @@ let trayStartRecordingItem = null;
 let trayStopRecordingItem = null;
 
 const isMacOS = process.platform === "darwin";
+const isWindows = process.platform === "win32";
 
 function createMenu(mainWindow, displayWindow, packageInfo) {
   const template = [
@@ -193,7 +194,9 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
           label: "Keyboard Control",
           accelerator: "CmdOrCtrl+F1",
           click: () => {
-            shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
+            shell.openExternal(
+              `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
+            );
           },
         },
         { type: "separator" },
@@ -206,7 +209,9 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
         {
           label: "View License",
           click: () => {
-            shell.openExternal(`${packageInfo.repository.url}/blob/main/LICENSE`);
+            shell.openExternal(
+              `${packageInfo.repository.url}/blob/main/LICENSE`
+            );
           },
         },
       ],
@@ -248,24 +253,50 @@ function updateRecordingMenuItems(displayVisible, isRecording) {
 
 // Tray functionality
 function createTray(mainWindow, displayWindow, packageInfo) {
-  if (!isMacOS) return null;
+  if (!isMacOS && !isWindows) return null;
 
-  // Create tray icon - use the dedicated menuicon.png
-  let trayIconPath = path.join(__dirname, "../images/menuicon.png");
+  // Create tray icon - use appropriate icon for platform
+  let trayIconPath;
+  if (isMacOS) {
+    trayIconPath = path.join(__dirname, "../images/menuicon.png");
+  } else if (isWindows) {
+    trayIconPath = path.join(__dirname, "../images/icon.ico");
+  }
 
   tray = new Tray(trayIconPath);
-  // Try to set template mode if the method exists
-  if (typeof tray.setTemplate === "function") {
-    tray.setTemplate(true);
+
+  // Platform-specific tray configuration
+  if (isMacOS) {
+    // Try to set template mode if the method exists (macOS only)
+    if (typeof tray.setTemplate === "function") {
+      tray.setTemplate(true);
+    }
   }
 
   createTrayMenu(mainWindow, displayWindow, packageInfo);
   tray.setToolTip("Carabiner - Screen Capture and Remote Control");
 
-  // Click to show context menu (no window toggling)
-  tray.on("click", () => {
-    tray.popUpContextMenu();
-  });
+  // Platform-specific click behavior
+  if (isMacOS) {
+    // Click to show context menu (no window toggling)
+    tray.on("click", () => {
+      tray.popUpContextMenu();
+    });
+  } else if (isWindows) {
+    // Windows: left-click to toggle main window, right-click for context menu
+    tray.on("click", () => {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+
+    tray.on("right-click", () => {
+      tray.popUpContextMenu();
+    });
+  }
 
   return tray;
 }
@@ -278,7 +309,7 @@ function createTrayMenu(
   settings = null,
   isCurrentlyRecording = false
 ) {
-  const trayMenu = Menu.buildFromTemplate([
+  const trayMenuTemplate = [
     {
       label: "Show Carabiner",
       click: () => {
@@ -288,6 +319,20 @@ function createTrayMenu(
         }
       },
     },
+  ];
+
+  // Add Windows-specific "Show Settings" option at the top for better UX
+  if (isWindows) {
+    trayMenuTemplate.push({
+      label: "Show Settings",
+      click: () => {
+        mainWindow.show();
+        mainWindow.focus();
+      },
+    });
+  }
+
+  trayMenuTemplate.push(
     { type: "separator" },
     {
       label: "Start Recording",
@@ -313,8 +358,10 @@ function createTrayMenu(
           displayWindow.webContents.send("stop-recording");
         }
       },
-    },
-  ]);
+    }
+  );
+
+  const trayMenu = Menu.buildFromTemplate(trayMenuTemplate);
 
   appendCaptureDevicesMenu(trayMenu, mainWindow, captureDevices, settings);
   trayMenu.append(new MenuItem({ type: "separator" }));
@@ -344,7 +391,9 @@ function createTrayMenu(
       label: "Keyboard Control",
       accelerator: "CmdOrCtrl+F1",
       click: () => {
-        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
+        shell.openExternal(
+          `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
+        );
       },
     })
   );
@@ -362,8 +411,12 @@ function createTrayMenu(
   // Set the tray context menu
   trayContextMenu = trayMenu;
   // Store references to the recording menu items for later updates
-  trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
-  trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
+  trayStartRecordingItem = trayContextMenu.getMenuItemById(
+    "tray-start-recording"
+  );
+  trayStopRecordingItem = trayContextMenu.getMenuItemById(
+    "tray-stop-recording"
+  );
   updateTrayRecordingMenuItems(isCurrentlyRecording);
   // Set the context menu for the tray
   if (tray) {
@@ -371,16 +424,26 @@ function createTrayMenu(
   }
 }
 
-function appendCaptureDevicesMenu(menu, mainWindow, captureDevices = null, settings = null) {
+function appendCaptureDevicesMenu(
+  menu,
+  mainWindow,
+  captureDevices = null,
+  settings = null
+) {
   if (!captureDevices || captureDevices.length === 0) {
     // If no capture devices are available, just return
     return;
   }
   menu.append(new MenuItem({ type: "separator" }));
   captureDevices.forEach((device) => {
-    let deviceLabel = device.label || `Device ${captureDevices.indexOf(device) + 1}`;
-    const found = settings?.control?.deviceList?.find((d) => d.linked === device.deviceId);
-    deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
+    let deviceLabel =
+      device.label || `Device ${captureDevices.indexOf(device) + 1}`;
+    const found = settings?.control?.deviceList?.find(
+      (d) => d.linked === device.deviceId
+    );
+    deviceLabel += found
+      ? ` - ${found.type} ${found.alias ?? found.ipAddress}`
+      : "";
     menu.append(
       new MenuItem({
         label: deviceLabel,
@@ -404,16 +467,31 @@ function updateTrayRecordingMenuItems(isRecording) {
   trayStopRecordingItem.enabled = isRecording;
 }
 
-function toggleDockIcon(showInDock, mainWindow, displayWindow = null, packageInfo = null) {
-  if (!isMacOS) return null;
+function toggleDockIcon(
+  showInDock,
+  mainWindow,
+  displayWindow = null,
+  packageInfo = null
+) {
+  if (!isMacOS && !isWindows) return null;
 
   // Ensure we have window references
   const display =
     displayWindow ||
-    BrowserWindow.getAllWindows().find((win) => win.webContents.getURL().includes("display.html"));
+    BrowserWindow.getAllWindows().find((win) =>
+      win.webContents.getURL().includes("display.html")
+    );
 
   if (showInDock) {
-    app.dock.show();
+    // Show in dock/taskbar
+    if (isMacOS) {
+      app.dock.show();
+    } else if (isWindows) {
+      // On Windows, ensure window shows in taskbar
+      mainWindow.setSkipTaskbar(false);
+    }
+
+    // Destroy tray if it exists
     if (tray) {
       tray.destroy();
       tray = null;
@@ -422,13 +500,20 @@ function toggleDockIcon(showInDock, mainWindow, displayWindow = null, packageInf
       trayStopRecordingItem = null;
     }
   } else {
+    // Hide from dock/taskbar and create tray
+
     // Create tray first
     if (!tray && mainWindow && display && packageInfo) {
       createTray(mainWindow, display, packageInfo);
     }
 
-    // Hide dock icon
-    app.dock.hide();
+    if (isMacOS) {
+      // Hide dock icon
+      app.dock.hide();
+    } else if (isWindows) {
+      // On Windows, hide from taskbar
+      mainWindow.setSkipTaskbar(true);
+    }
   }
 
   return tray;
@@ -532,7 +617,9 @@ function createContextMenu(
       label: "Keyboard Control Help",
       accelerator: "CmdOrCtrl+F1",
       click: () => {
-        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
+        shell.openExternal(
+          `${packageInfo.repository.url}/blob/main/docs/key-mappings.md`
+        );
       },
     })
   );
