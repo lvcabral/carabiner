@@ -94,17 +94,13 @@ async function handleSetVideoStream(constraints) {
   renderDisplay(currentConstraints);
 }
 
-function handleSetTransparency(transparencyValue) {
+function handleSetTransparency(transparency) {
   // Convert numeric transparency to CSS filter
   let filterValue = "none";
-  if (transparencyValue === 25) {
-    filterValue = "opacity(75%)";
-  } else if (transparencyValue === 50) {
-    filterValue = "opacity(50%)";
-  } else if (transparencyValue === 75) {
-    filterValue = "opacity(25%)";
+  if (typeof transparency === "number" && transparency > 0 && transparency <= 100) {
+    const opacity = 100 - transparency;
+    filterValue = `opacity(${opacity}%)`;
   }
-
   videoPlayer.style.filter = filterValue;
   videoPlayer.style["-webkit-filter"] = `-webkit-${filterValue}`;
 }
