@@ -16,7 +16,6 @@ import Col from "react-bootstrap/Col";
 import SelectBorderWidth from "./select/BorderWidth";
 import SelectBorderStyle from "./select/BorderStyle";
 import SelectResolution, { resolutionOptions } from "./select/Resolution";
-import SelectFilter from "./select/Filter";
 import { notifyCaptureChange } from "./GeneralSection";
 
 const { electronAPI } = window;
@@ -57,8 +56,8 @@ function AppearanceSection() {
   const [borderStyle, setBorderStyle] = useState("solid");
   const [borderColor, setBorderColor] = useState("#662D91");
   const [resolution, setResolution] = useState("1280|720");
-  const [filter, setFilter] = useState("none");
   const [displaySize, setDisplaySize] = useState("custom"); // Default fallback
+  const [transparency, setTransparency] = useState(0); // 0%, 25%, 50%, 75%
   const [mainDisplaySize, setMainDisplaySize] = useState({ width: 1920, height: 1080 }); // Default fallback
 
   useEffect(() => {
@@ -90,9 +89,9 @@ function AppearanceSection() {
           const captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
           setResolution(captureResolution);
         }
-        if (settings.display && settings.display.filter) {
-          setFilter(settings.display.filter);
-          notifyFilterChange(settings.display.filter);
+        if (settings.display && settings.display.transparency !== undefined) {
+          setTransparency(settings.display.transparency);
+          notifyTransparencyChange(settings.display.transparency);
         }
 
         // Set display size based on current window size and filtered predefined options
@@ -160,9 +159,10 @@ function AppearanceSection() {
     notifyCaptureChange(null, captureResolution);
   };
 
-  const handleFilterChange = (e) => {
-    setFilter(e.target.value);
-    notifyFilterChange(e.target.value);
+  const handleTransparencyChange = (e) => {
+    const transparencyValue = parseInt(e.target.value);
+    setTransparency(transparencyValue);
+    notifyTransparencyChange(transparencyValue);
   };
 
   const handleDisplaySizeChange = (e) => {
@@ -208,11 +208,6 @@ function AppearanceSection() {
               <SelectResolution value={resolution} onChange={handleResolutionChange} />
             </Col>
             <Col>
-              <SelectFilter value={filter} onChange={handleFilterChange} />
-            </Col>
-          </Row>
-          <Row className="mt-2">
-            <Col md={6}>
               <Form.Group>
                 <Form.Label>Display Size</Form.Label>
                 <Form.Control as="select" value={displaySize} onChange={handleDisplaySizeChange}>
@@ -225,6 +220,20 @@ function AppearanceSection() {
                   )}
                   <option value="custom">Custom</option>
                 </Form.Control>
+              </Form.Group>
+            </Col>
+          </Row>
+          <Row className="mt-2">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>Transparency ({transparency}%)</Form.Label>
+                <Form.Range
+                  min="0"
+                  max="75"
+                  step="25"
+                  value={transparency}
+                  onChange={handleTransparencyChange}
+                />
               </Form.Group>
             </Col>
           </Row>
@@ -241,13 +250,10 @@ function notifyBorderChange(type, payload) {
   });
 }
 
-function notifyFilterChange(filter) {
-  const style = {};
-  style.filter = filter;
-  style["-webkit-filter"] = `-webkit-${filter}`;
+function notifyTransparencyChange(transparencyValue) {
   electronAPI.sendSync("shared-window-channel", {
     type: "set-transparency",
-    payload: style,
+    payload: transparencyValue,
   });
 }
 

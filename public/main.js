@@ -288,8 +288,8 @@ app.whenReady().then(async () => {
       }
     } else if (arg.type && arg.type === "set-transparency") {
       saveFlag = false;
-      if (arg.payload?.filter) {
-        settings.display.filter = arg.payload.filter;
+      if (typeof arg.payload === 'number') {
+        settings.display.transparency = arg.payload;
         saveFlag = true;
       }
     } else if (arg.type && arg.type === "set-resolution") {

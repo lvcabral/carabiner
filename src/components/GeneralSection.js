@@ -183,7 +183,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
               {isMacOS && (
                 <Form.Group className="mt-3">
-                  <Form.Label>App Display Mode</Form.Label>
+                  <Form.Label>App Icon Mode</Form.Label>
                   <div className="d-flex">
                     <Form.Check
                       type="radio"
