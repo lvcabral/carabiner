@@ -250,7 +250,7 @@ app.whenReady().then(async () => {
       // Send resize notification to main window
       mainWindow.webContents.send("shared-window-channel", {
         type: "window-resized",
-        payload: { width, height }
+        payload: { width, height },
       });
     });
   }
@@ -288,7 +288,7 @@ app.whenReady().then(async () => {
       }
     } else if (arg.type && arg.type === "set-transparency") {
       saveFlag = false;
-      if (typeof arg.payload === 'number') {
+      if (typeof arg.payload === "number") {
         settings.display.transparency = arg.payload;
         saveFlag = true;
       }
@@ -343,7 +343,7 @@ app.whenReady().then(async () => {
         // Send resize notification back to appearance section
         mainWindow.webContents.send("shared-window-channel", {
           type: "window-resized",
-          payload: { width, height }
+          payload: { width, height },
         });
       }
     }
