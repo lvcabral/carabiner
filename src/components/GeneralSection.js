@@ -235,7 +235,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                         electronAPI.send("save-show-in-dock", false);
                       }}
                       inline
-                      className="ms-2"
+                      className="ms-3"
                     />
                   </div>
                 </Form.Group>
