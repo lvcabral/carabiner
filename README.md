@@ -1,129 +1,103 @@
 <p align="center">
-  <img  src="src/carabiner-icon.png" height="125px" alt="Carabiner logo"> <br/><br/>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.0.0"><img  src="https://img.shields.io/badge/Version-1.0.0-blue.svg" alt="Version 1.0.0" /></a>
-  <img  src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
+  <img src="src/carabiner-icon.png" height="125px" alt="Carabiner logo">
+  <br><br>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.0.0"><img src="https://img.shields.io/badge/Version-1.0.0-blue.svg" alt="Version 1.0.0" /></a>
+  <img src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
 </p>
 
-**Carabiner** is a simple and easy-to-use video capture and remote control simulator app that supports Roku and Android based streaming devices (FireTV, Google TV, Android TV). It floats on top of other apps, so you can easily control your streaming app while visualizes it on your computer.
+# Carabiner
 
-It is perfect for developers and QA engineers to execute and test applications using a capture card and the computer keyboard, without the need of a TV set or a Remote control.
+**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku and Android-based streaming devices (Fire TV, Google TV, Android TV) through an intuitive floating window interface.
 
-## Development
+## Why Carabiner?
 
-<p align="center"><img  src="./public/images/codefest-2024.webp" height="125px" alt="Code Fest">
-<img  src="./public/images/network-streaming.png" height="125px" alt="Code Fest">
-</p>
+Perfect for developers and QA engineers who need to test streaming applications using capture cards and keyboard controls, eliminating the need for physical TV sets or remote controls. Whether you're developing apps, testing UI designs, or performing quality assurance, Carabiner streamlines your workflow by bringing your streaming devices directly to your desktop.
 
-**Carabiner** app was created during the **Paramount Network Streaming - Code Fest 2024**, and it was elected as the **winning project**. Its name was inspired by one essential tool for anyone that aims to climb mountains!
+## Features
 
-### Tech Stack
+### Core Functionality
 
-- [JavaScript Language](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
-- [Electron Framework](https://www.electronjs.org/)
-- [React Web UI Library](https://react.dev/)
-- [Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)
-- [Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)
-
-## Installation
-
-**Carabiner** is available on macOS, Windows and Linux. You can download the installers from the [releases](https://github.com/lvcabral/carabiner/releases) page.
-
-### Pre-requisites
-
-1. First time you run the app, you will need to authorize the app to have access to your camera and microphone.
-2. Make sure your Roku devices have the Developer Mode enabled, see the documentation [here](https://developer.roku.com/docs/developer-program/getting-started/developer-setup.md).
-3. Make sure your Fire TV and Google TV devices have the ADB Debugging enabled, see the documentation [here](https://developer.android.com/studio/command-line/adb).
-4. To control Fire TV and Google TV, make sure your computer has the ADB executable installed and you configured the path in the settings. Get the latest version of the platform tools [here](https://developer.android.com/studio/releases/platform-tools.html).
-5. First time you connect to your Fire TV or Google TV device, you will need to authorize the connection.
-
-> **Note:** Carabiner is still in development. If you find any bugs, [please raise an issue](https://github.com/lvcabral/carabiner/issues/new). Also, we only have code signing certificate for MacOS, so you might have to allow the app to run on your system.
-
-## Usage and Features
-
-After installing Carabiner, launch the application and customize the settings to your preferences. Once you have configured the settings, you can minimize or close the settings window and start using the floating display window.
-
-### Controlling Streaming Devices
-
-1. **Select a Capture Device**: In the `General` tab, select a video capture device from the list.
-2. **Add a Streaming Device**: In the `Control` tab, add a new streaming device with IP, Alias and Type.
-3. **Select a Linked Device**: In the `General` tab, link your streaming device to the capture device.
-4. **Keyboard Controls**: When the floating display window is focused, you can use your keyboard to control and type text on the selected device. Refer to the [keyboard control mappings](./docs/key-mappings.md) documentation to learn how to operate your device.
-5. **Paste Text**: You can paste text into the streaming device by using the `Ctrl + V` (or `Cmd + V` on Mac) keyboard shortcut. This is useful for entering long text or e-mails and passwords.
-
-### Taking Screenshots
-
-You can take screenshots of the streaming display by clicking the settings button, in the top right corner of the display window. It will display a dropdown menu with options to `Copy` or `Save`. The screenshot will be saved to your clipboard or the specified folder, respectively.
-
-### Overlay Image
-
-You can load an overlay image on top of the video capture to help you compare a screen design with the app. This feature is useful for achieving pixel-perfect UI designs.
+- **Multi-Device Support**: Control Roku and Android-based devices (Fire TV, Google TV, Android TV)
+- **Real-time Video Capture**: View your streaming device output directly on your computer
+- **Video Recording**: Record streaming device sessions in MP4/WebM format for documentation and testing
+- **Keyboard Control**: Use your computer keyboard to navigate and control devices
+- **Text Pasting**: Paste clipboard content directly to streaming devices
+- **Screenshot Capture**: Save or copy screenshots with one click
 
 ### Additional Features
 
-- **Transparency**: Adjust the transparency of the display window.
-- **Borders**: Add or customize the border of the display window.
-- **Always on Top**: Enable or disable the display window to be always on top.
-- **Global Shortcut**: Set a global shortcut to show/hide the display window.
-- **Enable/Disable Audio**: Toggle audio capture from the video capture device, allowing you to test TTS and other audio features.
-- **Launch on Login**: Enable the app to launch on system login.
-- **Settings at Start**: Option to show/hide the settings window on app start.
-- **Capture Device Resolution**: Select the resolution of the capture device.
-- **Link Capture Device**: Link a capture device with a streaming device for easier control.
-- **ADB Path**: Configure the path to the ADB executable for controlling Android devices.
+- **Overlay Images**: Load reference images for pixel-perfect UI comparison with opacity control
+- **Customizable Display**: Adjust transparency, borders, dimensions and toggle always-on-top behavior
+- **Global Shortcut**: Quick show/hide the display window from anywhere with a keyboard shortcut
+- **Audio Capture**: Toggle audio capture for testing audio features (TTS, Audio tracks)
+- **Auto-Launch**: Start with your system for seamless workflow
+- **Resolution Control**: Configure capture device resolution
+- **Dark Mode Support**: Allows to switch the settings interface to dark mode
+
+## Quick Start
+
+1. **Download** the latest installer from the [releases page](https://github.com/lvcabral/carabiner/releases)
+2. **Install** and launch Carabiner (see our [Installation Guide](./docs/installation.md))
+3. **Configure** your capture device in the General tab
+4. **Add** your streaming device in the Control tab
+5. **Link** your devices and start controlling!
+
+For detailed setup and usage instructions, see our comprehensive guides:
+
+- **📦 [Installation Guide](./docs/installation.md)** - Complete installation and setup instructions
+- **📖 [Usage Guide](./docs/usage-guide.md)** - Detailed feature documentation and tutorials
+- **🔧 [Building from Source](./docs/building-from-source.md)** - Developer setup and contribution guide
+- **⌨️ [Keyboard Mappings](./docs/key-mappings.md)** - Complete keyboard control reference
 
 ## Contributing
 
-If you want to contribute to Carabiner, you can do so by:
+We welcome contributions to make Carabiner better! Here's how you can help:
 
-- Reporting bugs
-- Fixing bugs
-- Suggesting and adding new features
-- [Donating to the developer](https://paypal.me/lvcabral)
+### Ways to Contribute
 
-## Building from source
+- **🐛 Report Bugs**: Found an issue? [Create a bug report](https://github.com/lvcabral/carabiner/issues)
+- **💡 Suggest Features**: Have an idea? [Submit a feature request](https://github.com/lvcabral/carabiner/issues)
+- **🔧 Fix Issues**: Browse [open issues](https://github.com/lvcabral/carabiner/issues) and submit pull requests
+- **📖 Improve Documentation**: Help improve this README or other documentation
+- **💖 Support Development**: [Donate to the developer](https://paypal.me/lvcabral)
 
-If you want to build Carabiner from source, first ensure you have the Node.js installed (v18.0+).
-Next, clone the repository and install the dependencies.
+## Project Background
 
-```console
-git clone https://github.com/lvcabral/carabiner.git; cd carabiner; npm run install
-```
+<p align="center"><img src="./public/images/codefest-2024.webp" height="125px" alt="Code Fest">
+<img src="./public/images/network-streaming.png" height="125px" alt="Network Streaming">
+</p>
 
-To start the app, you'd need to run:
+**Carabiner** was created during the **Paramount Network Streaming - Code Fest 2024** and was selected as the **winning project**. The name was inspired by the essential tool used by mountain climbers – just as a carabiner connects climbers to their lifeline to reach the top, this app connects developers to their streaming devices.
 
-```console
-npm run build; npm run forge
-```
+## Technology Stack
 
-To create an installer in the platform you are running, just use:
+- **[JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript)**: Core programming language
+- **[Electron Framework](https://www.electronjs.org/)**: Cross-platform desktop application framework
+- **[React](https://react.dev/)**: User interface library for the settings panel
+- **[Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)**: Roku device communication
+- **[Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)**: Android device communication
 
-```console
-npm run make
-```
+## Acknowledgments
 
-The installer will be created inside the folder `./out/make`
+This application was built with inspiration and code from several excellent open-source projects:
 
-## Reference Repositories
+- **[floatcam](https://github.com/theterminalguy/floatcam)** by @theterminalguy - Primary foundation for settings interface and video display functionality
+- **[FireTVRemote-Node 🔥](https://github.com/ZaneH/firetv-remote/)** by @ZaneH - Reference implementation for ADB remote control of Android devices
+- **[Roku GamePad Gateway](https://github.com/lvcabral/roku-gpg)** by @lvcabral - Reference for Roku ECP API integration
 
-This app was developed borrowing ideas and code from the following repositories:
+## Connect with the Developer
 
-- [floatcam](https://github.com/theterminalguy/floatcam) by @theterminalguy - Main boilerplate for the settings and video screens
-- [FireTVRemote-Node 🔥](https://github.com/ZaneH/firetv-remote/) by @ZaneH - Reference for ADB remote control for Android devices
-- [Roku GamePad Gateway](https://github.com/lvcabral/roku-gpg) by @lvcabral - Reference for using ECP API for Roku devices
-
-## Developer Links
-
-- My website: [https://lvcabral.com](https://lvcabral.com)
-- My threads: [@lvcabral](https://www.threads.net/@lvcabral)
-- My Bluesky: [@lvcabral.com](https://bsky.app/profile/lvcabral.com)
-- My X/twitter: [@lvcabral](https://twitter.com/lvcabral)
-- My podcast: [PODebug Podcast](http://podebug.com)
-- Check my other [GitHub repositories](https://github.com/lvcabral)
+- **Website**: [https://lvcabral.com](https://lvcabral.com)
+- **Threads**: [@lvcabral](https://www.threads.net/@lvcabral)
+- **Bluesky**: [@lvcabral.com](https://bsky.app/profile/lvcabral.com)
+- **X/Twitter**: [@lvcabral](https://twitter.com/lvcabral)
+- **Podcast**: [PODebug Podcast](http://podebug.com)
+- **GitHub**: [More repositories](https://github.com/lvcabral)
 
 ## License
 
 Copyright © 2024-2025 Marcelo Lv Cabral. All rights reserved.
 
-Licensed under the [MIT](LICENSE) license.
+Licensed under the [MIT License](LICENSE).
