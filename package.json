@@ -40,12 +40,10 @@
   },
   "homepage": "./",
   "scripts": {
-    "start": "react-scripts start",
     "forge": "electron-forge start",
-    "desktop": "electron .",
+    "electron": "electron .",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",

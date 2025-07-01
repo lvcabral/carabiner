@@ -132,19 +132,7 @@ function createMainWindow() {
     settings.display.showSettingsOnStart
   );
 
-  const prodURL = `file://${path.join(__dirname, "../build/index.html")}`;
-
-  // Load the development server URL if not packaged
-  if (!app.isPackaged) {
-    const devURL = "http://localhost:3000";
-    win.loadURL(devURL).catch(() => {
-      console.log("Dev server not available, loading built files instead");
-      win.loadURL(prodURL);
-    });
-  } else {
-    // Use built files for packaged production builds
-    win.loadURL(prodURL);
-  }
+  win.loadURL(`file://${path.join(__dirname, "../build/index.html")}`);
 
   win.removeMenu();
   win.setMenuBarVisibility(false);
