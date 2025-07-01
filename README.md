@@ -1,6 +1,6 @@
 <p align="center">
   <img  src="src/carabiner-icon.png" height="125px" alt="Carabiner logo"> <br/><br/>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/v0.5.0"><img  src="https://img.shields.io/badge/Version-0.5.0-blue.svg" alt="Version 0.5.0" /></a>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.0.0"><img  src="https://img.shields.io/badge/Version-1.0.0-blue.svg" alt="Version 1.0.0" /></a>
   <img  src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
@@ -54,7 +54,7 @@ After installing Carabiner, launch the application and customize the settings to
 
 ### Taking Screenshots
 
-You can take screenshots of the streaming display by clicking the settings button, in the top right corner of the floating window. It will display a dropdown menu with options to `Copy` or `Save`. The screenshot will be saved to your clipboard or the specified folder, respectively.
+You can take screenshots of the streaming display by clicking the settings button, in the top right corner of the display window. It will display a dropdown menu with options to `Copy` or `Save`. The screenshot will be saved to your clipboard or the specified folder, respectively.
 
 ### Overlay Image
 
@@ -62,10 +62,10 @@ You can load an overlay image on top of the video capture to help you compare a 
 
 ### Additional Features
 
-- **Transparency**: Adjust the transparency of the floating window.
-- **Borders**: Add or customize the border of the floating window.
-- **Always on Top**: Enable or disable the floating window to be always on top.
-- **Global Shortcut**: Set a global shortcut to show/hide the floating window.
+- **Transparency**: Adjust the transparency of the display window.
+- **Borders**: Add or customize the border of the display window.
+- **Always on Top**: Enable or disable the display window to be always on top.
+- **Global Shortcut**: Set a global shortcut to show/hide the display window.
 - **Enable/Disable Audio**: Toggle audio capture from the video capture device, allowing you to test TTS and other audio features.
 - **Launch on Login**: Enable the app to launch on system login.
 - **Settings at Start**: Option to show/hide the settings window on app start.

@@ -53,7 +53,7 @@ APPLE_TEAM_ID=your_team_id
 # Build the React app
 npm run build
 
-# Package for all platforms
+# Package for the current platform
 npm run make
 
 # Publish to GitHub releases (this triggers auto-update)

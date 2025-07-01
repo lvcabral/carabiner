@@ -2,7 +2,7 @@
   "name": "carabiner",
   "productName": "Carabiner",
   "description": "Screen Capture and Remote Control for Streaming Devices",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "main": "public/main.js",
   "license": "MIT",
   "author": {
@@ -64,9 +64,7 @@
       "not op_mini all"
     ],
     "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
+      "last 1 chrome version"
     ]
   },
   "devDependencies": {
@@ -77,6 +75,6 @@
     "@electron-forge/maker-squirrel": "^7.7.0",
     "@electron-forge/publisher-github": "^7.8.1",
     "dotenv": "^16.4.7",
-    "electron": "^32.0.0"
+    "electron": "^36.0.0"
   }
 }
