@@ -402,6 +402,11 @@ app.whenReady().then(async () => {
     saveSettings(settings);
   });
 
+  ipcMain.on("save-dark-mode", (event, darkMode) => {
+    settings.display.darkMode = darkMode;
+    saveSettings(settings);
+  });
+
   ipcMain.on("save-show-in-dock", (event, showInDock) => {
     settings.display.showInDock = showInDock;
     saveSettings(settings);

@@ -32,6 +32,15 @@ function App() {
       if (settings.control && settings.control.deviceList) {
         handleUpdateStreamingDevices(settings.control.deviceList);
       }
+      // Apply initial dark mode theme
+      if (settings.display && settings.display.darkMode !== undefined) {
+        document.body.setAttribute('data-bs-theme', settings.display.darkMode ? 'dark' : 'light');
+      } else {
+        // First time launch - detect system color scheme preference
+        const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        // Apply the detected theme immediately
+        document.body.setAttribute('data-bs-theme', prefersDarkMode ? 'dark' : 'light');
+      }
     });
   }, []);
 

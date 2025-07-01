@@ -27,6 +27,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [linkedDevice, setLinkedDevice] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
+  const [darkMode, setDarkMode] = useState(false);
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
@@ -69,7 +70,22 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
       if (settings.display && settings.display.showInDock !== undefined) {
         setShowInDock(settings.display.showInDock);
       }
+      if (settings.display && settings.display.darkMode !== undefined) {
+        setDarkMode(settings.display.darkMode);
+        // Apply dark mode to document
+        document.body.setAttribute("data-bs-theme", settings.display.darkMode ? "dark" : "light");
+      } else {
+        // First time launch - detect system color scheme preference
+        const prefersDarkMode =
+          window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        setDarkMode(prefersDarkMode);
+        // Apply the detected theme immediately
+        document.body.setAttribute("data-bs-theme", prefersDarkMode ? "dark" : "light");
+        // Save the detected preference
+        electronAPI.send("save-dark-mode", prefersDarkMode);
+      }
     });
+
     window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
     window.electronAPI.onMessageReceived("update-always-on-top", (event, value) => {
       setAlwaysOnTop(value);
@@ -138,6 +154,14 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     });
     // Save to settings
     electronAPI.send("save-audio-enabled", e.target.checked);
+  };
+
+  const handleDarkModeChange = (e) => {
+    setDarkMode(e.target.checked);
+    // Apply dark mode to document immediately
+    document.body.setAttribute("data-bs-theme", e.target.checked ? "dark" : "light");
+    // Save to settings
+    electronAPI.send("save-dark-mode", e.target.checked);
   };
 
   const handleLinkedDeviceChange = (e) => {
@@ -265,6 +289,12 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 label="Enable Audio"
                 checked={audioEnabled}
                 onChange={handleAudioEnabledChange}
+              />
+              <Form.Check
+                type="checkbox"
+                label="Dark Mode"
+                checked={darkMode}
+                onChange={handleDarkModeChange}
               />
             </Col>
           </Row>
