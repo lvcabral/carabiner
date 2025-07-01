@@ -606,9 +606,9 @@ function toggleFullScreen(displayWindow) {
   if (!displayWindow) {
     return;
   }
-  if (displayWindow.isFullScreen()) {
+  if (displayWindow.isFullScreen() || windowBoundsBeforeFullscreen) {
     // Exiting fullscreen
-    isTogglingFullscreen = true; // Set flag to prevent app hiding
+    isTogglingFullscreen = true;
     displayWindow.setFullScreen(false);
 
     // On Windows, manually restore the window bounds after a short delay
@@ -628,6 +628,7 @@ function toggleFullScreen(displayWindow) {
     }
   } else {
     // Entering fullscreen
+    isTogglingFullscreen = true;
     if (isWindows) {
       windowBoundsBeforeFullscreen = displayWindow.getBounds();
     }

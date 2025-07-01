@@ -263,6 +263,12 @@ app.whenReady().then(async () => {
         payload: { width, height },
       });
     });
+  } else if (isWindows) {
+    displayWindow.on("resize", () => {
+      if (!isTogglingFullscreen()) {
+        resetFullscreenVars();
+      }
+    });
   }
 
   ipcMain.on("shared-window-channel", (event, arg) => {
