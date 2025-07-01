@@ -145,5 +145,6 @@ After setting up your development environment:
 
 - Review the [usage guide](./usage-guide.md) to understand the application
 - Check the [keyboard mappings](./key-mappings.md) for control reference
+- View the [screenshots](./screenshots.md) to see the application interface
 - Explore the codebase to understand the architecture
 - Consider contributing improvements or new features

@@ -164,3 +164,4 @@ If you encounter issues not covered here:
 - Explore the [keyboard control mappings](./key-mappings.md) for advanced navigation
 - Check the [installation guide](./installation.md) for setup assistance
 - See the [building from source guide](./building-from-source.md) for development setup
+- View the [screenshots gallery](./screenshots.md) to see the application interface

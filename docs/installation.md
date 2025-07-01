@@ -78,4 +78,4 @@ If you encounter installation issues:
 
 ## Next Steps
 
-After successful installation, see the [Usage Guide](./usage-guide.md) to learn how to configure and use Carabiner.
+After successful installation, see the [Usage Guide](./usage-guide.md) to learn how to configure and use Carabiner, or view the [Screenshots](./screenshots.md) to see the application interface.
