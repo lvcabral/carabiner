@@ -152,7 +152,13 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
       id: "view-menu",
       label: "&View",
       submenu: [
-        { role: "togglefullscreen", accelerator: "Cmd+Ctrl+F" },
+        {
+          label: "Toggle Fullscreen",
+          accelerator: fullscreenAcc,
+          click: () => {
+            toggleFullScreen(displayWindow);
+          },
+        },
         {
           label: "Developer Tools",
           accelerator: devToolsAccelerator,
@@ -544,11 +550,7 @@ function createContextMenu(
       label: "Toggle Fullscreen",
       accelerator: fullscreenAcc,
       click: () => {
-        if (displayWindow.isFullScreen()) {
-          displayWindow.setFullScreen(false);
-        } else {
-          displayWindow.setFullScreen(true);
-        }
+        toggleFullScreen(displayWindow);
       },
     })
   );
@@ -582,20 +584,64 @@ function createContextMenu(
     })
   );
   menu.append(
-    new MenuItem(
-      {
-        label: "Developer Tools",
-        accelerator: devToolsAccelerator,
-        click: (_, window) => {
-          openDevTools(window);
-        },
-      })
+    new MenuItem({
+      label: "Developer Tools",
+      accelerator: devToolsAccelerator,
+      click: (_, window) => {
+        openDevTools(window);
+      },
+    })
   );
 
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(new MenuItem({ role: "quit" }));
 
   return menu;
+}
+
+let windowBoundsBeforeFullscreen = null; // Store window bounds for Windows fullscreen restoration
+let isTogglingFullscreen = false; // Flag to prevent app hiding during fullscreen transitions
+
+function toggleFullScreen(displayWindow) {
+  if (!displayWindow) {
+    return;
+  }
+  if (displayWindow.isFullScreen()) {
+    // Exiting fullscreen
+    isTogglingFullscreen = true; // Set flag to prevent app hiding
+    displayWindow.setFullScreen(false);
+
+    // On Windows, manually restore the window bounds after a short delay
+    if (isWindows) {
+      setTimeout(() => {
+        if (windowBoundsBeforeFullscreen) {
+          displayWindow.setBounds(windowBoundsBeforeFullscreen);
+        }
+        displayWindow.focus();
+        resetFullscreenVars();
+      }, 100);
+    } else {
+      setTimeout(() => {
+        displayWindow.focus();
+        isTogglingFullscreen = false;
+      }, 100);
+    }
+  } else {
+    // Entering fullscreen
+    if (isWindows) {
+      windowBoundsBeforeFullscreen = displayWindow.getBounds();
+    }
+    displayWindow.setFullScreen(true);
+    setTimeout(() => {
+      displayWindow.focus();
+      isTogglingFullscreen = false;
+    }, 100);
+  }
+}
+
+function resetFullscreenVars() {
+  windowBoundsBeforeFullscreen = null; // Reset stored bounds
+  isTogglingFullscreen = false; // Reset toggling flag
 }
 
 function openDevTools(window) {
@@ -625,5 +671,8 @@ module.exports = {
   toggleDockIcon,
   createContextMenu,
   getTray,
+  toggleFullScreen,
+  isTogglingFullscreen: () => isTogglingFullscreen,
+  resetFullscreenVars,
   openDevTools,
 };
