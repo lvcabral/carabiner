@@ -37,6 +37,7 @@ const {
   openDevTools,
   resetFullscreenVars,
 } = require("./menu");
+const { checkForUpdates, installUpdate, getUpdateStatus } = require("./updater");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
@@ -240,6 +241,19 @@ app.whenReady().then(async () => {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
 
+  // Initialize auto-updater (only in production and if enabled)
+  if ((!process.env.NODE_ENV || process.env.NODE_ENV === "production") && settings.display.autoUpdate !== false) {
+    // Check for updates 30 seconds after app start
+    setTimeout(() => {
+      checkForUpdates();
+    }, 30000);
+    
+    // Check for updates every 4 hours
+    setInterval(() => {
+      checkForUpdates();
+    }, 4 * 60 * 60 * 1000);
+  }
+
   // Hide app when both windows are hidden in macOS (only in dock mode)
   if (isMacOS) {
     mainWindow.on("hide", () => {
@@ -404,6 +418,11 @@ app.whenReady().then(async () => {
 
   ipcMain.on("save-dark-mode", (event, darkMode) => {
     settings.display.darkMode = darkMode;
+    saveSettings(settings);
+  });
+
+  ipcMain.on("save-auto-update", (event, autoUpdate) => {
+    settings.display.autoUpdate = autoUpdate;
     saveSettings(settings);
   });
 
@@ -619,6 +638,20 @@ app.whenReady().then(async () => {
     isCurrentlyRecording = isRecording;
     updateRecordingMenuItems(true, isRecording);
     updateTrayRecordingMenuItems(isRecording);
+  });
+
+  // Auto-updater IPC handlers
+  ipcMain.handle("check-for-updates", async () => {
+    checkForUpdates();
+    return getUpdateStatus();
+  });
+
+  ipcMain.handle("install-update", async () => {
+    installUpdate();
+  });
+
+  ipcMain.handle("get-update-status", async () => {
+    return getUpdateStatus();
   });
 
   app.on("activate", () => {

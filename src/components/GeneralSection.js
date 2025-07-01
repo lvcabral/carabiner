@@ -23,11 +23,11 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(true);
-  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [linkedDevice, setLinkedDevice] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
   const [darkMode, setDarkMode] = useState(false);
+  const [autoUpdate, setAutoUpdate] = useState(true);
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
@@ -61,14 +61,14 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
       if (settings.display && settings.display.showSettingsOnStart !== undefined) {
         setShowSettingsOnStart(settings.display.showSettingsOnStart);
       }
-      if (settings.display && settings.display.alwaysOnTop !== undefined) {
-        setAlwaysOnTop(settings.display.alwaysOnTop);
-      }
       if (settings.display && settings.display.audioEnabled !== undefined) {
         setAudioEnabled(settings.display.audioEnabled);
       }
       if (settings.display && settings.display.showInDock !== undefined) {
         setShowInDock(settings.display.showInDock);
+      }
+      if (settings.display && settings.display.autoUpdate !== undefined) {
+        setAutoUpdate(settings.display.autoUpdate);
       }
       if (settings.display && settings.display.darkMode !== undefined) {
         setDarkMode(settings.display.darkMode);
@@ -88,7 +88,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
 
     window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
     window.electronAPI.onMessageReceived("update-always-on-top", (event, value) => {
-      setAlwaysOnTop(value);
+      // This message is now handled by AppearanceSection
     });
     window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
       captureDevice = value;
@@ -140,11 +140,6 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     electronAPI.send("save-show-settings-on-start", e.target.checked);
   };
 
-  const handleAlwaysOnTopChange = (e) => {
-    setAlwaysOnTop(e.target.checked);
-    electronAPI.send("save-always-on-top", e.target.checked);
-  };
-
   const handleAudioEnabledChange = (e) => {
     setAudioEnabled(e.target.checked);
     // Notify the render process
@@ -162,6 +157,12 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     document.body.setAttribute("data-bs-theme", e.target.checked ? "dark" : "light");
     // Save to settings
     electronAPI.send("save-dark-mode", e.target.checked);
+  };
+
+  const handleAutoUpdateChange = (e) => {
+    setAutoUpdate(e.target.checked);
+    // Save to settings
+    electronAPI.send("save-auto-update", e.target.checked);
   };
 
   const handleLinkedDeviceChange = (e) => {
@@ -280,12 +281,6 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               />
               <Form.Check
                 type="checkbox"
-                label="Always on Top"
-                checked={alwaysOnTop}
-                onChange={handleAlwaysOnTopChange}
-              />
-              <Form.Check
-                type="checkbox"
                 label="Enable Audio"
                 checked={audioEnabled}
                 onChange={handleAudioEnabledChange}
@@ -295,6 +290,12 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 label="Dark Mode"
                 checked={darkMode}
                 onChange={handleDarkModeChange}
+              />
+              <Form.Check
+                type="checkbox"
+                label="Auto Update"
+                checked={autoUpdate}
+                onChange={handleAutoUpdateChange}
               />
             </Col>
           </Row>

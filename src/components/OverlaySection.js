@@ -306,7 +306,7 @@ function OverlaySection() {
           <Card.Body className="pb-2">
             <Row className="align-items-center mb-2">
               <Col>
-                <Card.Title className="mb-0">Recent Images</Card.Title>
+                <h6 className="mb-0">Recent Images</h6>
               </Col>
               <Col xs="auto">
                 <Button
@@ -330,7 +330,7 @@ function OverlaySection() {
             </Row>
             <div
               style={{
-                height: "120px",
+                height: "100px",
                 overflowY: "auto",
                 border: "1px solid #dee2e6",
                 borderRadius: "0.375rem",

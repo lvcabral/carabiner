@@ -39,4 +39,17 @@ module.exports = {
       config: {},
     },
   ],
+  publishers: [
+    {
+      name: "@electron-forge/publisher-github",
+      config: {
+        repository: {
+          owner: "lvcabral",
+          name: "carabiner",
+        },
+        prerelease: false,
+        draft: true,
+      },
+    },
+  ],
 };

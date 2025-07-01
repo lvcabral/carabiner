@@ -57,6 +57,7 @@ function AppearanceSection() {
   const [resolution, setResolution] = useState("1280|720");
   const [displaySize, setDisplaySize] = useState("custom"); // Default fallback
   const [transparency, setTransparency] = useState(0);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [mainDisplaySize, setMainDisplaySize] = useState({
     width: 1920,
     height: 1080,
@@ -96,6 +97,9 @@ function AppearanceSection() {
           setTransparency(settings.display.transparency);
           notifyTransparencyChange(settings.display.transparency);
         }
+        if (settings.display && settings.display.alwaysOnTop !== undefined) {
+          setAlwaysOnTop(settings.display.alwaysOnTop);
+        }
 
         // Set display size based on current window size and filtered predefined options
         if (
@@ -104,10 +108,7 @@ function AppearanceSection() {
           settings.displayWindow.height
         ) {
           const windowSize = `${settings.displayWindow.width}x${settings.displayWindow.height}`;
-          const predefinedSizes = getPredefinedSizes(
-            displayInfo.width,
-            displayInfo.height
-          );
+          const predefinedSizes = getPredefinedSizes(displayInfo.width, displayInfo.height);
           if (predefinedSizes.includes(windowSize)) {
             setDisplaySize(windowSize);
           } else {
@@ -127,10 +128,7 @@ function AppearanceSection() {
       if (message.type === "window-resized") {
         const { width, height } = message.payload;
         const windowSize = `${width}x${height}`;
-        const predefinedSizes = getPredefinedSizes(
-          mainDisplaySize.width,
-          mainDisplaySize.height
-        );
+        const predefinedSizes = getPredefinedSizes(mainDisplaySize.width, mainDisplaySize.height);
 
         if (predefinedSizes.includes(windowSize)) {
           setDisplaySize(windowSize);
@@ -140,10 +138,19 @@ function AppearanceSection() {
       }
     };
 
-    electronAPI.onMessageReceived("shared-window-channel", handleWindowResize);
+    window.electronAPI.onMessageReceived("shared-window-channel", handleWindowResize);
+    window.electronAPI.onMessageReceived("update-always-on-top", (event, value) => {
+      setAlwaysOnTop(value);
+    });
 
     return () => {
-      // Cleanup listener if needed
+      // Cleanup listeners if needed
+      try {
+        window.electronAPI.removeListener("shared-window-channel");
+        window.electronAPI.removeListener("update-always-on-top");
+      } catch (error) {
+        console.warn("Error cleaning up event listeners:", error);
+      }
     };
   }, [mainDisplaySize.height, mainDisplaySize.width]);
 
@@ -160,6 +167,11 @@ function AppearanceSection() {
   const handleColorChange = (event) => {
     setBorderColor(event.target.value);
     notifyBorderChange("set-border-color", event.target.value);
+  };
+
+  const handleAlwaysOnTopChange = (e) => {
+    setAlwaysOnTop(e.target.checked);
+    electronAPI.send("save-always-on-top", e.target.checked);
   };
 
   const handleResolutionChange = (e) => {
@@ -193,16 +205,10 @@ function AppearanceSection() {
           <h6>Display Border</h6>
           <Row>
             <Col>
-              <SelectBorderWidth
-                value={borderWidth}
-                onChange={handleWidthChange}
-              />
+              <SelectBorderWidth value={borderWidth} onChange={handleWidthChange} />
             </Col>
             <Col>
-              <SelectBorderStyle
-                value={borderStyle}
-                onChange={handleStyleChange}
-              />
+              <SelectBorderStyle value={borderStyle} onChange={handleStyleChange} />
             </Col>
             <Col>
               <Form.Group>
@@ -220,44 +226,49 @@ function AppearanceSection() {
           <hr className="mt-3" />
           <Row className="mt-2">
             <Col>
-              <SelectResolution
-                value={resolution}
-                onChange={handleResolutionChange}
-              />
+              <SelectResolution value={resolution} onChange={handleResolutionChange} />
             </Col>
             <Col>
               <Form.Group>
                 <Form.Label>Display Size</Form.Label>
-                <Form.Control
-                  as="select"
-                  value={displaySize}
-                  onChange={handleDisplaySizeChange}
-                >
-                  {getDisplaySizeOptions(
-                    mainDisplaySize.width,
-                    mainDisplaySize.height
-                  ).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                <Form.Control as="select" value={displaySize} onChange={handleDisplaySizeChange}>
+                  {getDisplaySizeOptions(mainDisplaySize.width, mainDisplaySize.height).map(
+                    (option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    )
+                  )}
                   <option value="custom">Custom</option>
                 </Form.Control>
               </Form.Group>
             </Col>
           </Row>
           <Row className="mt-2">
-            <Col md={6}>
-              <Form.Group>
-                <Form.Label>Transparency ({transparency}%)</Form.Label>
-                <Form.Range
-                  min="0"
-                  max="90"
-                  step="10"
-                  value={transparency}
-                  onChange={handleTransparencyChange}
-                />
-              </Form.Group>
+            <Col>
+              <div className="d-flex align-items-end gap-4">
+                <div style={{ flex: "0 0 48%" }}>
+                  <Form.Group>
+                    <Form.Label>Transparency ({transparency}%)</Form.Label>
+                    <Form.Range
+                      min="0"
+                      max="90"
+                      step="10"
+                      value={transparency}
+                      onChange={handleTransparencyChange}
+                    />
+                  </Form.Group>
+                </div>
+                <div>
+                  <Form.Check
+                    type="checkbox"
+                    label="Always on Top"
+                    checked={alwaysOnTop}
+                    onChange={handleAlwaysOnTopChange}
+                    className="text-nowrap"
+                  />
+                </div>
+              </div>
             </Col>
           </Row>
         </Card.Body>
