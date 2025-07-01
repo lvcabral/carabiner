@@ -32,13 +32,17 @@ const {
   toggleDockIcon,
   createContextMenu,
   getTray,
+  toggleFullScreen,
+  isTogglingFullscreen,
   openDevTools,
+  resetFullscreenVars,
 } = require("./menu");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
 
 const isMacOS = process.platform === "darwin";
+const isWindows = process.platform === "win32";
 const settings = loadSettings();
 let lastSize = [500, 290];
 let controlIp = "";
@@ -86,6 +90,7 @@ function createWindow(name, options, showOnStart = true) {
       event.preventDefault();
       win?.hide();
     } else if (name === "displayWindow") {
+      resetFullscreenVars();
       app.quit();
     }
   });
@@ -216,7 +221,7 @@ app.whenReady().then(async () => {
   }
 
   // Initialize dock/tray mode based on user setting (both macOS and Windows)
-  if (isMacOS || process.platform === "win32") {
+  if (isMacOS || isWindows) {
     const showInDock = settings.display.showInDock !== false; // Default to true
     toggleDockIcon(showInDock, mainWindow, displayWindow, packageInfo);
   }
@@ -238,13 +243,13 @@ app.whenReady().then(async () => {
   // Hide app when both windows are hidden in macOS (only in dock mode)
   if (isMacOS) {
     mainWindow.on("hide", () => {
-      if (!displayWindow.isVisible() && settings.display?.showInDock) {
+      if (!displayWindow.isVisible() && settings.display?.showInDock && !isTogglingFullscreen()) {
         app.hide();
       }
     });
 
     displayWindow.on("hide", () => {
-      if (!mainWindow.isVisible() && settings.display?.showInDock) {
+      if (!mainWindow.isVisible() && settings.display?.showInDock && !isTogglingFullscreen()) {
         app.hide();
       }
     });
@@ -257,6 +262,12 @@ app.whenReady().then(async () => {
         type: "window-resized",
         payload: { width, height },
       });
+    });
+  } else if (isWindows) {
+    displayWindow.on("resize", () => {
+      if (!isTogglingFullscreen()) {
+        resetFullscreenVars();
+      }
     });
   }
 
@@ -415,14 +426,7 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("toggle-fullscreen-window", (event) => {
-    if (!displayWindow) {
-      return;
-    }
-    if (displayWindow.isFullScreen()) {
-      displayWindow.setFullScreen(false);
-    } else {
-      displayWindow.setFullScreen(true);
-    }
+    toggleFullScreen(displayWindow);
   });
 
   ipcMain.on("open-settings-from-display", (event) => {
