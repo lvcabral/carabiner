@@ -116,42 +116,7 @@ For Android devices, configure the ADB path in settings:
 3. Ensure ADB debugging is enabled on your device
 4. Accept authorization prompts when connecting
 
-## Troubleshooting
-
-### Common Issues
-
-#### Device Not Found
-
-- **Check Network Connection**: Ensure your computer and streaming device are on the same network
-- **Verify IP Address**: Confirm the device IP address is correct in settings
-- **Enable Developer Mode**: For Roku devices, ensure Developer Mode is enabled
-- **ADB Authorization**: For Android devices, accept the ADB authorization prompt
-
-#### Video Not Displaying
-
-- **Capture Device**: Verify your capture device is connected and recognized by the system
-- **Device Permissions**: Grant camera/microphone access when prompted
-- **Resolution Settings**: Try different capture resolutions in settings
-
-#### Controls Not Working
-
-- **Window Focus**: Ensure the display window is focused (clicked)
-- **Device Configuration**: Verify device type (Roku/Android) is correctly set
-- **Network Access**: On macOS, allow Local Network access in Privacy settings
-
-#### Recording Issues
-
-- **No Video Stream**: Recording requires an active video stream from your capture device
-- **Storage Space**: Ensure you have sufficient disk space for recordings
-- **Codec Support**: Some older systems may only support WebM format
-
-#### Performance Issues
-
-- **Lower Resolution**: Reduce capture device resolution in settings
-- **Close Other Apps**: Free up system resources by closing unnecessary applications
-- **Check CPU Usage**: Monitor system performance in Task Manager/Activity Monitor
-
-### Getting Help
+## Getting Help
 
 If you encounter issues not covered here:
 

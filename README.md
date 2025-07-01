@@ -40,9 +40,9 @@ Perfect for developers and QA engineers who need to test streaming applications 
 
 1. **Download** the latest installer from the [releases page](https://github.com/lvcabral/carabiner/releases)
 2. **Install** and launch Carabiner (see our [Installation Guide](./docs/installation.md))
-3. **Configure** your capture device in the General tab
-4. **Add** your streaming device in the Control tab
-5. **Link** your devices and start controlling!
+3. **Configure** your capture device in the **General** tab
+4. **Add** your streaming device in the **Control** tab
+5. **Link** your devices in the **General** tab and start controlling!
 
 For detailed setup and usage instructions, see our comprehensive guides:
 

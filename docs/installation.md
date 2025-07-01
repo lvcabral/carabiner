@@ -64,9 +64,7 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 - **⚠️ Platform Security**: On Windows and Linux, you may need to approve the app in your security settings. Only macOS builds are currently code-signed.
 - **🔒 macOS Network Access**: Allow Local Network access in `System Settings > Privacy & Security > Local Network` for device control to work properly.
 
-## Troubleshooting Installation
-
-### Getting Help
+## Getting Help
 
 If you encounter installation issues:
 
