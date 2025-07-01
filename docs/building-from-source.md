@@ -17,14 +17,14 @@ Ensure you have the following installed on your system:
 
 ### 1. Clone the Repository
 
-```shell
+```console
 git clone https://github.com/lvcabral/carabiner.git
 cd carabiner
 ```
 
 ### 2. Install Dependencies
 
-```shell
+```console
 npm install
 ```
 
@@ -32,7 +32,7 @@ This will install all required Node.js dependencies including Electron, React, a
 
 ### 3. Build and Run the Application
 
-```shell
+```console
 npm run build
 npm run forge
 ```
@@ -54,7 +54,7 @@ The first command builds the React frontend, and the second starts the Electron 
 
 To create a platform-specific installer for your current operating system:
 
-```shell
+```console
 npm run make
 ```
 
@@ -62,7 +62,7 @@ The installer will be created in the `./out/make` directory.
 
 ## Project Structure
 
-```shell
+```console
 carabiner/
 ├── public/             # Electron main process files
 │   ├── main.js         # Main Electron process
