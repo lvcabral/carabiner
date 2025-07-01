@@ -52,6 +52,7 @@ let isADBConnected = false;
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
+let saveFlag = false;
 
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
@@ -130,11 +131,21 @@ function createMainWindow() {
     },
     settings.display.showSettingsOnStart
   );
-  const loadURL =
-    process.env.NODE_ENV === "development"
-      ? "http://localhost:3000"
-      : `file://${path.join(__dirname, "../build/index.html")}`;
-  win.loadURL(loadURL);
+
+  const prodURL = `file://${path.join(__dirname, "../build/index.html")}`;
+
+  // Load the development server URL if not packaged
+  if (!app.isPackaged) {
+    const devURL = "http://localhost:3000";
+    win.loadURL(devURL).catch(() => {
+      console.log("Dev server not available, loading built files instead");
+      win.loadURL(prodURL);
+    });
+  } else {
+    // Use built files for packaged production builds
+    win.loadURL(prodURL);
+  }
+
   win.removeMenu();
   win.setMenuBarVisibility(false);
   return win;
@@ -242,12 +253,12 @@ app.whenReady().then(async () => {
   }
 
   // Initialize auto-updater (only in production and if enabled)
-  if ((!process.env.NODE_ENV || process.env.NODE_ENV === "production") && settings.display.autoUpdate !== false) {
+  if (app.isPackaged && settings.display.autoUpdate !== false) {
     // Check for updates 30 seconds after app start
     setTimeout(() => {
       checkForUpdates();
     }, 30000);
-    
+
     // Check for updates every 4 hours
     setInterval(() => {
       checkForUpdates();
