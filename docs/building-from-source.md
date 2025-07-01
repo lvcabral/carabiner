@@ -23,8 +23,6 @@ cd carabiner
 ```
 
 ### 2. Install Dependencies
-```shell
-npm install
 
 ```shell
 npm install
@@ -61,23 +59,6 @@ npm run make
 ```
 
 The installer will be created in the `./out/make` directory.
-
-### For Specific Platforms
-
-You can build for specific platforms using Electron Forge:
-
-```shell
-# macOS
-npx electron-forge make --platform=darwin
-
-# Windows
-npx electron-forge make --platform=win32
-
-# Linux
-npx electron-forge make --platform=linux
-```
-
-> **Note**: Cross-platform building may require additional setup and platform-specific dependencies.
 
 ## Project Structure
 
