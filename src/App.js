@@ -15,7 +15,7 @@ import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 
 import GeneralSection from "./components/GeneralSection";
-import AppearanceSection from "./components/AppearanceSection";
+import DisplaySection from "./components/DisplaySection";
 import ControlSection from "./components/ControlSection";
 import OverlaySection from "./components/OverlaySection";
 import AboutSection from "./components/AboutSection";
@@ -82,9 +82,9 @@ function App() {
               />
             </div>
           </Tab>
-          <Tab eventKey="border" title="Appearance">
+          <Tab eventKey="border" title="Display">
             <div className="tab-content-container">
-              <AppearanceSection />
+              <DisplaySection />
             </div>
           </Tab>
           <Tab eventKey="control" title="Control">

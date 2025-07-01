@@ -369,7 +369,7 @@ app.whenReady().then(async () => {
       const { width, height } = arg.payload;
       if (displayWindow && width && height) {
         displayWindow.setSize(width, height);
-        // Send resize notification back to appearance section
+        // Send resize notification back to display section
         mainWindow?.webContents?.send("shared-window-channel", {
           type: "window-resized",
           payload: { width, height },

@@ -88,7 +88,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
 
     window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
     window.electronAPI.onMessageReceived("update-always-on-top", (event, value) => {
-      // This message is now handled by AppearanceSection
+      // This message is now handled by DisplaySection
     });
     window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
       captureDevice = value;

@@ -50,7 +50,7 @@ const getPredefinedSizes = (maxWidth, maxHeight) => {
     });
 };
 
-function AppearanceSection() {
+function DisplaySection() {
   const [borderWidth, setBorderWidth] = useState("0.1px");
   const [borderStyle, setBorderStyle] = useState("solid");
   const [borderColor, setBorderColor] = useState("#662D91");
@@ -73,7 +73,6 @@ function AppearanceSection() {
         ]);
 
         // Set largest display size
-        console.log("Largest display size:", displayInfo);
         setMainDisplaySize(displayInfo);
 
         // Load all settings
@@ -299,4 +298,4 @@ function notifyDisplaySizeChange(width, height) {
   // Note: Window dimensions are automatically saved by the existing close event handler
 }
 
-export default AppearanceSection;
+export default DisplaySection;
