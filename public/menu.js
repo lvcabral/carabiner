@@ -624,7 +624,7 @@ function toggleFullScreen(displayWindow) {
       setTimeout(() => {
         displayWindow.focus();
         isTogglingFullscreen = false;
-      }, 100);
+      }, 300);
     }
   } else {
     // Entering fullscreen
