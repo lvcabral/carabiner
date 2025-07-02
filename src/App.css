@@ -190,7 +190,7 @@ body {
 }
 
 [data-bs-theme="dark"] input[type="range"] {
-  background-color: #495057 !important;
+  background-color: #343a40 !important;
 }
 
 [data-bs-theme="dark"] input[type="range"]::-webkit-slider-thumb {

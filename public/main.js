@@ -37,6 +37,7 @@ const {
   openDevTools,
   resetFullscreenVars,
 } = require("./menu");
+const { checkForUpdates, installUpdate, getUpdateStatus } = require("./updater");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
@@ -51,6 +52,7 @@ let isADBConnected = false;
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
+let saveFlag = false;
 
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
@@ -129,11 +131,9 @@ function createMainWindow() {
     },
     settings.display.showSettingsOnStart
   );
-  const loadURL =
-    process.env.NODE_ENV === "development"
-      ? "http://localhost:3000"
-      : `file://${path.join(__dirname, "../build/index.html")}`;
-  win.loadURL(loadURL);
+
+  win.loadURL(`file://${path.join(__dirname, "../build/index.html")}`);
+
   win.removeMenu();
   win.setMenuBarVisibility(false);
   return win;
@@ -238,6 +238,19 @@ app.whenReady().then(async () => {
 
   if (settings.display?.shortcut) {
     registerShortcut(settings.display.shortcut, displayWindow);
+  }
+
+  // Initialize auto-updater (only in production and if enabled)
+  if (app.isPackaged && settings.display.autoUpdate !== false) {
+    // Check for updates 30 seconds after app start
+    setTimeout(() => {
+      checkForUpdates();
+    }, 30000);
+
+    // Check for updates every 4 hours
+    setInterval(() => {
+      checkForUpdates();
+    }, 4 * 60 * 60 * 1000);
   }
 
   // Hide app when both windows are hidden in macOS (only in dock mode)
@@ -356,7 +369,7 @@ app.whenReady().then(async () => {
       const { width, height } = arg.payload;
       if (displayWindow && width && height) {
         displayWindow.setSize(width, height);
-        // Send resize notification back to appearance section
+        // Send resize notification back to display section
         mainWindow?.webContents?.send("shared-window-channel", {
           type: "window-resized",
           payload: { width, height },
@@ -404,6 +417,11 @@ app.whenReady().then(async () => {
 
   ipcMain.on("save-dark-mode", (event, darkMode) => {
     settings.display.darkMode = darkMode;
+    saveSettings(settings);
+  });
+
+  ipcMain.on("save-auto-update", (event, autoUpdate) => {
+    settings.display.autoUpdate = autoUpdate;
     saveSettings(settings);
   });
 
@@ -619,6 +637,20 @@ app.whenReady().then(async () => {
     isCurrentlyRecording = isRecording;
     updateRecordingMenuItems(true, isRecording);
     updateTrayRecordingMenuItems(isRecording);
+  });
+
+  // Auto-updater IPC handlers
+  ipcMain.handle("check-for-updates", async () => {
+    checkForUpdates();
+    return getUpdateStatus();
+  });
+
+  ipcMain.handle("install-update", async () => {
+    installUpdate();
+  });
+
+  ipcMain.handle("get-update-status", async () => {
+    return getUpdateStatus();
   });
 
   app.on("activate", () => {
