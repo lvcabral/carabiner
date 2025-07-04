@@ -233,6 +233,8 @@ app.whenReady().then(async () => {
   setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
   if (isMacOS) {
     createMacOSMenu(mainWindow, displayWindow, packageInfo);
+    // Ensure menu reflects the correct always on top state from settings
+    updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
   }
 
   // Initialize dock/tray mode based on user setting (both macOS and Windows)
@@ -423,6 +425,12 @@ app.whenReady().then(async () => {
     saveSettings(settings);
 
     setAlwaysOnTop(alwaysOnTop, displayWindow);
+
+    // Update all menu items to reflect the new state
+    updateAlwaysOnTopMenuItem(alwaysOnTop);
+
+    // Broadcast the change to the React UI
+    mainWindow.webContents.send("update-always-on-top", alwaysOnTop);
   });
 
   ipcMain.on("save-audio-enabled", (event, audioEnabled) => {
