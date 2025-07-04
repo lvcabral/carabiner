@@ -151,7 +151,6 @@ function createDisplayWindow() {
     minWidth: 500,
     minHeight: 290,
     titleBarStyle: "hidden",
-    titleBarOverlay: false,
     transparent: true,
     darkTheme: false,
     hasShadow: false,
@@ -159,6 +158,7 @@ function createDisplayWindow() {
     alwaysOnTop: true,
     skipTaskbar: false,
   });
+  if (isMacOS) win.setWindowButtonVisibility(false);
   win.loadFile("public/display.html");
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
