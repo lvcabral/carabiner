@@ -23,7 +23,7 @@ const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
 const {
-  createMenu,
+  createMacOSMenu,
   updateAlwaysOnTopMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
@@ -232,7 +232,7 @@ app.whenReady().then(async () => {
   const displayWindow = createDisplayWindow();
   setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
   if (isMacOS) {
-    createMenu(mainWindow, displayWindow, packageInfo);
+    createMacOSMenu(mainWindow, displayWindow, packageInfo);
   }
 
   // Initialize dock/tray mode based on user setting (both macOS and Windows)
