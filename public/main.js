@@ -8,6 +8,7 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 const path = require("path");
+const os = require("os");
 const {
   app,
   BrowserWindow,
@@ -537,6 +538,24 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Generic directory selection handler
+  const createDirectorySelector = (title) => async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ["openDirectory"],
+      title: title,
+    });
+    return result.canceled ? null : result.filePaths[0];
+  };
+
+  ipcMain.handle(
+    "select-screenshot-path",
+    createDirectorySelector("Select Default Screenshot Save Location")
+  );
+  ipcMain.handle(
+    "select-recording-path",
+    createDirectorySelector("Select Default Recording Save Location")
+  );
+
   ipcMain.handle("load-image", async () => {
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
@@ -626,12 +645,29 @@ app.whenReady().then(async () => {
     return loadAndSendImage(imagePath);
   });
 
+  // Reusable function for finding display window for dialogs
+  const getDialogParentWindow = (event) => {
+    const sourceWindow = BrowserWindow.fromWebContents(event.sender);
+    return (
+      BrowserWindow.getAllWindows().find((win) =>
+        win.webContents.getURL().includes("display.html")
+      ) || sourceWindow
+    );
+  };
+
   // Save video recording dialog
   ipcMain.handle("save-video-dialog", async (event, filename, bufferData) => {
     try {
-      const result = await dialog.showSaveDialog(displayWindow, {
+      const defaultPath = settings.files?.recordingPath
+        ? path.join(settings.files.recordingPath, filename)
+        : path.join(os.homedir(), isMacOS ? "Movies" : "Videos", filename);
+
+      // Find the display window or use the source window
+      const dialogParent = getDialogParentWindow(event);
+
+      const result = await dialog.showSaveDialog(dialogParent, {
         title: "Save Video Recording",
-        defaultPath: filename,
+        defaultPath: defaultPath,
         filters: [
           { name: "Video Files", extensions: ["mp4", "webm"] },
           { name: "MP4 Files", extensions: ["mp4"] },
@@ -641,7 +677,6 @@ app.whenReady().then(async () => {
       });
 
       if (!result.canceled && result.filePath) {
-        const fs = require("fs");
         // Convert the received data to a proper Buffer
         const buffer = Buffer.from(bufferData);
         await fs.promises.writeFile(result.filePath, buffer);
@@ -676,6 +711,41 @@ app.whenReady().then(async () => {
     return getUpdateStatus();
   });
 
+  // Save screenshot dialog
+  ipcMain.handle("save-screenshot-dialog", async (event, filename, imageData) => {
+    try {
+      const defaultPath = settings.files?.screenshotPath
+        ? path.join(settings.files.screenshotPath, filename)
+        : path.join(os.homedir(), "Pictures", filename);
+
+      // Find the display window or use the source window
+      const dialogParent = getDialogParentWindow(event);
+
+      const result = await dialog.showSaveDialog(dialogParent, {
+        title: "Save Screenshot",
+        defaultPath: defaultPath,
+        filters: [
+          { name: "PNG Files", extensions: ["png"] },
+          { name: "JPEG Files", extensions: ["jpg", "jpeg"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+
+      if (!result.canceled && result.filePath) {
+        // Convert base64 to buffer
+        const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+        await fs.promises.writeFile(result.filePath, buffer);
+        return { success: true, filePath: result.filePath };
+      } else {
+        return { success: false, canceled: true };
+      }
+    } catch (error) {
+      console.error("Error saving screenshot file:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
@@ -697,4 +767,22 @@ app.on("window-all-closed", () => {
   if (!isMacOS) {
     app.quit();
   }
+});
+
+// Handler for saving screenshot path
+ipcMain.on("save-screenshot-path", (event, screenshotPath) => {
+  if (!settings.files) {
+    settings.files = {};
+  }
+  settings.files.screenshotPath = screenshotPath;
+  saveSettings(settings);
+});
+
+// Handler for saving recording path
+ipcMain.on("save-recording-path", (event, recordingPath) => {
+  if (!settings.files) {
+    settings.files = {};
+  }
+  settings.files.recordingPath = recordingPath;
+  saveSettings(settings);
 });
