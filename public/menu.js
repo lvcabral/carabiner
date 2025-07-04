@@ -21,6 +21,10 @@ let tray = null;
 let trayContextMenu = null;
 let trayStartRecordingItem = null;
 let trayStopRecordingItem = null;
+let trayAlwaysOnTopItem = null;
+
+// Context menu variables
+let contextAlwaysOnTopItem = null;
 
 const isMacOS = process.platform === "darwin";
 const isWindows = process.platform === "win32";
@@ -103,11 +107,12 @@ const MenuItems = {
     id: "on-top",
     label: "Always on Top",
     type: "checkbox",
-    checked: displayWindow.isAlwaysOnTop(),
+    checked: false,
     enabled: true,
     click: (item) => {
-      displayWindow.setAlwaysOnTop(item.checked);
-      mainWindow.webContents.send("update-always-on-top", item.checked);
+      // Use the same logic as the React component
+      const { ipcMain } = require("electron");
+      ipcMain.emit("save-always-on-top", null, item.checked);
     },
   }),
 
@@ -125,8 +130,11 @@ const MenuItems = {
   showCarabiner: (displayWindow) => ({
     label: "Show Carabiner",
     click: () => {
-      if (displayWindow && !displayWindow.isVisible()) {
-        displayWindow.show();
+      if (displayWindow) {
+        if (!displayWindow.isVisible()) {
+          displayWindow.show();
+        }
+        displayWindow.focus();
       }
     },
   }),
@@ -262,6 +270,12 @@ function updateAlwaysOnTopMenuItem(value) {
   if (alwaysOnTopMenuItem) {
     alwaysOnTopMenuItem.checked = value;
   }
+  if (trayAlwaysOnTopItem) {
+    trayAlwaysOnTopItem.checked = value;
+  }
+  if (contextAlwaysOnTopItem) {
+    contextAlwaysOnTopItem.checked = value;
+  }
 }
 
 function updateScreenshotMenuItems(enabled) {
@@ -338,6 +352,12 @@ function createTrayMenu(
       id: "tray-start-recording",
     },
     { ...MenuItems.stopRecording(displayWindow, isCurrentlyRecording), id: "tray-stop-recording" },
+    MenuItems.separator(),
+    {
+      ...MenuItems.alwaysOnTop(displayWindow, mainWindow),
+      id: "tray-always-on-top",
+      checked: settings?.display?.alwaysOnTop ?? displayWindow.isAlwaysOnTop(),
+    },
   ];
 
   const trayMenu = Menu.buildFromTemplate(menuItems);
@@ -366,6 +386,7 @@ function createTrayMenu(
   // Store references to the recording menu items for later updates
   trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
   trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
+  trayAlwaysOnTopItem = trayContextMenu.getMenuItemById("tray-always-on-top");
   updateTrayRecordingMenuItems(isCurrentlyRecording);
 
   // Set the context menu for the tray
@@ -476,6 +497,11 @@ function createContextMenu(
     MenuItems.pasteText(displayWindow),
     MenuItems.separator(),
     MenuItems.toggleFullscreen(displayWindow),
+    {
+      ...MenuItems.alwaysOnTop(displayWindow, mainWindow),
+      id: "context-always-on-top",
+      checked: settings?.display?.alwaysOnTop ?? displayWindow.isAlwaysOnTop(),
+    },
     MenuItems.hideScreen(displayWindow),
   ];
 
@@ -499,6 +525,9 @@ function createContextMenu(
   ];
 
   additionalItems.forEach((item) => menu.append(item));
+
+  // Store reference to the context always on top menu item
+  contextAlwaysOnTopItem = menu.getMenuItemById("context-always-on-top");
 
   return menu;
 }
