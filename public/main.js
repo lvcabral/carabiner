@@ -158,13 +158,6 @@ function createDisplayWindow() {
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: false,
-    ...(isWindows && {
-      // Windows 11 specific fixes for Electron v36
-      thickFrame: false,
-      titleBarStyle: "hidden",
-      autoHideMenuBar: true,
-      menuBarVisible: false,
-    }),
   });
   win.loadFile("public/display.html");
   win.setResizable(true);
@@ -172,24 +165,13 @@ function createDisplayWindow() {
 
   // Windows 11 specific: Force remove menu bar to prevent title bar issues
   if (isWindows) {
-    win.removeMenu();
-    win.setMenuBarVisibility(false);
-
     // Additional fix: Re-apply frameless style on focus events
     win.on("blur", () => {
-      // Small delay to re-enforce frameless style after losing focus
-      setTimeout(() => {
-        if (!win.isDestroyed()) {
-          win.setMenuBarVisibility(false);
-        }
-      }, 10);
+      win.setBackgroundColor("#00000000");
     });
 
     win.on("focus", () => {
-      // Ensure frameless style is maintained on focus
-      if (!win.isDestroyed()) {
-        win.setMenuBarVisibility(false);
-      }
+      win.setBackgroundColor("#00000000");
     });
   }
 
