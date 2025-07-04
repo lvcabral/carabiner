@@ -645,16 +645,6 @@ app.whenReady().then(async () => {
     return loadAndSendImage(imagePath);
   });
 
-  // Reusable function for finding display window for dialogs
-  const getDialogParentWindow = (event) => {
-    const sourceWindow = BrowserWindow.fromWebContents(event.sender);
-    return (
-      BrowserWindow.getAllWindows().find((win) =>
-        win.webContents.getURL().includes("display.html")
-      ) || sourceWindow
-    );
-  };
-
   // Save video recording dialog
   ipcMain.handle("save-video-dialog", async (event, filename, bufferData) => {
     try {
@@ -662,10 +652,7 @@ app.whenReady().then(async () => {
         ? path.join(settings.files.recordingPath, filename)
         : path.join(os.homedir(), isMacOS ? "Movies" : "Videos", filename);
 
-      // Find the display window or use the source window
-      const dialogParent = getDialogParentWindow(event);
-
-      const result = await dialog.showSaveDialog(dialogParent, {
+      const result = await dialog.showSaveDialog(displayWindow, {
         title: "Save Video Recording",
         defaultPath: defaultPath,
         filters: [
@@ -718,10 +705,7 @@ app.whenReady().then(async () => {
         ? path.join(settings.files.screenshotPath, filename)
         : path.join(os.homedir(), "Pictures", filename);
 
-      // Find the display window or use the source window
-      const dialogParent = getDialogParentWindow(event);
-
-      const result = await dialog.showSaveDialog(dialogParent, {
+      const result = await dialog.showSaveDialog(displayWindow, {
         title: "Save Screenshot",
         defaultPath: defaultPath,
         filters: [
