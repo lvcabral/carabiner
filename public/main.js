@@ -150,16 +150,49 @@ function createDisplayWindow() {
     height: lastSize[1] ?? 290,
     minWidth: 500,
     minHeight: 290,
-    titleBarStyle: "hide",
+    titleBarStyle: "hidden",
+    titleBarOverlay: false,
     transparent: true,
     darkTheme: false,
     hasShadow: false,
     frame: false,
     alwaysOnTop: true,
+    skipTaskbar: false,
+    ...(isWindows && {
+      // Windows 11 specific fixes for Electron v36
+      thickFrame: false,
+      titleBarStyle: "hidden",
+      autoHideMenuBar: true,
+      menuBarVisible: false,
+    }),
   });
   win.loadFile("public/display.html");
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
+
+  // Windows 11 specific: Force remove menu bar to prevent title bar issues
+  if (isWindows) {
+    win.removeMenu();
+    win.setMenuBarVisibility(false);
+
+    // Additional fix: Re-apply frameless style on focus events
+    win.on("blur", () => {
+      // Small delay to re-enforce frameless style after losing focus
+      setTimeout(() => {
+        if (!win.isDestroyed()) {
+          win.setMenuBarVisibility(false);
+        }
+      }, 10);
+    });
+
+    win.on("focus", () => {
+      // Ensure frameless style is maintained on focus
+      if (!win.isDestroyed()) {
+        win.setMenuBarVisibility(false);
+      }
+    });
+  }
+
   win.on("move", () => {
     win.webContents.send("window-moved");
   });
