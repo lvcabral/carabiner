@@ -18,6 +18,7 @@ import GeneralSection from "./components/GeneralSection";
 import DisplaySection from "./components/DisplaySection";
 import ControlSection from "./components/ControlSection";
 import OverlaySection from "./components/OverlaySection";
+import FilesSection from "./components/FilesSection";
 import AboutSection from "./components/AboutSection";
 
 const { electronAPI } = window;
@@ -34,12 +35,13 @@ function App() {
       }
       // Apply initial dark mode theme
       if (settings.display && settings.display.darkMode !== undefined) {
-        document.body.setAttribute('data-bs-theme', settings.display.darkMode ? 'dark' : 'light');
+        document.body.setAttribute("data-bs-theme", settings.display.darkMode ? "dark" : "light");
       } else {
         // First time launch - detect system color scheme preference
-        const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const prefersDarkMode =
+          window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         // Apply the detected theme immediately
-        document.body.setAttribute('data-bs-theme', prefersDarkMode ? 'dark' : 'light');
+        document.body.setAttribute("data-bs-theme", prefersDarkMode ? "dark" : "light");
       }
     });
   }, []);
@@ -68,11 +70,7 @@ function App() {
         <h1 className="header" style={{ textAlign: "center" }}>
           Carabiner
         </h1>
-        <Tabs
-          defaultActiveKey="display"
-          id="settings-tabs"
-          className="custom-tabs"
-        >
+        <Tabs defaultActiveKey="display" id="settings-tabs" className="custom-tabs">
           <Tab eventKey="display" title="General">
             <div className="tab-content-container">
               <GeneralSection
@@ -99,6 +97,11 @@ function App() {
           <Tab eventKey="overlay" title="Overlay">
             <div className="tab-content-container">
               <OverlaySection />
+            </div>
+          </Tab>
+          <Tab eventKey="files" title="Files">
+            <div className="tab-content-container">
+              <FilesSection />
             </div>
           </Tab>
           <Tab eventKey="about" title="About">

@@ -27,6 +27,10 @@ function loadSettings() {
     control: {
       deviceList: [],
     },
+    files: {
+      screenshotPath: "", // Empty string means use default (Pictures)
+      recordingPath: "", // Empty string means use default (Movies on macOS, Videos elsewhere)
+    },
   };
   try {
     return Object.assign(defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath)));

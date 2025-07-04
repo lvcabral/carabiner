@@ -338,8 +338,7 @@ window.addEventListener("DOMContentLoaded", function () {
     }
     // Paste: Ctrl+V / Cmd+V
     const isPasteShortcut =
-      (isMacOS && event.metaKey && key === "v") ||
-      (!isMacOS && event.ctrlKey && key === "v");
+      (isMacOS && event.metaKey && key === "v") || (!isMacOS && event.ctrlKey && key === "v");
 
     if (isPasteShortcut) {
       handlePaste();
@@ -355,8 +354,7 @@ window.addEventListener("DOMContentLoaded", function () {
     }
     // Settings: Ctrl+, / Cmd+,
     const isOpenSettings =
-      (isMacOS && event.metaKey && key === ",") ||
-      (!isMacOS && event.ctrlKey && key === ",");
+      (isMacOS && event.metaKey && key === ",") || (!isMacOS && event.ctrlKey && key === ",");
     if (isOpenSettings) {
       window.electronAPI.send("open-settings-from-display");
       handled = true;
@@ -426,13 +424,37 @@ window.addEventListener("DOMContentLoaded", function () {
     const datePart = now.toLocaleDateString("en-CA");
     const timePart = now.toLocaleTimeString("en-CA", { hour12: false }).replace(/:/g, "");
     const filename = `carabiner-${datePart}-${timePart}.png`;
-    canvas.toBlob(function (blob) {
-      const a = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+
+    canvas.toBlob(async function (blob) {
+      try {
+        // Convert blob to base64 using FileReader
+        const reader = new FileReader();
+        reader.onload = async function () {
+          try {
+            const imageData = reader.result; // This is already a data URL with base64
+
+            // Use the new save dialog with default path
+            const result = await window.electronAPI.invoke(
+              "save-screenshot-dialog",
+              filename,
+              imageData
+            );
+
+            if (result.success) {
+              showToast(`Screenshot saved to ${result.filePath}`, 3000);
+            } else if (!result.canceled) {
+              showToast("Failed to save screenshot", 3000, true);
+            }
+          } catch (error) {
+            console.error("Error saving screenshot:", error);
+            showToast("Failed to save screenshot", 3000, true);
+          }
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error("Error saving screenshot:", error);
+        showToast("Failed to save screenshot", 3000, true);
+      }
     });
   }
 
@@ -904,26 +926,6 @@ function sendKey(key, mod) {
       payload: key,
     });
   }
-}
-
-// Queue to manage key events
-const keyEventQueue = [];
-let isProcessingQueue = false;
-
-function enqueueKeyEvent(key, mod) {
-  keyEventQueue.push({ key, mod });
-  if (!isProcessingQueue) {
-    processKeyEventQueue();
-  }
-}
-
-async function processKeyEventQueue() {
-  isProcessingQueue = true;
-  while (keyEventQueue.length > 0) {
-    const { key, mod } = keyEventQueue.shift();
-    await sendEcpKey(controlIp, key, mod);
-  }
-  isProcessingQueue = false;
 }
 
 async function sendEcpKey(host, key, mod = -1) {

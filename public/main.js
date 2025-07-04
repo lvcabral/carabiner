@@ -8,6 +8,7 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 const path = require("path");
+const os = require("os");
 const {
   app,
   BrowserWindow,
@@ -163,8 +164,8 @@ function createDisplayWindow() {
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
 
-  // This is a workaround for the issue where frameless windows on Windows 11 show a title bar
-  // when the window loses focus.
+  // This is a workaround for the issue where frameless windows on Windows 11
+  // show a title bar when the window loses focus.
   if (isWindows) {
     win.on("blur", () => {
       win.setBackgroundColor("#00000000");
@@ -235,6 +236,16 @@ app.whenReady().then(async () => {
     createMacOSMenu(mainWindow, displayWindow, packageInfo);
     // Ensure menu reflects the correct always on top state from settings
     updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
+  }
+
+  // This is a workaround for the issue where frameless windows on Windows 11
+  // show a title bar when the window loses focus.
+  function resetFramelessWindow() {
+    if (isWindows) {
+      setTimeout(() => {
+        displayWindow?.setBackgroundColor("#00000000");
+      }, 1000);
+    }
   }
 
   // Initialize dock/tray mode based on user setting (both macOS and Windows)
@@ -524,6 +535,7 @@ app.whenReady().then(async () => {
   };
 
   ipcMain.handle("select-adb-path", async () => {
+    resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
       filters: [{ name: "Executables", extensions: ["exe", "bat", "sh", ""] }],
@@ -537,7 +549,27 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Generic directory selection handler
+  const createDirectorySelector = (title) => async () => {
+    resetFramelessWindow();
+    const result = await dialog.showOpenDialog({
+      properties: ["openDirectory"],
+      title: title,
+    });
+    return result.canceled ? null : result.filePaths[0];
+  };
+
+  ipcMain.handle(
+    "select-screenshot-path",
+    createDirectorySelector("Select Default Screenshot Save Location")
+  );
+  ipcMain.handle(
+    "select-recording-path",
+    createDirectorySelector("Select Default Recording Save Location")
+  );
+
   ipcMain.handle("load-image", async () => {
+    resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
       filters: [{ name: "Images", extensions: ["jpg", "png", "webp"] }],
@@ -617,6 +649,7 @@ app.whenReady().then(async () => {
 
   // Handler for showing message box dialogs
   ipcMain.handle("show-message-box", async (event, options) => {
+    resetFramelessWindow();
     const result = await dialog.showMessageBox(mainWindow, options);
     return result;
   });
@@ -629,9 +662,13 @@ app.whenReady().then(async () => {
   // Save video recording dialog
   ipcMain.handle("save-video-dialog", async (event, filename, bufferData) => {
     try {
+      const defaultPath = settings.files?.recordingPath
+        ? path.join(settings.files.recordingPath, filename)
+        : path.join(os.homedir(), isMacOS ? "Movies" : "Videos", filename);
+      resetFramelessWindow();
       const result = await dialog.showSaveDialog(displayWindow, {
         title: "Save Video Recording",
-        defaultPath: filename,
+        defaultPath: defaultPath,
         filters: [
           { name: "Video Files", extensions: ["mp4", "webm"] },
           { name: "MP4 Files", extensions: ["mp4"] },
@@ -641,7 +678,6 @@ app.whenReady().then(async () => {
       });
 
       if (!result.canceled && result.filePath) {
-        const fs = require("fs");
         // Convert the received data to a proper Buffer
         const buffer = Buffer.from(bufferData);
         await fs.promises.writeFile(result.filePath, buffer);
@@ -676,6 +712,38 @@ app.whenReady().then(async () => {
     return getUpdateStatus();
   });
 
+  // Save screenshot dialog
+  ipcMain.handle("save-screenshot-dialog", async (event, filename, imageData) => {
+    try {
+      const defaultPath = settings.files?.screenshotPath
+        ? path.join(settings.files.screenshotPath, filename)
+        : path.join(os.homedir(), "Pictures", filename);
+      resetFramelessWindow();
+      const result = await dialog.showSaveDialog(displayWindow, {
+        title: "Save Screenshot",
+        defaultPath: defaultPath,
+        filters: [
+          { name: "PNG Files", extensions: ["png"] },
+          { name: "JPEG Files", extensions: ["jpg", "jpeg"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+
+      if (!result.canceled && result.filePath) {
+        // Convert base64 to buffer
+        const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+        await fs.promises.writeFile(result.filePath, buffer);
+        return { success: true, filePath: result.filePath };
+      } else {
+        return { success: false, canceled: true };
+      }
+    } catch (error) {
+      console.error("Error saving screenshot file:", error);
+      return { success: false, error: error.message };
+    }
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
@@ -697,4 +765,22 @@ app.on("window-all-closed", () => {
   if (!isMacOS) {
     app.quit();
   }
+});
+
+// Handler for saving screenshot path
+ipcMain.on("save-screenshot-path", (event, screenshotPath) => {
+  if (!settings.files) {
+    settings.files = {};
+  }
+  settings.files.screenshotPath = screenshotPath;
+  saveSettings(settings);
+});
+
+// Handler for saving recording path
+ipcMain.on("save-recording-path", (event, recordingPath) => {
+  if (!settings.files) {
+    settings.files = {};
+  }
+  settings.files.recordingPath = recordingPath;
+  saveSettings(settings);
 });
