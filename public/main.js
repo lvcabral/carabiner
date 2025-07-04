@@ -163,9 +163,9 @@ function createDisplayWindow() {
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
 
-  // Windows 11 specific: Force remove menu bar to prevent title bar issues
+  // This is a workaround for the issue where frameless windows on Windows 11 show a title bar
+  // when the window loses focus.
   if (isWindows) {
-    // Additional fix: Re-apply frameless style on focus events
     win.on("blur", () => {
       win.setBackgroundColor("#00000000");
     });
