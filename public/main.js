@@ -150,16 +150,31 @@ function createDisplayWindow() {
     height: lastSize[1] ?? 290,
     minWidth: 500,
     minHeight: 290,
-    titleBarStyle: "hide",
+    titleBarStyle: "hidden",
+    titleBarOverlay: false,
     transparent: true,
     darkTheme: false,
     hasShadow: false,
     frame: false,
     alwaysOnTop: true,
+    skipTaskbar: false,
   });
   win.loadFile("public/display.html");
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
+
+  // This is a workaround for the issue where frameless windows on Windows 11 show a title bar
+  // when the window loses focus.
+  if (isWindows) {
+    win.on("blur", () => {
+      win.setBackgroundColor("#00000000");
+    });
+
+    win.on("focus", () => {
+      win.setBackgroundColor("#00000000");
+    });
+  }
+
   win.on("move", () => {
     win.webContents.send("window-moved");
   });
