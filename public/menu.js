@@ -315,12 +315,12 @@ function createTray(mainWindow, displayWindow, packageInfo) {
     // macOS: click to show context menu
     tray.on("click", () => tray.popUpContextMenu());
   } else if (isWindows) {
-    // Windows: left click toggles window, right click shows context menu
+    // Windows: left click shows and focuses window (same as Show Carabiner), right click shows context menu
     tray.on("click", () => {
-      if (displayWindow.isVisible()) {
-        displayWindow.hide();
-      } else {
-        displayWindow.show();
+      if (displayWindow) {
+        if (!displayWindow.isVisible()) {
+          displayWindow.show();
+        }
         displayWindow.focus();
       }
     });
