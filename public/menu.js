@@ -24,105 +24,190 @@ let trayStopRecordingItem = null;
 
 const isMacOS = process.platform === "darwin";
 const isWindows = process.platform === "win32";
-const devToolsAccelerator = isMacOS ? "Cmd+Option+I" : "F12";
-const fullscreenAcc = isMacOS ? "Cmd+Ctrl+F" : "F11";
 
-function createMenu(mainWindow, displayWindow, packageInfo) {
-  const template = [
-    {
-      label: app.getName(),
-      submenu: [
-        {
-          label: "About Carabiner",
-          click: () => {
-            mainWindow.webContents.send("open-about-tab");
-            mainWindow.show();
-          },
-        },
-        { type: "separator" },
-        {
-          id: "settings",
-          label: "Settings...",
-          accelerator: "CmdOrCtrl+,",
-          click: () => {
-            mainWindow.webContents.send("open-display-tab");
-            mainWindow.show();
-          },
-        },
-        { type: "separator" },
-        {
-          label: "Services",
-          role: "services",
-          submenu: [],
-        },
-        {
-          type: "separator",
-        },
-        {
-          label: `Hide ${app.getName()}`,
-          role: "hide",
-        },
-        {
-          label: "Hide Others",
-          role: "hideothers",
-        },
-        {
-          label: "Show All",
-          role: "unhide",
-        },
-        {
-          type: "separator",
-        },
-        {
-          label: `Quit ${app.getName()}`,
-          role: "quit",
-        },
-      ],
+// Common accelerators
+const ACCELERATORS = {
+  devTools: isMacOS ? "Cmd+Option+I" : "F12",
+  fullscreen: isMacOS ? "Cmd+Ctrl+F" : "F11",
+  settings: "CmdOrCtrl+,",
+  saveScreenshot: "CmdOrCtrl+S",
+  copyScreenshot: "CmdOrCtrl+Shift+C",
+  startRecording: "CmdOrCtrl+Shift+R",
+  stopRecording: "CmdOrCtrl+Shift+S",
+  closeWindow: "CmdOrCtrl+W",
+  paste: "CmdOrCtrl+V",
+};
+
+// Common menu item creators
+const MenuItems = {
+  separator: () => ({ type: "separator" }),
+
+  settings: (mainWindow) => ({
+    label: "Settings...",
+    accelerator: ACCELERATORS.settings,
+    click: () => {
+      mainWindow.webContents.send("open-display-tab");
+      mainWindow.show();
     },
+  }),
+
+  copyScreenshot: (displayWindow) => ({
+    id: "copy-screen",
+    label: "Copy Screenshot",
+    accelerator: ACCELERATORS.copyScreenshot,
+    enabled: true,
+    click: () => displayWindow?.webContents.send("copy-screenshot"),
+  }),
+
+  saveScreenshot: (displayWindow) => ({
+    id: "save-screenshot",
+    label: "Save Screenshot As...",
+    accelerator: ACCELERATORS.saveScreenshot,
+    click: () => displayWindow?.isVisible() && displayWindow.webContents.send("save-screenshot"),
+  }),
+
+  startRecording: (displayWindow, enabled = false) => ({
+    id: "start-recording",
+    label: "Start Recording",
+    accelerator: ACCELERATORS.startRecording,
+    enabled,
+    click: () => {
+      if (displayWindow) {
+        if (!displayWindow.isVisible()) displayWindow.show();
+        displayWindow.webContents.send("start-recording");
+      }
+    },
+  }),
+
+  stopRecording: (displayWindow, enabled = false) => ({
+    id: "stop-recording",
+    label: "Stop Recording",
+    accelerator: ACCELERATORS.stopRecording,
+    enabled,
+    click: () => displayWindow?.webContents.send("stop-recording"),
+  }),
+
+  toggleFullscreen: (displayWindow) => ({
+    label: "Toggle Fullscreen",
+    accelerator: ACCELERATORS.fullscreen,
+    click: () => toggleFullScreen(displayWindow),
+  }),
+
+  devTools: (window) => ({
+    label: "Developer Tools",
+    accelerator: ACCELERATORS.devTools,
+    click: (_, targetWindow) => openDevTools(targetWindow || window),
+  }),
+
+  alwaysOnTop: (displayWindow, mainWindow) => ({
+    id: "on-top",
+    label: "Always on Top",
+    type: "checkbox",
+    checked: displayWindow.isAlwaysOnTop(),
+    enabled: true,
+    click: (item) => {
+      displayWindow.setAlwaysOnTop(item.checked);
+      mainWindow.webContents.send("update-always-on-top", item.checked);
+    },
+  }),
+
+  pasteText: (displayWindow) => ({
+    label: "Paste Text",
+    accelerator: ACCELERATORS.paste,
+    click: () => displayWindow?.webContents.send("handle-paste"),
+  }),
+
+  hideScreen: (displayWindow) => ({
+    label: "Hide Screen",
+    click: () => displayWindow?.hide(),
+  }),
+
+  showCarabiner: (displayWindow) => ({
+    label: "Show Carabiner",
+    click: () => {
+      if (displayWindow && !displayWindow.isVisible()) {
+        displayWindow.show();
+      }
+    },
+  }),
+};
+
+// Common help menu items
+const HelpMenuItems = {
+  documentation: (packageInfo) => ({
+    label: "Usage Guide",
+    click: () => shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/usage-guide.md`),
+  }),
+
+  keyboardControl: (packageInfo) => ({
+    label: "Keyboard Control",
+    click: () => shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`),
+  }),
+
+  releaseNotes: (packageInfo) => ({
+    label: "Release Notes",
+    click: () => shell.openExternal(`${packageInfo.repository.url}/releases`),
+  }),
+
+  viewLicense: (packageInfo) => ({
+    label: "View License",
+    click: () => shell.openExternal(`${packageInfo.repository.url}/blob/main/LICENSE`),
+  }),
+
+  reportBug: (packageInfo) => ({
+    label: "Report a Bug",
+    click: () => shell.openExternal(`${packageInfo.repository.url}/issues`),
+  }),
+
+  about: (mainWindow) => ({
+    label: "About Carabiner",
+    click: () => {
+      mainWindow.webContents.send("open-about-tab");
+      mainWindow.show();
+    },
+  }),
+};
+
+// Platform-specific application menu items
+const AppMenuItems = {
+  macOS: (mainWindow) => ({
+    label: app.getName(),
+    submenu: [
+      HelpMenuItems.about(mainWindow),
+      MenuItems.separator(),
+      MenuItems.settings(mainWindow),
+      MenuItems.separator(),
+      { label: "Services", role: "services", submenu: [] },
+      MenuItems.separator(),
+      { label: `Hide ${app.getName()}`, role: "hide" },
+      { label: "Hide Others", role: "hideothers" },
+      { label: "Show All", role: "unhide" },
+      MenuItems.separator(),
+      { label: `Quit ${app.getName()}`, role: "quit" },
+    ],
+  }),
+
+  closeWindow: () => ({
+    label: "Close Window",
+    accelerator: ACCELERATORS.closeWindow,
+    click: (_, window) => window?.hide(),
+  }),
+};
+
+function createMacOSMenu(mainWindow, displayWindow, packageInfo) {
+  const template = [
+    // Add macOS-specific app menu
+    ...[AppMenuItems.macOS(mainWindow)],
+
     {
       label: "&File",
       submenu: [
-        {
-          id: "save-screenshot",
-          label: "Save Screenshot As...",
-          accelerator: "CmdOrCtrl+S",
-          click: () => {
-            if (displayWindow && displayWindow.isVisible()) {
-              displayWindow.webContents.send("save-screenshot");
-            }
-          },
-        },
-        { type: "separator" },
-        {
-          id: "start-recording",
-          label: "Start Recording",
-          accelerator: "CmdOrCtrl+Shift+R",
-          enabled: false,
-          click: () => {
-            if (displayWindow && displayWindow.isVisible()) {
-              displayWindow.webContents.send("start-recording");
-            }
-          },
-        },
-        {
-          id: "stop-recording",
-          label: "Stop Recording",
-          accelerator: "CmdOrCtrl+Shift+S",
-          enabled: false,
-          click: () => {
-            if (displayWindow && displayWindow.isVisible()) {
-              displayWindow.webContents.send("stop-recording");
-            }
-          },
-        },
-        { type: "separator" },
-        {
-          label: "Close Window",
-          accelerator: "CmdOrCtrl+W",
-          click: (_, window) => {
-            window?.hide();
-          },
-        },
+        MenuItems.saveScreenshot(displayWindow),
+        MenuItems.separator(),
+        MenuItems.startRecording(displayWindow, false),
+        MenuItems.stopRecording(displayWindow, false),
+        MenuItems.separator(),
+        AppMenuItems.closeWindow(),
       ],
     },
     {
@@ -130,19 +215,9 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
       submenu: [
         { role: "undo" },
         { role: "redo" },
-        { type: "separator" },
+        MenuItems.separator(),
         { role: "cut" },
-        {
-          id: "copy-screen",
-          label: "Copy Screenshot",
-          accelerator: "CmdOrCtrl+Shift+C",
-          enabled: true,
-          click: () => {
-            if (displayWindow) {
-              displayWindow.webContents.send("copy-screenshot");
-            }
-          },
-        },
+        MenuItems.copyScreenshot(displayWindow),
         { role: "copy" },
         { role: "paste" },
         { role: "selectAll" },
@@ -152,68 +227,30 @@ function createMenu(mainWindow, displayWindow, packageInfo) {
       id: "view-menu",
       label: "&View",
       submenu: [
-        {
-          label: "Toggle Fullscreen",
-          accelerator: fullscreenAcc,
-          click: () => {
-            toggleFullScreen(displayWindow);
-          },
-        },
-        {
-          label: "Developer Tools",
-          accelerator: devToolsAccelerator,
-          click: (_, window) => {
-            openDevTools(window);
-          },
-        },
-        { type: "separator" },
-        {
-          id: "on-top",
-          label: "Always on Top",
-          type: "checkbox",
-          checked: displayWindow.isAlwaysOnTop(),
-          enabled: true,
-          click: (item) => {
-            displayWindow.setAlwaysOnTop(item.checked);
-            mainWindow.webContents.send("update-always-on-top", item.checked);
-          },
-        },
+        MenuItems.toggleFullscreen(displayWindow),
+        MenuItems.devTools(),
+        MenuItems.separator(),
+        MenuItems.alwaysOnTop(displayWindow, mainWindow),
       ],
     },
     {
       label: "&Help",
       submenu: [
-        {
-          label: "Documentation",
-          click: () => {
-            shell.openExternal(`${packageInfo.repository.url}#readme`);
-          },
-        },
-        {
-          label: "Keyboard Control",
-          click: () => {
-            shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
-          },
-        },
-        { type: "separator" },
-        {
-          label: "Release Notes",
-          click: () => {
-            shell.openExternal(`${packageInfo.repository.url}/releases`);
-          },
-        },
-        {
-          label: "View License",
-          click: () => {
-            shell.openExternal(`${packageInfo.repository.url}/blob/main/LICENSE`);
-          },
-        },
+        HelpMenuItems.documentation(packageInfo),
+        HelpMenuItems.keyboardControl(packageInfo),
+        MenuItems.separator(),
+        HelpMenuItems.reportBug(packageInfo),
+        MenuItems.separator(),
+        HelpMenuItems.releaseNotes(packageInfo),
+        HelpMenuItems.viewLicense(packageInfo),
       ],
     },
   ];
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
+
+  // Store menu item references
   alwaysOnTopMenuItem = menu.getMenuItemById("on-top");
   copyScreenshotMenuItem = menu.getMenuItemById("copy-screen");
   saveScreenshotMenuItem = menu.getMenuItemById("save-screenshot");
@@ -249,35 +286,22 @@ function updateRecordingMenuItems(displayVisible, isRecording) {
 function createTray(mainWindow, displayWindow, packageInfo) {
   if (!isMacOS && !isWindows) return null;
 
-  // Create tray icon - use appropriate icon for platform
-  let trayIconPath;
-  if (isMacOS) {
-    trayIconPath = path.join(__dirname, "../images/menuicon.png");
-  } else if (isWindows) {
-    trayIconPath = path.join(__dirname, "../images/icon.ico");
-  }
+  // Create tray icon with appropriate platform icon
+  const trayIconPath = isMacOS
+    ? path.join(__dirname, "../images/menuicon.png")
+    : path.join(__dirname, "../images/icon.ico");
 
   tray = new Tray(trayIconPath);
 
   // Platform-specific tray configuration
   if (isMacOS) {
-    // Try to set template mode if the method exists (macOS only)
     if (typeof tray.setTemplate === "function") {
       tray.setTemplate(true);
     }
-  }
-
-  createTrayMenu(mainWindow, displayWindow, packageInfo);
-  tray.setToolTip("Carabiner - Screen Capture and Remote Control");
-
-  // Platform-specific click behavior
-  if (isMacOS) {
-    // Click to show context menu (no window toggling)
-    tray.on("click", () => {
-      tray.popUpContextMenu();
-    });
+    // macOS: click to show context menu
+    tray.on("click", () => tray.popUpContextMenu());
   } else if (isWindows) {
-    // Windows: left-click to toggle display window, right-click for context menu
+    // Windows: left click toggles window, right click shows context menu
     tray.on("click", () => {
       if (displayWindow.isVisible()) {
         displayWindow.hide();
@@ -286,11 +310,11 @@ function createTray(mainWindow, displayWindow, packageInfo) {
         displayWindow.focus();
       }
     });
-
-    tray.on("right-click", () => {
-      tray.popUpContextMenu();
-    });
+    tray.on("right-click", () => tray.popUpContextMenu());
   }
+
+  createTrayMenu(mainWindow, displayWindow, packageInfo);
+  tray.setToolTip("Carabiner - Screen Capture and Remote Control");
 
   return tray;
 }
@@ -303,89 +327,39 @@ function createTrayMenu(
   settings = null,
   isCurrentlyRecording = false
 ) {
-  const trayMenuTemplate = [
+  const menuItems = [
+    MenuItems.showCarabiner(displayWindow),
+    MenuItems.separator(),
+    MenuItems.copyScreenshot(displayWindow),
+    MenuItems.saveScreenshot(displayWindow),
+    MenuItems.separator(),
     {
-      label: "Show Carabiner",
-      click: () => {
-        // Only show the display window (screen capture window)
-        if (displayWindow && !displayWindow.isVisible()) {
-          displayWindow.show();
-        }
-      },
+      ...MenuItems.startRecording(displayWindow, !isCurrentlyRecording),
+      id: "tray-start-recording",
     },
+    { ...MenuItems.stopRecording(displayWindow, isCurrentlyRecording), id: "tray-stop-recording" },
   ];
 
-  trayMenuTemplate.push(
-    { type: "separator" },
-    {
-      label: "Start Recording",
-      id: "tray-start-recording",
-      accelerator: "CmdOrCtrl+Shift+R",
-      enabled: false,
-      click: () => {
-        if (displayWindow) {
-          if (!displayWindow.isVisible()) {
-            displayWindow.show();
-          }
-          displayWindow.webContents.send("start-recording");
-        }
-      },
-    },
-    {
-      label: "Stop Recording",
-      id: "tray-stop-recording",
-      accelerator: "CmdOrCtrl+Shift+S",
-      enabled: false,
-      click: () => {
-        if (displayWindow) {
-          displayWindow.webContents.send("stop-recording");
-        }
-      },
-    }
-  );
+  const trayMenu = Menu.buildFromTemplate(menuItems);
 
-  const trayMenu = Menu.buildFromTemplate(trayMenuTemplate);
-
+  // Add capture devices menu
   appendCaptureDevicesMenu(trayMenu, mainWindow, captureDevices, settings);
-  trayMenu.append(new MenuItem({ type: "separator" }));
-  trayMenu.append(
-    new MenuItem({
-      label: "Settings...",
-      accelerator: "CmdOrCtrl+,",
-      click: () => {
-        mainWindow.webContents.send("open-display-tab");
-        mainWindow.show();
-      },
-    })
-  );
-  trayMenu.append(new MenuItem({ type: "separator" }));
 
-  trayMenu.append(
-    new MenuItem({
-      label: "Documentation",
-      click: () => {
-        shell.openExternal(`${packageInfo.repository.url}#readme`);
-      },
-    })
-  );
-  trayMenu.append(
-    new MenuItem({
-      label: "Keyboard Control",
-      click: () => {
-        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
-      },
-    })
-  );
-  trayMenu.append(
-    new MenuItem({
-      label: "Release Notes",
-      click: () => {
-        shell.openExternal(`${packageInfo.repository.url}/releases`);
-      },
-    })
-  );
-  trayMenu.append(new MenuItem({ type: "separator" }));
-  trayMenu.append(new MenuItem({ role: "quit" }));
+  // Add common menu items
+  const commonItems = [
+    new MenuItem(MenuItems.separator()),
+    new MenuItem(MenuItems.settings(mainWindow)),
+    new MenuItem(MenuItems.separator()),
+    new MenuItem(HelpMenuItems.reportBug(packageInfo)),
+    new MenuItem(MenuItems.separator()),
+    new MenuItem(HelpMenuItems.documentation(packageInfo)),
+    new MenuItem(HelpMenuItems.keyboardControl(packageInfo)),
+    new MenuItem(HelpMenuItems.releaseNotes(packageInfo)),
+    new MenuItem(MenuItems.separator()),
+    new MenuItem({ role: "quit" }),
+  ];
+
+  commonItems.forEach((item) => trayMenu.append(item));
 
   // Set the tray context menu
   trayContextMenu = trayMenu;
@@ -393,6 +367,7 @@ function createTrayMenu(
   trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
   trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
   updateTrayRecordingMenuItems(isCurrentlyRecording);
+
   // Set the context menu for the tray
   if (tray) {
     tray.setContextMenu(trayContextMenu);
@@ -425,10 +400,7 @@ function appendCaptureDevicesMenu(menu, mainWindow, captureDevices = null, setti
 function updateTrayRecordingMenuItems(isRecording) {
   if (!tray || !trayStartRecordingItem || !trayStopRecordingItem) return;
 
-  // Start recording is always enabled when not recording (it can show the window if needed)
   trayStartRecordingItem.enabled = !isRecording;
-
-  // Stop recording is only enabled when currently recording
   trayStopRecordingItem.enabled = isRecording;
 }
 
@@ -491,110 +463,42 @@ function createContextMenu(
   captureDevices = null,
   settings = null
 ) {
-  const menu = new Menu();
-
-  menu.append(
-    new MenuItem({
-      label: "Copy Screenshot",
-      accelerator: "CmdOrCtrl+Shift+C",
-      click: () => {
-        displayWindow.webContents.send("copy-screenshot");
-      },
-    })
-  );
-  menu.append(
-    new MenuItem({
-      label: "Save Screenshot As...",
-      accelerator: "CmdOrCtrl+S",
-      click: () => {
-        displayWindow.webContents.send("save-screenshot");
-      },
-    })
-  );
-  menu.append(new MenuItem({ type: "separator" }));
-  menu.append(
-    new MenuItem({
+  const menuItems = [
+    MenuItems.copyScreenshot(displayWindow),
+    MenuItems.saveScreenshot(displayWindow),
+    MenuItems.separator(),
+    {
+      ...MenuItems.startRecording(displayWindow, !isCurrentlyRecording),
       id: "start-recording-ctx",
-      label: "Start Recording",
-      accelerator: "CmdOrCtrl+Shift+R",
-      enabled: !isCurrentlyRecording,
-      click: () => {
-        displayWindow.webContents.send("start-recording");
-      },
-    })
-  );
-  menu.append(
-    new MenuItem({
-      id: "stop-recording-ctx",
-      label: "Stop Recording",
-      accelerator: "CmdOrCtrl+Shift+S",
-      enabled: isCurrentlyRecording,
-      click: () => {
-        displayWindow.webContents.send("stop-recording");
-      },
-    })
-  );
-  menu.append(new MenuItem({ type: "separator" }));
-  menu.append(
-    new MenuItem({
-      label: "Paste Text",
-      accelerator: "CmdOrCtrl+V",
-      click: () => {
-        displayWindow.webContents.send("handle-paste");
-      },
-    })
-  );
-  menu.append(new MenuItem({ type: "separator" }));
-  menu.append(
-    new MenuItem({
-      label: "Toggle Fullscreen",
-      accelerator: fullscreenAcc,
-      click: () => {
-        toggleFullScreen(displayWindow);
-      },
-    })
-  );
-  menu.append(
-    new MenuItem({
-      label: "Hide Screen",
-      click: () => {
-        displayWindow.hide();
-      },
-    })
-  );
-  appendCaptureDevicesMenu(menu, mainWindow, captureDevices, settings);
-  menu.append(new MenuItem({ type: "separator" }));
-  menu.append(
-    new MenuItem({
-      label: "Settings...",
-      accelerator: "CmdOrCtrl+,",
-      click: () => {
-        mainWindow.webContents.send("open-display-tab");
-        mainWindow.show();
-      },
-    })
-  );
-  menu.append(new MenuItem({ type: "separator" }));
-  menu.append(
-    new MenuItem({
-      label: "Keyboard Control Help",
-      click: () => {
-        shell.openExternal(`${packageInfo.repository.url}/blob/main/docs/key-mappings.md`);
-      },
-    })
-  );
-  menu.append(
-    new MenuItem({
-      label: "Developer Tools",
-      accelerator: devToolsAccelerator,
-      click: (_, window) => {
-        openDevTools(window);
-      },
-    })
-  );
+    },
+    { ...MenuItems.stopRecording(displayWindow, isCurrentlyRecording), id: "stop-recording-ctx" },
+    MenuItems.separator(),
+    MenuItems.pasteText(displayWindow),
+    MenuItems.separator(),
+    MenuItems.toggleFullscreen(displayWindow),
+    MenuItems.hideScreen(displayWindow),
+  ];
 
-  menu.append(new MenuItem({ type: "separator" }));
-  menu.append(new MenuItem({ role: "quit" }));
+  const menu = Menu.buildFromTemplate(menuItems);
+
+  // Add capture devices menu
+  appendCaptureDevicesMenu(menu, mainWindow, captureDevices, settings);
+
+  // Add remaining menu items
+  const additionalItems = [
+    new MenuItem(MenuItems.separator()),
+    new MenuItem(MenuItems.settings(mainWindow)),
+    new MenuItem(MenuItems.separator()),
+    new MenuItem(HelpMenuItems.reportBug(packageInfo)),
+    new MenuItem(MenuItems.separator()),
+    new MenuItem(HelpMenuItems.documentation(packageInfo)),
+    new MenuItem(HelpMenuItems.keyboardControl(packageInfo)),
+    new MenuItem(MenuItems.devTools(displayWindow)),
+    new MenuItem(MenuItems.separator()),
+    new MenuItem({ role: "quit" }),
+  ];
+
+  additionalItems.forEach((item) => menu.append(item));
 
   return menu;
 }
@@ -662,7 +566,7 @@ function getTray() {
 }
 
 module.exports = {
-  createMenu,
+  createMacOSMenu,
   updateAlwaysOnTopMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
