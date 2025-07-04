@@ -164,8 +164,8 @@ function createDisplayWindow() {
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
 
-  // This is a workaround for the issue where frameless windows on Windows 11 show a title bar
-  // when the window loses focus.
+  // This is a workaround for the issue where frameless windows on Windows 11
+  // show a title bar when the window loses focus.
   if (isWindows) {
     win.on("blur", () => {
       win.setBackgroundColor("#00000000");
@@ -236,6 +236,16 @@ app.whenReady().then(async () => {
     createMacOSMenu(mainWindow, displayWindow, packageInfo);
     // Ensure menu reflects the correct always on top state from settings
     updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
+  }
+
+  // This is a workaround for the issue where frameless windows on Windows 11
+  // show a title bar when the window loses focus.
+  function resetFramelessWindow() {
+    if (isWindows) {
+      setTimeout(() => {
+        displayWindow?.setBackgroundColor("#00000000");
+      }, 1000);
+    }
   }
 
   // Initialize dock/tray mode based on user setting (both macOS and Windows)
@@ -525,6 +535,7 @@ app.whenReady().then(async () => {
   };
 
   ipcMain.handle("select-adb-path", async () => {
+    resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
       filters: [{ name: "Executables", extensions: ["exe", "bat", "sh", ""] }],
@@ -540,6 +551,7 @@ app.whenReady().then(async () => {
 
   // Generic directory selection handler
   const createDirectorySelector = (title) => async () => {
+    resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openDirectory"],
       title: title,
@@ -557,6 +569,7 @@ app.whenReady().then(async () => {
   );
 
   ipcMain.handle("load-image", async () => {
+    resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
       filters: [{ name: "Images", extensions: ["jpg", "png", "webp"] }],
@@ -636,6 +649,7 @@ app.whenReady().then(async () => {
 
   // Handler for showing message box dialogs
   ipcMain.handle("show-message-box", async (event, options) => {
+    resetFramelessWindow();
     const result = await dialog.showMessageBox(mainWindow, options);
     return result;
   });
@@ -651,7 +665,7 @@ app.whenReady().then(async () => {
       const defaultPath = settings.files?.recordingPath
         ? path.join(settings.files.recordingPath, filename)
         : path.join(os.homedir(), isMacOS ? "Movies" : "Videos", filename);
-
+      resetFramelessWindow();
       const result = await dialog.showSaveDialog(displayWindow, {
         title: "Save Video Recording",
         defaultPath: defaultPath,
@@ -704,7 +718,7 @@ app.whenReady().then(async () => {
       const defaultPath = settings.files?.screenshotPath
         ? path.join(settings.files.screenshotPath, filename)
         : path.join(os.homedir(), "Pictures", filename);
-
+      resetFramelessWindow();
       const result = await dialog.showSaveDialog(displayWindow, {
         title: "Save Screenshot",
         defaultPath: defaultPath,
