@@ -705,6 +705,21 @@ app.whenReady().then(async () => {
     return getUpdateStatus();
   });
 
+  ipcMain.handle("debug-check-for-updates", async () => {
+    try {
+      const { simpleDebugCheck } = require('./debug-updater');
+      const result = simpleDebugCheck();
+      return result;
+    } catch (error) {
+      console.error("Debug check error:", error);
+      return {
+        success: false,
+        error: error.message || "Unknown error occurred",
+        stack: error.stack
+      };
+    }
+  });
+
   ipcMain.handle("install-update", async () => {
     installUpdate();
   });

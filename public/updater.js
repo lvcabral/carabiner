@@ -10,6 +10,16 @@
 const { autoUpdater } = require("electron-updater");
 const { dialog, BrowserWindow } = require("electron");
 
+// Configure auto-updater
+autoUpdater.setFeedURL({
+  provider: "github",
+  owner: "lvcabral",
+  repo: "carabiner",
+});
+
+// Auto-updater will only work in packaged apps by default
+// For development testing, use the debug-updater.js or npm run debug-updater
+
 let updateAvailable = false;
 let updateDownloaded = false;
 

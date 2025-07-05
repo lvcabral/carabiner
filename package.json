@@ -29,6 +29,7 @@
     "@testing-library/user-event": "^13.5.0",
     "auto-launch": "^5.0.6",
     "bootstrap": "5.1.3",
+    "electron-log": "^5.4.1",
     "electron-squirrel-startup": "^1.0.0",
     "electron-updater": "^6.6.2",
     "react": "^17.0.2",
@@ -49,7 +50,10 @@
     "publish": "electron-forge publish",
     "make:mac": "npm run make -- --platform=darwin --arch=universal",
     "make:all": "npm run make -- --platform=darwin --arch=universal && npm run make -- --platform=win32 --arch=x64 && npm run make -- --platform=linux --arch=x64",
-    "release": "npm run build && npm run make:all && npm run publish"
+    "generate-yml": "node scripts/generate-yml.js",
+    "upload-yml": "node scripts/upload-yml.js",
+    "debug": "npm run build && ELECTRON_IS_DEV=1 npm run electron",
+    "debug-updater": "npm run build && ELECTRON_UPDATER_DEV=1 npm run electron",
   },
   "eslintConfig": {
     "extends": [

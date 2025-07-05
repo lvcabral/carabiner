@@ -5,6 +5,8 @@ module.exports = {
     name: "Carabiner",
     icon: "./images/icon",
     asar: true,
+    appBundleId: "com.lvcabral.carabiner",
+    appCategoryType: "public.app-category.utilities",
     osxSign: {},
     osxNotarize: {
       appleId: process.env.APPLE_ID,

@@ -1,0 +1,4 @@
+owner: lvcabral
+repo: carabiner
+provider: github
+updaterCacheDirName: carabiner-updater
