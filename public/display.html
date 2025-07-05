@@ -26,6 +26,10 @@
             .recording-active {
                 animation: recording-pulse 2s infinite !important;
             }
+            /* Ensure Toastify toasts are clickable */
+            .toastify {
+                -webkit-app-region: no-drag;
+            }
         </style>
         <link href="../node_modules/toastify-js/src/toastify.css" rel="stylesheet" />
     </head>

@@ -240,6 +240,9 @@ async function getCaptureDeviceLabel(deviceId) {
 }
 
 window.addEventListener("DOMContentLoaded", function () {
+  // Ensure the display window gets focus when it loads
+  window.focus();
+
   navigator.mediaDevices.enumerateDevices().then((devices) => {
     const capture = devices.filter((device) => device.kind === "videoinput");
     if (capture?.length) {
@@ -441,7 +444,14 @@ window.addEventListener("DOMContentLoaded", function () {
             );
 
             if (result.success) {
-              showToast(`Screenshot saved to ${result.filePath}`, 3000);
+              showToast(
+                `Screenshot saved as ${filename}. Click to open containing folder.`,
+                5000,
+                false,
+                () => {
+                  window.electronAPI.invoke("open-containing-folder", result.filePath);
+                }
+              );
             } else if (!result.canceled) {
               showToast("Failed to save screenshot", 3000, true);
             }
@@ -613,8 +623,14 @@ window.addEventListener("DOMContentLoaded", function () {
       const result = await window.electronAPI.invoke("save-video-dialog", filename, bufferData);
 
       if (result.success) {
-        const savedFilename = result.filePath.split(/[\\/]/).pop(); // Extract filename from path
-        showToast(`Recording saved as ${savedFilename}`);
+        showToast(
+          `Recording saved as ${filename}. Click to open containing folder.`,
+          5000,
+          false,
+          () => {
+            window.electronAPI.invoke("open-containing-folder", result.filePath);
+          }
+        );
         console.debug("[Carabiner] Recording saved:", result.filePath);
       } else if (result.canceled) {
         // User canceled - don't show any message
@@ -956,7 +972,7 @@ function isValidIP(ip) {
 }
 
 // Shows a Toast message on the Window
-function showToast(message, duration = 3000, error = false) {
+function showToast(message, duration = 3000, error = false, onClick = null) {
   try {
     let style = null;
     if (error) {
@@ -965,16 +981,24 @@ function showToast(message, duration = 3000, error = false) {
         background: "#b61717",
       };
     }
-    Toastify({
+
+    const toastConfig = {
       text: message,
       duration: duration,
       close: false,
       gravity: "bottom",
       position: "center",
-      stopOnFocus: true,
+      stopOnFocus: false,
       style: style,
-    }).showToast();
+    };
+
+    // Add onClick handler if provided
+    if (onClick && typeof onClick === "function") {
+      toastConfig.onClick = onClick;
+    }
+    const toastInstance = Toastify(toastConfig);
+    toastInstance.showToast();
   } catch (error) {
-    console.error("Error showing toast: ", error.message);
+    console.error("Error showing toast:", error.message);
   }
 }

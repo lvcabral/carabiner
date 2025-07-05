@@ -18,6 +18,7 @@ const {
   systemPreferences,
   globalShortcut,
   screen,
+  shell,
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
@@ -783,4 +784,15 @@ ipcMain.on("save-recording-path", (event, recordingPath) => {
   }
   settings.files.recordingPath = recordingPath;
   saveSettings(settings);
+});
+
+// Handler for opening folder containing file
+ipcMain.handle("open-containing-folder", async (event, filePath) => {
+  try {
+    shell.showItemInFolder(filePath);
+    return { success: true };
+  } catch (error) {
+    console.error("Error opening containing folder:", error);
+    return { success: false, error: error.message };
+  }
 });
