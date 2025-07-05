@@ -240,6 +240,9 @@ async function getCaptureDeviceLabel(deviceId) {
 }
 
 window.addEventListener("DOMContentLoaded", function () {
+  // Ensure the display window gets focus when it loads
+  window.focus();
+
   navigator.mediaDevices.enumerateDevices().then((devices) => {
     const capture = devices.filter((device) => device.kind === "videoinput");
     if (capture?.length) {
