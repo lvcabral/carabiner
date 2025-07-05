@@ -53,7 +53,7 @@
     "generate-yml": "node scripts/generate-yml.js",
     "upload-yml": "node scripts/upload-yml.js",
     "debug": "npm run build && ELECTRON_IS_DEV=1 npm run electron",
-    "debug-updater": "npm run build && ELECTRON_UPDATER_DEV=1 npm run electron",
+    "debug-updater": "npm run build && ELECTRON_UPDATER_DEV=1 npm run electron"
   },
   "eslintConfig": {
     "extends": [
