@@ -47,7 +47,9 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "make:mac": "npm run make -- --platform=darwin --arch=universal"
+    "make:mac": "npm run make -- --platform=darwin --arch=universal",
+    "make:all": "npm run make -- --platform=darwin --arch=universal && npm run make -- --platform=win32 --arch=x64 && npm run make -- --platform=linux --arch=x64",
+    "release": "npm run build && npm run make:all && npm run publish"
   },
   "eslintConfig": {
     "extends": [
@@ -71,6 +73,7 @@
     "@electron-forge/maker-dmg": "^7.7.0",
     "@electron-forge/maker-rpm": "^7.7.0",
     "@electron-forge/maker-squirrel": "^7.7.0",
+    "@electron-forge/maker-zip": "^7.8.1",
     "@electron-forge/publisher-github": "^7.8.1",
     "dotenv": "^16.4.7",
     "electron": "^36.0.0"

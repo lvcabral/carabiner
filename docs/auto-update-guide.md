@@ -2,6 +2,50 @@
 
 This document explains how to set up and use the auto-update feature in Carabiner.
 
+## 🚨 IMPORTANT: Missing Update Metadata Files
+
+**If auto-updates aren't working, it's likely because the required `.yml` metadata files are missing from your GitHub releases.**
+
+### The Problem
+The auto-update feature wasn't working because the required metadata files (`latest.yml`, `latest-mac.yml`, etc.) were missing from GitHub releases.
+
+### The Solution ✅
+Updated forge.config.js to properly generate auto-update metadata files:
+
+1. **Added `remoteReleases: true`** to squirrel maker (Windows)
+2. **Added `@electron-forge/maker-zip`** for macOS auto-updates  
+3. **Changed publisher config**: `draft: false` (was previously `true`)
+4. **Added `generateReleaseNotes: true`**
+
+## 🚀 Proper Release Process
+
+### Step 1: Install Missing Dependency
+```bash
+npm install --save-dev @electron-forge/maker-zip
+```
+
+### Step 2: Build and Publish
+```bash
+# Complete release workflow
+npm run release
+```
+
+### Step 3: Verify Release Assets
+After publishing, your GitHub release should include:
+
+**Windows:**
+- `Carabiner-1.1.0 Setup.exe`
+- `latest.yml` ← **This was missing!**
+
+**macOS:**
+- `Carabiner-1.1.0-darwin-universal.dmg`
+- `Carabiner-1.1.0-darwin-universal-mac.zip`
+- `latest-mac.yml` ← **This was missing!**
+
+**Linux:**
+- `carabiner_1.1.0_amd64.deb`
+- `latest-linux.yml` ← **This was missing!**
+
 ## How Auto-Update Works
 
 The auto-update system uses `electron-updater` with GitHub releases to automatically deliver updates to users.

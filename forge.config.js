@@ -18,6 +18,8 @@ module.exports = {
       name: "@electron-forge/maker-squirrel",
       config: {
         setupIcon: "./images/icon.ico",
+        // Enable auto-update metadata generation for Windows
+        remoteReleases: true,
       },
     },
     {
@@ -26,6 +28,13 @@ module.exports = {
         icon: "./images/icon.icns",
         background: "./images/dmg-background.png",
         format: "ULFO",
+      },
+    },
+    {
+      name: "@electron-forge/maker-zip",
+      platforms: ["darwin"],
+      config: {
+        // Enable auto-update metadata generation for macOS
       },
     },
     {
@@ -48,7 +57,8 @@ module.exports = {
           name: "carabiner",
         },
         prerelease: false,
-        draft: true,
+        draft: false, // Changed from true to false for auto-updates to work
+        generateReleaseNotes: true,
       },
     },
   ],
