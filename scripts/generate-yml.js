@@ -134,20 +134,17 @@ function generateLinuxYml() {
   const version = packageJson.version;
   const outDir = path.join(__dirname, "../out/make");
 
-  // Look for the Linux package (AppImage, DEB, or RPM)
+  // Look for the Linux package (DEB)
   const linuxFiles = fs
     .readdirSync(outDir)
-    .filter((file) => 
-      (file.endsWith(".AppImage") || file.endsWith(".deb") || file.endsWith(".rpm")) && 
-      file.includes(version)
-    );
+    .filter((file) => file.endsWith(".deb") && file.includes(version));
 
   if (linuxFiles.length === 0) {
     console.log("No Linux package found for version:", version);
     return;
   }
 
-  const linuxFile = linuxFiles[0]; // Take the first matching file (prefer AppImage, then DEB, then RPM)
+  const linuxFile = linuxFiles[0]; // Take the first matching file (DEB)
   const linuxPath = path.join(outDir, linuxFile);
 
   const hash = calculateFileHash(linuxPath);
