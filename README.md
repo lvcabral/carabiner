@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/carabiner-icon.png" height="125px" alt="Carabiner logo">
+  <img src="src/carabiner-icon.png" height="125px" alt="Carabiner logo" />
   <br><br>
   <a href="https://github.com/lvcabral/carabiner/releases/tag/1.1.0"><img src="https://img.shields.io/badge/Version-1.1.0-blue.svg" alt="Version 1.1.0" /></a>
   <img src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
@@ -68,9 +68,8 @@ We welcome contributions to make Carabiner better! Here's how you can help:
 
 ## Project Background
 
-<p align="center"><img src="./public/images/codefest-2024.webp" height="125px" alt="Code Fest">
-<img src="./public/images/network-streaming.png" height="125px" alt="Network Streaming">
-</p>
+<p align="center"><img src="./public/images/codefest-2024.webp" height="125px" alt="Code Fest" />
+<img src="./public/images/network-streaming.png" height="125px" alt="Network Streaming" /></p>
 
 **Carabiner** was created during the **Paramount Network Streaming - Code Fest 2024** and was selected as the **winning project**. The name was inspired by the essential tool used by mountain climbers – just as a carabiner connects climbers to their lifeline to reach the top, this app connects developers to their streaming devices.
 
