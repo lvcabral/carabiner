@@ -47,7 +47,7 @@
     "test": "react-scripts test",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "publish": "electron-forge publish",
+    "publish": "electron-forge publish && npm run generate-yml",
     "make:mac": "npm run make -- --platform=darwin --arch=universal",
     "make:all": "npm run make -- --platform=darwin --arch=universal && npm run make -- --platform=win32 --arch=x64 && npm run make -- --platform=linux --arch=x64",
     "generate-yml": "node scripts/generate-yml.js",
