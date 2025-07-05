@@ -56,6 +56,12 @@ Capture screenshots of your streaming display:
    - `Ctrl+Shift+C` (Windows/Linux) or `Cmd+Shift+C` (macOS) to copy the screenshot to the clipboard.
    - `Ctrl+S` (Windows/Linux) or `Cmd+S` (macOS) to save the screenshot as a file.
 
+**Interactive Save Notifications:**
+
+- After saving a screenshot, a toast notification appears showing the filename
+- **Click the toast notification** to instantly open the containing folder
+- The notification includes the text "Click to open containing folder" for guidance
+
 ### Video Recording
 
 Record your streaming device sessions (in MP4/WebM) for documentation, tutorials, or debugging:
@@ -79,8 +85,9 @@ Record your streaming device sessions (in MP4/WebM) for documentation, tutorials
 - **Visual Indicator**: Red pulsing indicator shows when recording is active
 - **Auto-Naming**: Files are automatically named with timestamp (e.g., `carabiner-recording-2025-07-01-143052.mp4`)
 - **Smart Saving**: Choose save location through system dialog
+- **Interactive Save Notifications**: Click the toast notification after saving to open the containing folder
 
-> **💡 Tip**: Recordings capture exactly what you see in the display window, including any overlay images. Perfect for creating tutorials or documenting app behavior!
+> **💡 Tip**: Recordings capture what you see in the display window, perfect for creating tutorials or documenting app behavior! After saving, click the toast notification to quickly navigate to your saved file.
 
 ### Overlay Images
 
@@ -91,6 +98,31 @@ Load reference images for design comparison:
 3. Adjust opacity as needed
 4. Perfect for achieving pixel-perfect UI designs
 5. A list of recent images is available for quick access
+
+### File Management
+
+The **Files** tab in settings allows you to configure default save locations for your captured content:
+
+#### Default Save Locations
+
+1. **Screenshot Path Configuration**:
+   - Set a custom default folder for saving screenshots
+   - If no custom path is set, screenshots save to the Pictures folder
+   - Use the "⋯" button to browse and select a folder
+   - Use the "↺" button to reset to default location
+
+2. **Video Recording Path Configuration**:
+   - Set a custom default folder for saving video recordings
+   - If no custom path is set, recordings save to the Movies folder (macOS) or Videos folder (Windows/Linux)
+   - Use the "⋯" button to browse and select a folder
+   - Use the "↺" button to reset to default location
+
+3. **Path Management**:
+   - Both paths are optional - leaving them empty uses system defaults
+   - Custom paths are remembered between application sessions
+   - Folders must be accessible and writable for successful saves
+
+> **💡 Tip**: Setting custom default save locations helps organize your captures and ensures they're saved exactly where you want them, eliminating the need to navigate to your preferred folder every time!
 
 ## Configuration Options
 

@@ -2,7 +2,7 @@
   "name": "carabiner",
   "productName": "Carabiner",
   "description": "Screen Capture and Remote Control for Streaming Devices",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "public/main.js",
   "license": "MIT",
   "author": {

@@ -12,10 +12,11 @@ The main settings interface provides comprehensive configuration options across 
 
 **Features shown:**
 
-- **Tabbed Interface**: General, Display, Control, Overlay, and About tabs
+- **Tabbed Interface**: General, Display, Control, Overlay, Files, and About tabs
 - **Device Configuration**: Video capture device selection and streaming device management
 - **Display Controls**: Resolution settings, transparency slider, and window behavior options
 - **Overlay Management**: Image overlay functionality with recent files list
+- **Default Save Locations**: Files tab for configuring custom screenshot and recording save paths
 - **Clean Design**: Modern Bootstrap-based interface with dark mode support
 
 ### Display Window Menu

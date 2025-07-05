@@ -1,7 +1,7 @@
 <p align="center">
   <img src="src/carabiner-icon.png" height="125px" alt="Carabiner logo">
   <br><br>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.0.0"><img src="https://img.shields.io/badge/Version-1.0.0-blue.svg" alt="Version 1.0.0" /></a>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.1.0"><img src="https://img.shields.io/badge/Version-1.1.0-blue.svg" alt="Version 1.1.0" /></a>
   <img src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
@@ -35,6 +35,8 @@ Perfect for developers and QA engineers who need to test streaming applications 
 - **Auto-Launch**: Start with your system for seamless workflow
 - **Resolution Control**: Configure capture device resolution
 - **Dark Mode Support**: Allows to switch the settings interface to dark mode
+- **Default Save Locations**: Configure custom default folders for screenshots and recordings in the Files tab
+- **Interactive Notifications**: Click toast notifications to open saved file locations instantly
 
 ## Quick Start
 
