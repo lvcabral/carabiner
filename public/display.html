@@ -13,18 +13,25 @@
                 background: transparent;
                 -webkit-app-region: drag;
             }
-            
+
             body {
                 overflow: hidden;
                 font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Oxygen",
                     "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
             }
-            
+
             /* Windows specific border removal */
             * {
                 box-sizing: border-box;
             }
-            
+
+            /* Remove borders from overlay image on Windows 11 */
+            #overlay-image {
+                border: none !important;
+                outline: none !important;
+                box-shadow: none !important;
+            }
+
             .interactive {
                 -webkit-app-region: no-drag;
             }
