@@ -24,6 +24,9 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
 
+// Device monitoring variables
+let currentDeviceList = [];
+
 // Load settings from main process
 window.electronAPI.invoke("load-settings").then(async (settings) => {
   if (settings.control && settings.control.deviceId) {
@@ -205,7 +208,7 @@ function renderDisplay(constraints) {
       currentConstraints = constraints;
     })
     .catch((err) => {
-      console.log(err.name + ": " + err.message);
+      console.debug(err.name + ": " + err.message);
       showToast("Error loading capture devices!", 5000, true);
       videoState = "stopped";
     });
@@ -225,6 +228,9 @@ function stopVideoStream() {
     videoPlayer.srcObject = null;
   }
   videoState = "stopped";
+
+  // Clear device label when stream stops
+  deviceLabel.textContent = "";
 }
 
 async function getCaptureDeviceLabel(deviceId) {
@@ -247,8 +253,13 @@ window.addEventListener("DOMContentLoaded", function () {
   // Ensure the display window gets focus when it loads
   window.focus();
 
+  // Setup device monitoring
+  setupDeviceMonitoring();
+
   navigator.mediaDevices.enumerateDevices().then((devices) => {
     const capture = devices.filter((device) => device.kind === "videoinput");
+    currentDeviceList = [...capture]; // Initialize current device list
+
     if (capture?.length) {
       window.electronAPI.sendSync("shared-window-channel", {
         type: "set-capture-devices",
@@ -419,7 +430,7 @@ window.addEventListener("DOMContentLoaded", function () {
         })
         .catch((err) => {
           showToast("Error copying screenshot to clipboard!", 5000, true);
-          console.log(`error copying screenshot to clipboard: ${err.message}`);
+          console.debug(`error copying screenshot to clipboard: ${err.message}`);
         });
     });
   }
@@ -508,7 +519,7 @@ window.addEventListener("DOMContentLoaded", function () {
   // Video Recording Functions
   function handleStartRecording() {
     if (isRecording || !videoPlayer.srcObject) {
-      console.log("[Carabiner] Cannot start recording: already recording or no video stream");
+      console.debug("[Carabiner] Cannot start recording: already recording or no video stream");
       return;
     }
 
@@ -766,6 +777,29 @@ window.addEventListener("DOMContentLoaded", function () {
   // Handle Recording Requests
   window.electronAPI.onMessageReceived("start-recording", handleStartRecording);
   window.electronAPI.onMessageReceived("stop-recording", handleStopRecording);
+
+  // Start device monitoring
+  setupDeviceMonitoring();
+});
+
+// Handle window lifecycle events
+window.addEventListener("beforeunload", () => {
+  // Cleanup is handled automatically by the browser
+});
+
+window.addEventListener("unload", () => {
+  // Cleanup is handled automatically by the browser
+});
+
+// Handle window focus events to refresh device list
+window.addEventListener("focus", async () => {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const captureDevices = devices.filter((device) => device.kind === "videoinput");
+    updateCaptureDeviceList(captureDevices);
+  } catch (error) {
+    console.error("[Carabiner] Error refreshing devices on focus:", error);
+  }
 });
 
 // Video Events
@@ -1006,3 +1040,96 @@ function showToast(message, duration = 3000, error = false, onClick = null) {
     console.error("Error showing toast:", error.message);
   }
 }
+
+// Monitor device changes using Chrome's native devicechange event
+function setupDeviceMonitoring() {
+  navigator.mediaDevices.addEventListener("devicechange", async () => {
+    // Small delay to ensure device enumeration is stable
+    setTimeout(async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const captureDevices = devices.filter((device) => device.kind === "videoinput");
+        updateCaptureDeviceList(captureDevices);
+      } catch (error) {
+        console.error("[Carabiner] Error handling device change:", error);
+      }
+    }, 500);
+  });
+  console.debug("[Carabiner] Device monitoring enabled using native devicechange events");
+}
+
+function updateCaptureDeviceList(captureDevices) {
+  const previousCount = currentDeviceList.length;
+  const newCount = captureDevices.length;
+  const currentDeviceId =
+    currentConstraints?.video?.deviceId?.exact || currentConstraints?.video?.deviceId;
+  const currentDeviceStillExists = captureDevices.find((d) => d.deviceId === currentDeviceId);
+
+  // Log significant device changes
+  if (newCount > previousCount) {
+    console.debug(
+      `[Carabiner] ${newCount - previousCount} capture device(s) connected (total: ${newCount})`
+    );
+  } else if (newCount < previousCount) {
+    console.debug(
+      `[Carabiner] ${previousCount - newCount} capture device(s) disconnected (total: ${newCount})`
+    );
+  }
+
+  // Update the current device list
+  currentDeviceList = [...captureDevices];
+
+  // Always notify main process of device changes to keep menus updated
+  window.electronAPI.sendSync("shared-window-channel", {
+    type: "set-capture-devices",
+    payload: JSON.stringify(captureDevices),
+  });
+
+  // Only update UI elements when necessary to prevent screen flash
+  let shouldUpdateUI = false;
+
+  // Handle device list updates
+  if (captureDevices.length === 0) {
+    // No devices available
+    overlayImage.style.opacity = "1";
+    overlayImage.src = "images/no-capture-device.png";
+    showToast("No capture devices available!", 5000, true);
+
+    // Stop current video stream if no devices
+    if (videoState !== "stopped") {
+      stopVideoStream();
+    }
+    shouldUpdateUI = true;
+  } else {
+    // Devices available
+    if (overlayImage.src.includes("no-capture-device.png")) {
+      overlayImage.style.opacity = "0";
+      overlayImage.src = "";
+    }
+
+    // Check if current device is still available
+    if (currentDeviceId && !currentDeviceStillExists && videoState !== "stopped") {
+      // Current device was disconnected, stop stream and update UI
+      stopVideoStream();
+      showToast("Current capture device was disconnected!", 3000, true);
+      shouldUpdateUI = true;
+    } else if (newCount > previousCount) {
+      // New device connected - show toast but don't update UI to avoid flash
+      showToast(`New capture device connected: ${captureDevices.length} device(s) available`);
+      // Only update UI if this is the first device (going from 0 to 1+)
+      shouldUpdateUI = previousCount === 0;
+    } else if (newCount < previousCount && currentDeviceId && currentDeviceStillExists) {
+      // Device was removed but current device is still available - show toast but don't refresh UI
+      showToast(`Capture device disconnected: ${captureDevices.length} device(s) remaining`);
+      // Don't update UI to avoid flash
+      shouldUpdateUI = false;
+    } else if (newCount < previousCount) {
+      // Device was removed and we need to update (either no current device or current was removed)
+      shouldUpdateUI = true;
+    }
+  }
+
+  // Note: Main process has already been notified above to keep menus updated
+  // UI updates are handled separately to prevent unnecessary display refreshes
+}
+
