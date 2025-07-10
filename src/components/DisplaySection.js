@@ -63,6 +63,7 @@ function DisplaySection() {
     height: 1080,
   }); // Default fallback - largest monitor size
 
+  // Load initial data once
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -121,7 +122,10 @@ function DisplaySection() {
     };
 
     loadData();
+  }, []); // Only run once on mount
 
+  // Set up event listeners with current mainDisplaySize values
+  useEffect(() => {
     // Listen for window resize events to automatically set to "Custom"
     const handleWindowResize = (_, message) => {
       if (message.type === "window-resized") {
@@ -137,10 +141,12 @@ function DisplaySection() {
       }
     };
 
-    window.electronAPI.onMessageReceived("shared-window-channel", handleWindowResize);
-    window.electronAPI.onMessageReceived("update-always-on-top", (event, value) => {
+    const handleAlwaysOnTopUpdate = (event, value) => {
       setAlwaysOnTop(value);
-    });
+    };
+
+    window.electronAPI.onMessageReceived("shared-window-channel", handleWindowResize);
+    window.electronAPI.onMessageReceived("update-always-on-top", handleAlwaysOnTopUpdate);
 
     return () => {
       // Cleanup listeners if needed
@@ -151,7 +157,7 @@ function DisplaySection() {
         console.warn("Error cleaning up event listeners:", error);
       }
     };
-  }, [mainDisplaySize.height, mainDisplaySize.width]);
+  }, [mainDisplaySize.height, mainDisplaySize.width]); // Re-run when mainDisplaySize changes
 
   const handleWidthChange = (event) => {
     setBorderWidth(event.target.value);

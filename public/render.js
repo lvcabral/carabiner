@@ -19,6 +19,10 @@ let videoState = "stopped";
 let resizeTimeout;
 let audioEnabled = false;
 
+// Overlay image setup
+overlayImage.src = "";
+overlayImage.style.display = "none";
+
 // Video recording variables
 let mediaRecorder = null;
 let recordedChunks = [];

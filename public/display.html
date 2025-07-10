@@ -4,12 +4,27 @@
         <meta charset="UTF-8" />
         <title>Video Capture</title>
         <style>
+            /* Remove any system borders on Windows 11 */
+            html, body {
+                margin: 0;
+                padding: 0;
+                border: none;
+                outline: none;
+                background: transparent;
+                -webkit-app-region: drag;
+            }
+
             body {
                 overflow: hidden;
                 font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Oxygen",
                     "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-                -webkit-app-region: drag;
             }
+
+            /* Windows specific border removal */
+            * {
+                box-sizing: border-box;
+            }
+
             .interactive {
                 -webkit-app-region: no-drag;
             }

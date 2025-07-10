@@ -147,7 +147,9 @@ function createDisplayWindow() {
       .split("|")
       .map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
   }
-  const win = createWindow("displayWindow", {
+  
+  // Windows 11 specific configuration to remove the 1-pixel border
+  const windowOptions = {
     width: lastSize[0] ?? 500,
     height: lastSize[1] ?? 290,
     minWidth: 500,
@@ -159,21 +161,84 @@ function createDisplayWindow() {
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: true,
+      backgroundThrottling: false,
+    },
+  };
+
+  // Additional Windows-specific options to remove the border completely
+  if (isWindows) {
+    windowOptions.thickFrame = false;
+    windowOptions.titleBarOverlay = false;
+    // Windows 11 specific options
+    windowOptions.roundedCorners = false;
+    windowOptions.shadow = false;
+  }
+
+  // Create window directly instead of using createWindow wrapper to avoid webPreferences conflicts
+  const windowState = settings["displayWindow"] || {
+    width: windowOptions.width,
+    height: windowOptions.height,
+    x: undefined,
+    y: undefined,
+  };
+  if (windowState.width < windowOptions.minWidth) {
+    windowState.width = windowOptions.minWidth;
+  }
+  if (windowState.height < windowOptions.minHeight) {
+    windowState.height = windowOptions.minHeight;
+  }
+
+  const win = new BrowserWindow({
+    ...windowOptions,
+    ...windowState,
+    show: false, // Always start hidden for Windows 11 fix
   });
+
   if (isMacOS) win.setWindowButtonVisibility(false);
   win.loadFile("public/display.html");
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
 
   // This is a workaround for the issue where frameless windows on Windows 11
-  // show a title bar when the window loses focus.
+  // show a title bar when the window loses focus and removes the 1-pixel border.
   if (isWindows) {
+    // Apply Windows 11 specific fixes after the window is ready
+    win.once("ready-to-show", () => {
+      // Force transparent background and remove any system borders
+      win.setBackgroundColor("#00000000");
+      
+      // Show the window after applying the background
+      if (settings.display?.visible !== false) {
+        win.show();
+      }
+    });
+
     win.on("blur", () => {
       win.setBackgroundColor("#00000000");
     });
 
     win.on("focus", () => {
       win.setBackgroundColor("#00000000");
+    });
+
+    // Additional event to ensure border stays removed
+    win.on("show", () => {
+      win.setBackgroundColor("#00000000");
+    });
+
+    // Force background update when window is restored from minimized state
+    win.on("restore", () => {
+      win.setBackgroundColor("#00000000");
+    });
+  } else {
+    // For non-Windows platforms, show normally after ready
+    win.once("ready-to-show", () => {
+      if (settings.display?.visible !== false) {
+        win.show();
+      }
     });
   }
 
@@ -305,10 +370,17 @@ app.whenReady().then(async () => {
         payload: { width, height },
       });
     });
-  } else if (isWindows) {
+  } else {
+    // Listen for display window resize events on Windows and Linux
     displayWindow.on("resize", () => {
       if (!isTogglingFullscreen()) {
         resetFullscreenVars();
+        // Send resize notification to main window (same as macOS)
+        const [width, height] = displayWindow.getSize();
+        mainWindow.webContents?.send("shared-window-channel", {
+          type: "window-resized",
+          payload: { width, height },
+        });
       }
     });
   }
