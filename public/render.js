@@ -791,17 +791,6 @@ window.addEventListener("unload", () => {
   // Cleanup is handled automatically by the browser
 });
 
-// Handle window focus events to refresh device list
-window.addEventListener("focus", async () => {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const captureDevices = devices.filter((device) => device.kind === "videoinput");
-    updateCaptureDeviceList(captureDevices);
-  } catch (error) {
-    console.error("[Carabiner] Error refreshing devices on focus:", error);
-  }
-});
-
 // Video Events
 videoPlayer.addEventListener("loadstart", () => {
   videoState = "loading";
@@ -1042,10 +1031,16 @@ function showToast(message, duration = 3000, error = false, onClick = null) {
 }
 
 // Monitor device changes using Chrome's native devicechange event
+let deviceChangeTimeout;
+const DEVICE_CHANGE_DEBOUNCE_DELAY = 250; // Debounce device changes to prevent cascading updates
+
 function setupDeviceMonitoring() {
   navigator.mediaDevices.addEventListener("devicechange", async () => {
-    // Small delay to ensure device enumeration is stable
-    setTimeout(async () => {
+    // Clear any existing timeout to debounce rapid device changes
+    clearTimeout(deviceChangeTimeout);
+
+    // Small delay to ensure device enumeration is stable and prevent cascading updates
+    deviceChangeTimeout = setTimeout(async () => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const captureDevices = devices.filter((device) => device.kind === "videoinput");
@@ -1053,7 +1048,7 @@ function setupDeviceMonitoring() {
       } catch (error) {
         console.error("[Carabiner] Error handling device change:", error);
       }
-    }, 500);
+    }, DEVICE_CHANGE_DEBOUNCE_DELAY);
   });
   console.debug("[Carabiner] Device monitoring enabled using native devicechange events");
 }
@@ -1064,6 +1059,19 @@ function updateCaptureDeviceList(captureDevices) {
   const currentDeviceId =
     currentConstraints?.video?.deviceId?.exact || currentConstraints?.video?.deviceId;
   const currentDeviceStillExists = captureDevices.find((d) => d.deviceId === currentDeviceId);
+
+  // Check if device list actually changed (same count and same device IDs)
+  if (previousCount === newCount) {
+    const previousIds = currentDeviceList.map((d) => d.deviceId).sort();
+    const newIds = captureDevices.map((d) => d.deviceId).sort();
+    const listsAreIdentical =
+      previousIds.length === newIds.length &&
+      previousIds.every((id, index) => id === newIds[index]);
+
+    if (listsAreIdentical) {
+      return; // No changes detected, skip update
+    }
+  }
 
   // Log significant device changes
   if (newCount > previousCount) {
@@ -1132,4 +1140,3 @@ function updateCaptureDeviceList(captureDevices) {
   // Note: Main process has already been notified above to keep menus updated
   // UI updates are handled separately to prevent unnecessary display refreshes
 }
-
