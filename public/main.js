@@ -370,8 +370,8 @@ app.whenReady().then(async () => {
         payload: { width, height },
       });
     });
-  } else if (isWindows) {
-    // Listen for display window resize events on Windows
+  } else {
+    // Listen for display window resize events on Windows and Linux
     displayWindow.on("resize", () => {
       if (!isTogglingFullscreen()) {
         resetFullscreenVars();
