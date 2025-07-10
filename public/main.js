@@ -371,9 +371,16 @@ app.whenReady().then(async () => {
       });
     });
   } else if (isWindows) {
+    // Listen for display window resize events on Windows
     displayWindow.on("resize", () => {
       if (!isTogglingFullscreen()) {
         resetFullscreenVars();
+        // Send resize notification to main window (same as macOS)
+        const [width, height] = displayWindow.getSize();
+        mainWindow.webContents?.send("shared-window-channel", {
+          type: "window-resized",
+          payload: { width, height },
+        });
       }
     });
   }
