@@ -350,6 +350,10 @@ app.whenReady().then(async () => {
         settings.display.transparency = arg.payload;
         saveFlag = true;
       }
+      // Show display window so user can see transparency changes
+      if (!displayWindow.isVisible()) {
+        displayWindow.show();
+      }
     } else if (arg.type && arg.type === "set-resolution") {
       let { width, height } = arg.payload;
       settings.display.resolution = `${width}|${height}`;
@@ -359,10 +363,22 @@ app.whenReady().then(async () => {
       lastSize = [width, height];
     } else if (arg.type && arg.type === "set-border-width") {
       settings.border.width = arg.payload;
+      // Show display window so user can see border changes
+      if (!displayWindow.isVisible()) {
+        displayWindow.show();
+      }
     } else if (arg.type && arg.type === "set-border-style") {
       settings.border.style = arg.payload;
+      // Show display window so user can see border changes
+      if (!displayWindow.isVisible()) {
+        displayWindow.show();
+      }
     } else if (arg.type && arg.type === "set-border-color") {
       settings.border.color = arg.payload;
+      // Show display window so user can see border changes
+      if (!displayWindow.isVisible()) {
+        displayWindow.show();
+      }
     } else if (arg.type && arg.type === "set-control-list") {
       const found = arg.payload.find((device) => device.id === settings.control.deviceId);
       if (!found) {
@@ -397,6 +413,10 @@ app.whenReady().then(async () => {
       saveFlag = false;
       const { width, height } = arg.payload;
       if (displayWindow && width && height) {
+        // Show display window so user can see size changes
+        if (!displayWindow.isVisible()) {
+          displayWindow.show();
+        }
         displayWindow.setSize(width, height);
         // Send resize notification back to display section
         mainWindow?.webContents?.send("shared-window-channel", {
@@ -435,6 +455,11 @@ app.whenReady().then(async () => {
   ipcMain.on("save-always-on-top", (event, alwaysOnTop) => {
     settings.display.alwaysOnTop = alwaysOnTop;
     saveSettings(settings);
+
+    // Show display window so user can see the always on top behavior change
+    if (!displayWindow.isVisible()) {
+      displayWindow.show();
+    }
 
     setAlwaysOnTop(alwaysOnTop, displayWindow);
 
