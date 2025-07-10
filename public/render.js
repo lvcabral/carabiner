@@ -142,7 +142,11 @@ async function updateAudioConstraints() {
 
         if (audioDevice) {
           currentConstraints.audio = {
-            deviceId: { exact: audioDevice.deviceId },
+            deviceId: {
+              exact: audioDevice.deviceId,
+            },
+            noiseSuppression: false,
+            echoCancellation: false,
           };
           console.debug(
             `[Carabiner] Found matching audio device: ${audioDevice.label} for video device: ${videoDevice.label}`
