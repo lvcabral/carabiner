@@ -124,7 +124,7 @@ const MenuItems = {
 
   hideScreen: (displayWindow) => ({
     label: "Hide Screen",
-    click: () => displayWindow?.hide(),
+    click: () => hideWindowSafely(displayWindow),
   }),
 
   showCarabiner: (displayWindow) => ({
@@ -198,7 +198,7 @@ const AppMenuItems = {
   closeWindow: () => ({
     label: "Close Window",
     accelerator: ACCELERATORS.closeWindow,
-    click: (_, window) => window?.hide(),
+    click: (_, window) => hideWindowSafely(window),
   }),
 };
 
@@ -535,6 +535,27 @@ function createContextMenu(
 let windowBoundsBeforeFullscreen = null; // Store window bounds for Windows fullscreen restoration
 let isTogglingFullscreen = false; // Flag to prevent app hiding during fullscreen transitions
 
+/**
+ * Safely hides a window, exiting fullscreen first if it's a display window in fullscreen
+ * @param {BrowserWindow} window - The window to hide
+ */
+function hideWindowSafely(window) {
+  if (window && window.webContents.getURL().includes("display.html") && window.isFullScreen()) {
+    // If display window in fullscreen, exit fullscreen first, then hide
+    const onceLeaveFullScreen = () => {
+      window.removeListener('leave-full-screen', onceLeaveFullScreen);
+      window.hide();
+      resetFullscreenVars();
+    };
+    
+    window.once('leave-full-screen', onceLeaveFullScreen);
+    window.setFullScreen(false);
+  } else {
+    // Normal hide for other windows or non-fullscreen display window
+    window?.hide();
+  }
+}
+
 function toggleFullScreen(displayWindow) {
   if (!displayWindow) {
     return;
@@ -609,4 +630,5 @@ module.exports = {
   isTogglingFullscreen: () => isTogglingFullscreen,
   resetFullscreenVars,
   openDevTools,
+  hideWindowSafely,
 };
