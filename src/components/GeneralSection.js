@@ -27,7 +27,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
   const [darkMode, setDarkMode] = useState(false);
-  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [checkForUpdates, setCheckForUpdates] = useState(true);
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
@@ -68,7 +68,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         setShowInDock(settings.display.showInDock);
       }
       if (settings.display && settings.display.autoUpdate !== undefined) {
-        setAutoUpdate(settings.display.autoUpdate);
+        setCheckForUpdates(settings.display.autoUpdate);
       }
       if (settings.display && settings.display.darkMode !== undefined) {
         setDarkMode(settings.display.darkMode);
@@ -159,10 +159,10 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     electronAPI.send("save-dark-mode", e.target.checked);
   };
 
-  const handleAutoUpdateChange = (e) => {
-    setAutoUpdate(e.target.checked);
+  const handleCheckForUpdatesChange = (e) => {
+    setCheckForUpdates(e.target.checked);
     // Save to settings
-    electronAPI.send("save-auto-update", e.target.checked);
+    electronAPI.send("save-check-for-updates", e.target.checked);
   };
 
   const handleLinkedDeviceChange = (e) => {
@@ -293,9 +293,9 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               />
               <Form.Check
                 type="checkbox"
-                label="Auto Update"
-                checked={autoUpdate}
-                onChange={handleAutoUpdateChange}
+                label="Check for Updates"
+                checked={checkForUpdates}
+                onChange={handleCheckForUpdatesChange}
               />
             </Col>
           </Row>
