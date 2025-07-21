@@ -71,7 +71,7 @@ carabiner/
 │   ├── menu.js         # Application menus
 │   ├── settings.js     # Settings management
 │   ├── adb.js          # Android Debug Bridge integration
-│   └── updater.js      # Auto-updater functionality
+│   └── updater.js      # Version check functionality
 ├── src/                # React frontend source
 │   ├── App.js          # Main React application
 │   ├── index.js        # React entry point

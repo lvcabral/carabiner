@@ -7,117 +7,126 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-const { autoUpdater } = require("electron-updater");
-const { dialog, BrowserWindow } = require("electron");
-
-// Configure auto-updater
-autoUpdater.setFeedURL({
-  provider: "github",
-  owner: "lvcabral",
-  repo: "carabiner",
-});
-
-// Auto-updater will only work in packaged apps by default
-// For development testing, use the debug-updater.js or npm run debug-updater
+const { dialog, BrowserWindow, shell } = require("electron");
+const https = require("https");
 
 let updateAvailable = false;
-let updateDownloaded = false;
+let latestVersion = null;
 
-// Auto-updater events
-autoUpdater.on("checking-for-update", () => {
-  console.log("Checking for update...");
-});
-
-autoUpdater.on("update-available", (info) => {
-  console.log("Update available:", info.version);
-  updateAvailable = true;
-
-  // Notify user about available update
-  const mainWindow = BrowserWindow.getAllWindows().find((win) =>
-    win.webContents.getURL().includes("index.html")
-  );
-
-  if (mainWindow) {
-    dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "Update Available",
-      message: `A new version (${info.version}) is available!`,
-      detail:
-        "The update will be downloaded in the background. You'll be notified when it's ready to install.",
-      buttons: ["OK"],
-    });
+// Function to compare version strings
+function compareVersions(current, latest) {
+  const currentParts = current.replace('v', '').split('.').map(Number);
+  const latestParts = latest.replace('v', '').split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
+    const currentPart = currentParts[i] || 0;
+    const latestPart = latestParts[i] || 0;
+    
+    if (latestPart > currentPart) {
+      return 1; // Latest is newer
+    } else if (latestPart < currentPart) {
+      return -1; // Current is newer
+    }
   }
-});
-
-autoUpdater.on("update-not-available", (info) => {
-  console.log("Update not available:", info.version);
-  updateAvailable = false;
-});
-
-autoUpdater.on("error", (err) => {
-  console.error("Auto-updater error:", err);
-  updateAvailable = false;
-  updateDownloaded = false;
-});
-
-autoUpdater.on("download-progress", (progressObj) => {
-  let log_message = "Download speed: " + progressObj.bytesPerSecond;
-  log_message = log_message + " - Downloaded " + progressObj.percent + "%";
-  log_message = log_message + " (" + progressObj.transferred + "/" + progressObj.total + ")";
-  console.log(log_message);
-});
-
-autoUpdater.on("update-downloaded", (info) => {
-  console.log("Update downloaded:", info.version);
-  updateDownloaded = true;
-
-  // Notify user that update is ready to install
-  const mainWindow = BrowserWindow.getAllWindows().find((win) =>
-    win.webContents.getURL().includes("index.html")
-  );
-
-  if (mainWindow) {
-    dialog
-      .showMessageBox(mainWindow, {
-        type: "info",
-        title: "Update Ready",
-        message: `Update to version ${info.version} is ready to install.`,
-        detail: "The application will restart to apply the update.",
-        buttons: ["Restart Now", "Later"],
-        defaultId: 0,
-      })
-      .then((result) => {
-        if (result.response === 0) {
-          // User chose to restart now
-          autoUpdater.quitAndInstall();
-        }
-      });
-  }
-});
-
-// Functions to be called from main process
-function checkForUpdates() {
-  if (!updateDownloaded) {
-    autoUpdater.checkForUpdatesAndNotify();
-  }
+  return 0; // Same version
 }
 
-function installUpdate() {
-  if (updateDownloaded) {
-    autoUpdater.quitAndInstall();
-  }
+// Function to check for updates via GitHub API
+function checkForUpdates() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/lvcabral/carabiner/releases/latest',
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Carabiner-App',
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const release = JSON.parse(data);
+          
+          if (res.statusCode === 200 && release.tag_name) {
+            latestVersion = release.tag_name;
+            
+            // Get current version from package.json
+            const packageInfo = require('../package.json');
+            const currentVersion = 'v' + packageInfo.version;
+            
+            console.log(`Current version: ${currentVersion}, Latest version: ${latestVersion}`);
+            
+            if (compareVersions(currentVersion, latestVersion) === 1) {
+              updateAvailable = true;
+              
+              // Notify user about available update
+              const mainWindow = BrowserWindow.getAllWindows().find((win) =>
+                win.webContents.getURL().includes("index.html")
+              );
+
+              if (mainWindow) {
+                dialog.showMessageBox(mainWindow, {
+                  type: "info",
+                  title: "Update Available",
+                  message: `A new version (${latestVersion}) is available!`,
+                  detail: "Click 'Download' to visit the releases page and download the latest version.",
+                  buttons: ["Download", "Later"],
+                  defaultId: 0,
+                }).then((result) => {
+                  if (result.response === 0) {
+                    // User chose to download - open releases page
+                    shell.openExternal('https://github.com/lvcabral/carabiner/releases/latest');
+                  }
+                });
+              }
+              
+              resolve({ updateAvailable: true, version: latestVersion });
+            } else {
+              updateAvailable = false;
+              console.log("No updates available");
+              resolve({ updateAvailable: false, version: currentVersion });
+            }
+          } else {
+            console.error("Failed to fetch release info:", res.statusCode, data);
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          }
+        } catch (error) {
+          console.error("Error parsing release data:", error);
+          reject(error);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error("Error checking for updates:", error);
+      reject(error);
+    });
+
+    req.setTimeout(10000, () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+
+    req.end();
+  });
 }
 
 function getUpdateStatus() {
   return {
     updateAvailable,
-    updateDownloaded,
+    latestVersion,
   };
 }
 
 module.exports = {
   checkForUpdates,
-  installUpdate,
   getUpdateStatus,
-  autoUpdater,
 };

@@ -21,7 +21,7 @@ function loadSettings() {
   const defaultSettings = {
     display: {
       showInDock: true, // macOS: true = dock mode, false = menubar mode
-      autoUpdate: true, // Auto-update enabled by default
+      autoUpdate: true, // Check for updates enabled by default
     },
     border: {},
     control: {

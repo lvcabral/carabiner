@@ -41,7 +41,7 @@ const {
   resetFullscreenVars,
   hideWindowSafely,
 } = require("./menu");
-const { checkForUpdates, installUpdate, getUpdateStatus } = require("./updater");
+const { checkForUpdates, getUpdateStatus } = require("./updater");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
@@ -338,16 +338,24 @@ app.whenReady().then(async () => {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
 
-  // Initialize auto-updater (only in production and if enabled)
+  // Initialize version checking (only in production and if enabled)
   if (app.isPackaged && settings.display.autoUpdate !== false) {
     // Check for updates 30 seconds after app start
-    setTimeout(() => {
-      checkForUpdates();
+    setTimeout(async () => {
+      try {
+        await checkForUpdates();
+      } catch (error) {
+        console.error("Error checking for updates:", error);
+      }
     }, 30000);
 
     // Check for updates every 4 hours
-    setInterval(() => {
-      checkForUpdates();
+    setInterval(async () => {
+      try {
+        await checkForUpdates();
+      } catch (error) {
+        console.error("Error checking for updates:", error);
+      }
     }, 4 * 60 * 60 * 1000);
   }
 
@@ -577,8 +585,8 @@ app.whenReady().then(async () => {
     saveSettings(settings);
   });
 
-  ipcMain.on("save-auto-update", (event, autoUpdate) => {
-    settings.display.autoUpdate = autoUpdate;
+  ipcMain.on("save-check-for-updates", (event, checkForUpdates) => {
+    settings.display.autoUpdate = checkForUpdates;
     saveSettings(settings);
   });
 
@@ -821,29 +829,15 @@ app.whenReady().then(async () => {
     updateTrayRecordingMenuItems(isRecording);
   });
 
-  // Auto-updater IPC handlers
+  // Version checking IPC handlers
   ipcMain.handle("check-for-updates", async () => {
-    checkForUpdates();
-    return getUpdateStatus();
-  });
-
-  ipcMain.handle("debug-check-for-updates", async () => {
     try {
-      const { simpleDebugCheck } = require("./debug-updater");
-      const result = simpleDebugCheck();
-      return result;
+      const result = await checkForUpdates();
+      return { success: true, ...result };
     } catch (error) {
-      console.error("Debug check error:", error);
-      return {
-        success: false,
-        error: error.message || "Unknown error occurred",
-        stack: error.stack,
-      };
+      console.error("Error checking for updates:", error);
+      return { success: false, error: error.message };
     }
-  });
-
-  ipcMain.handle("install-update", async () => {
-    installUpdate();
   });
 
   ipcMain.handle("get-update-status", async () => {
