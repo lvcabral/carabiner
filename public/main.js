@@ -29,6 +29,7 @@ const {
   updateAlwaysOnTopMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
+  updateShowDisplayMenuItem,
   createTrayMenu,
   updateTrayRecordingMenuItems,
   toggleDockIcon,
@@ -148,7 +149,7 @@ function createDisplayWindow() {
       .split("|")
       .map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
   }
-  
+
   // Windows 11 specific configuration to remove the 1-pixel border
   const windowOptions = {
     width: lastSize[0] ?? 500,
@@ -210,7 +211,7 @@ function createDisplayWindow() {
     win.once("ready-to-show", () => {
       // Force transparent background and remove any system borders
       win.setBackgroundColor("#00000000");
-      
+
       // Show the window after applying the background
       if (settings.display?.visible !== false) {
         win.show();
@@ -262,7 +263,7 @@ function registerShortcut(shortcut, window) {
   globalShortcut.unregisterAll();
   globalShortcut.register(shortcut, () => {
     if (window.isVisible()) {
-      hideWindowSafely(window);
+      hideWindowSafely(window, settings);
     } else {
       window.show();
     }
@@ -300,9 +301,11 @@ app.whenReady().then(async () => {
   const displayWindow = createDisplayWindow();
   setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
   if (isMacOS) {
-    createMacOSMenu(mainWindow, displayWindow, packageInfo);
+    createMacOSMenu(mainWindow, displayWindow, packageInfo, settings);
     // Ensure menu reflects the correct always on top state from settings
     updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
+    // Set initial state of show display menu item based on display window visibility
+    updateShowDisplayMenuItem(settings.display?.visible !== false);
   }
 
   // This is a workaround for the issue where frameless windows on Windows 11
@@ -389,18 +392,22 @@ app.whenReady().then(async () => {
   // Add window visibility event handlers for video stream control
   displayWindow.on("show", () => {
     displayWindow.webContents.send("window-show");
+    updateShowDisplayMenuItem(true);
   });
 
   displayWindow.on("hide", () => {
     displayWindow.webContents.send("window-hide");
+    updateShowDisplayMenuItem(false);
   });
 
   displayWindow.on("minimize", () => {
     displayWindow.webContents.send("window-minimize");
+    updateShowDisplayMenuItem(false);
   });
 
   displayWindow.on("restore", () => {
     displayWindow.webContents.send("window-restore");
+    updateShowDisplayMenuItem(true);
   });
 
   ipcMain.on("shared-window-channel", (event, arg) => {
@@ -822,7 +829,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("debug-check-for-updates", async () => {
     try {
-      const { simpleDebugCheck } = require('./debug-updater');
+      const { simpleDebugCheck } = require("./debug-updater");
       const result = simpleDebugCheck();
       return result;
     } catch (error) {
@@ -830,7 +837,7 @@ app.whenReady().then(async () => {
       return {
         success: false,
         error: error.message || "Unknown error occurred",
-        stack: error.stack
+        stack: error.stack,
       };
     }
   });
