@@ -385,6 +385,23 @@ app.whenReady().then(async () => {
     });
   }
 
+  // Add window visibility event handlers for video stream control
+  displayWindow.on("show", () => {
+    displayWindow.webContents.send("window-show");
+  });
+
+  displayWindow.on("hide", () => {
+    displayWindow.webContents.send("window-hide");
+  });
+
+  displayWindow.on("minimize", () => {
+    displayWindow.webContents.send("window-minimize");
+  });
+
+  displayWindow.on("restore", () => {
+    displayWindow.webContents.send("window-restore");
+  });
+
   ipcMain.on("shared-window-channel", (event, arg) => {
     displayWindow?.webContents?.send("shared-window-channel", arg);
     saveFlag = true;

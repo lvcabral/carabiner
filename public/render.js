@@ -206,10 +206,13 @@ function renderDisplay(constraints) {
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then(async (stream) => {
-      deviceLabel.textContent = await getCaptureDeviceLabel(constraints.video.deviceId.exact);
+      // Handle both direct deviceId and deviceId.exact formats
+      const deviceId = constraints.video?.deviceId?.exact || constraints.video?.deviceId;
+      deviceLabel.textContent = await getCaptureDeviceLabel(deviceId);
       videoPlayer.srcObject = stream;
       videoPlayer.play();
       currentConstraints = constraints;
+      videoState = "playing";
     })
     .catch((err) => {
       console.debug(err.name + ": " + err.message);
@@ -241,12 +244,16 @@ async function getCaptureDeviceLabel(deviceId) {
   if (!deviceId) {
     return "Unknown Device";
   }
+
+  // Handle both direct deviceId and deviceId.exact formats
+  const actualDeviceId = typeof deviceId === "object" && deviceId.exact ? deviceId.exact : deviceId;
+
   const devices = await navigator.mediaDevices.enumerateDevices();
   const captureDevice = devices.find(
-    (device) => device.deviceId === deviceId && device.kind === "videoinput"
+    (device) => device.deviceId === actualDeviceId && device.kind === "videoinput"
   );
   let deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
-  const streamDevice = controlList.find((device) => device.linked === captureDevice.deviceId);
+  const streamDevice = controlList.find((device) => device.linked === captureDevice?.deviceId);
   if (streamDevice) {
     deviceLabel += ` - ${streamDevice.type} ${streamDevice.alias ?? streamDevice.ipAddress}`;
   }
@@ -259,6 +266,51 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Setup device monitoring
   setupDeviceMonitoring();
+
+  // Handle window visibility changes via Electron IPC events
+  window.electronAPI.onMessageReceived("window-show", () => {
+    // Window is now visible - restart video stream if we have constraints and it's stopped
+    if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
+      // Only restart if we have a proper video stream constraint (not just the default { video: true })
+      const hasSpecificDevice =
+        currentConstraints.video !== true &&
+        typeof currentConstraints.video === "object" &&
+        currentConstraints.video.deviceId;
+
+      if (hasSpecificDevice) {
+        renderDisplay(currentConstraints);
+      }
+    }
+  });
+
+  window.electronAPI.onMessageReceived("window-hide", () => {
+    // Window is hidden - stop video stream to save resources
+    if (videoState !== "stopped") {
+      stopVideoStream();
+    }
+  });
+
+  window.electronAPI.onMessageReceived("window-minimize", () => {
+    // Window is minimized - stop video stream to save resources
+    if (videoState !== "stopped") {
+      stopVideoStream();
+    }
+  });
+
+  window.electronAPI.onMessageReceived("window-restore", () => {
+    // Window is restored from minimized - restart video stream if we have constraints and it's stopped
+    if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
+      // Only restart if we have a proper video stream constraint (not just the default { video: true })
+      const hasSpecificDevice =
+        currentConstraints.video !== true &&
+        typeof currentConstraints.video === "object" &&
+        currentConstraints.video.deviceId;
+
+      if (hasSpecificDevice) {
+        renderDisplay(currentConstraints);
+      }
+    }
+  });
 
   navigator.mediaDevices.enumerateDevices().then((devices) => {
     const capture = devices.filter((device) => device.kind === "videoinput");
@@ -784,15 +836,6 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Start device monitoring
   setupDeviceMonitoring();
-});
-
-// Handle window lifecycle events
-window.addEventListener("beforeunload", () => {
-  // Cleanup is handled automatically by the browser
-});
-
-window.addEventListener("unload", () => {
-  // Cleanup is handled automatically by the browser
 });
 
 // Video Events
