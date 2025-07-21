@@ -830,6 +830,12 @@ window.addEventListener("DOMContentLoaded", function () {
     window.electronAPI.showContextMenu();
   });
 
+  // Handle right-click context menu for entire window
+  document.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    window.electronAPI.showContextMenu();
+  });
+
   // Handle Recording Requests
   window.electronAPI.onMessageReceived("start-recording", handleStartRecording);
   window.electronAPI.onMessageReceived("stop-recording", handleStopRecording);
