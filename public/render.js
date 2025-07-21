@@ -13,6 +13,9 @@ const settingsButton = document.getElementById("settings-button");
 const deviceLabel = document.getElementById("device-label");
 const recordingIndicator = document.getElementById("recording-indicator");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+const widthOff = 16;
+const heightOff = 9;
+const margin = 5;
 let currentColor = "#662D91";
 let currentConstraints = { video: true, audio: false };
 let videoState = "stopped";
@@ -53,6 +56,9 @@ function updateOverlayPosition() {
 }
 
 function handleSetResolution(style) {
+  const borderWidth = parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
+  videoPlayer.style.top = `${margin + borderWidth}px`;
+  videoPlayer.style.left = `${margin + borderWidth}px`;
   videoPlayer.style.width = style.width;
   videoPlayer.style.height = style.height;
   document.body.style.width = style.width;
@@ -61,8 +67,8 @@ function handleSetResolution(style) {
 }
 
 window.addEventListener("resize", () => {
-  const newWidth = window.innerWidth - 15;
-  const newHeight = window.innerHeight - 15;
+  const newWidth = window.innerWidth - widthOff;
+  const newHeight = window.innerHeight - heightOff;
   const dimensions = { width: `${newWidth}px`, height: `${newHeight}px` };
   clearTimeout(resizeTimeout);
   resizeTimeout = setTimeout(() => {
@@ -349,8 +355,8 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  const newWidth = window.innerWidth - 15;
-  const newHeight = window.innerHeight - 15;
+  const newWidth = window.innerWidth - widthOff;
+  const newHeight = window.innerHeight - heightOff;
   handleSetResolution({ width: `${newWidth}px`, height: `${newHeight}px` });
 
   // Keyboard Events
@@ -769,10 +775,16 @@ window.addEventListener("DOMContentLoaded", function () {
   // Configure the overlay image
   overlayImage.style.position = "absolute";
   updateOverlayPosition();
-  overlayImage.style.objectFit = "cover";
-  overlayImage.style.pointerEvents = "none"; // Ensure it doesn't interfere with video controls
+  overlayImage.style.objectFit = "contain";
+  overlayImage.style.pointerEvents = "auto"; // Enable pointer events for double-click
   overlayImage.style.opacity = "0"; // Start with 0 opacity
   overlayImage.style.zIndex = "700";
+
+  // Handle double-click on overlay image to toggle fullscreen
+  overlayImage.addEventListener("dblclick", (event) => {
+    console.debug("[Carabiner] Double-click detected on overlay image");
+    window.electronAPI.send("toggle-fullscreen-window");
+  });
 
   // Configure the ellipsis button
   settingsButton.innerHTML = "&#x22ef;"; // Ellipsis character

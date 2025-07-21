@@ -38,6 +38,7 @@ const {
   isTogglingFullscreen,
   openDevTools,
   resetFullscreenVars,
+  hideWindowSafely,
 } = require("./menu");
 const { checkForUpdates, installUpdate, getUpdateStatus } = require("./updater");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
@@ -261,7 +262,7 @@ function registerShortcut(shortcut, window) {
   globalShortcut.unregisterAll();
   globalShortcut.register(shortcut, () => {
     if (window.isVisible()) {
-      window.hide();
+      hideWindowSafely(window);
     } else {
       window.show();
     }
