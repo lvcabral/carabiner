@@ -838,15 +838,6 @@ window.addEventListener("DOMContentLoaded", function () {
   setupDeviceMonitoring();
 });
 
-// Handle window lifecycle events
-window.addEventListener("beforeunload", () => {
-  // Cleanup is handled automatically by the browser
-});
-
-window.addEventListener("unload", () => {
-  // Cleanup is handled automatically by the browser
-});
-
 // Video Events
 videoPlayer.addEventListener("loadstart", () => {
   videoState = "loading";
