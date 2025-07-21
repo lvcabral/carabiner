@@ -15,6 +15,7 @@ let copyScreenshotMenuItem;
 let saveScreenshotMenuItem;
 let startRecordingMenuItem;
 let stopRecordingMenuItem;
+let showDisplayMenuItem;
 
 // Tray-related variables
 let tray = null;
@@ -122,9 +123,9 @@ const MenuItems = {
     click: () => displayWindow?.webContents.send("handle-paste"),
   }),
 
-  hideScreen: (displayWindow) => ({
+  hideScreen: (displayWindow, settings) => ({
     label: "Hide Screen",
-    click: () => hideWindowSafely(displayWindow),
+    click: () => hideWindowSafely(displayWindow, settings),
   }),
 
   showCarabiner: (displayWindow) => ({
@@ -134,6 +135,18 @@ const MenuItems = {
         if (!displayWindow.isVisible()) {
           displayWindow.show();
         }
+        displayWindow.focus();
+      }
+    },
+  }),
+
+  showDisplay: (displayWindow) => ({
+    id: "show-display",
+    label: "Show Display",
+    enabled: false,
+    click: () => {
+      if (displayWindow && !displayWindow.isVisible()) {
+        displayWindow.show();
         displayWindow.focus();
       }
     },
@@ -195,14 +208,14 @@ const AppMenuItems = {
     ],
   }),
 
-  closeWindow: () => ({
+  closeWindow: (settings) => ({
     label: "Close Window",
     accelerator: ACCELERATORS.closeWindow,
-    click: (_, window) => hideWindowSafely(window),
+    click: (_, window) => hideWindowSafely(window, settings),
   }),
 };
 
-function createMacOSMenu(mainWindow, displayWindow, packageInfo) {
+function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
   const template = [
     // Add macOS-specific app menu
     ...[AppMenuItems.macOS(mainWindow)],
@@ -215,7 +228,7 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo) {
         MenuItems.startRecording(displayWindow, false),
         MenuItems.stopRecording(displayWindow, false),
         MenuItems.separator(),
-        AppMenuItems.closeWindow(),
+        AppMenuItems.closeWindow(settings),
       ],
     },
     {
@@ -235,6 +248,8 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo) {
       id: "view-menu",
       label: "&View",
       submenu: [
+        MenuItems.showDisplay(displayWindow),
+        MenuItems.separator(),
         MenuItems.toggleFullscreen(displayWindow),
         MenuItems.devTools(),
         MenuItems.separator(),
@@ -264,6 +279,7 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo) {
   saveScreenshotMenuItem = menu.getMenuItemById("save-screenshot");
   startRecordingMenuItem = menu.getMenuItemById("start-recording");
   stopRecordingMenuItem = menu.getMenuItemById("stop-recording");
+  showDisplayMenuItem = menu.getMenuItemById("show-display");
 }
 
 function updateAlwaysOnTopMenuItem(value) {
@@ -293,6 +309,12 @@ function updateRecordingMenuItems(displayVisible, isRecording) {
   }
   if (stopRecordingMenuItem) {
     stopRecordingMenuItem.enabled = displayVisible && isRecording;
+  }
+}
+
+function updateShowDisplayMenuItem(isVisible) {
+  if (showDisplayMenuItem) {
+    showDisplayMenuItem.enabled = !isVisible;
   }
 }
 
@@ -502,7 +524,7 @@ function createContextMenu(
       id: "context-always-on-top",
       checked: settings?.display?.alwaysOnTop ?? displayWindow.isAlwaysOnTop(),
     },
-    MenuItems.hideScreen(displayWindow),
+    MenuItems.hideScreen(displayWindow, settings),
   ];
 
   const menu = Menu.buildFromTemplate(menuItems);
@@ -537,22 +559,44 @@ let isTogglingFullscreen = false; // Flag to prevent app hiding during fullscree
 
 /**
  * Safely hides a window, exiting fullscreen first if it's a display window in fullscreen
+ * On Windows, minimizes display window instead of hiding when not in tray mode
  * @param {BrowserWindow} window - The window to hide
+ * @param {Object} settings - App settings (required)
  */
-function hideWindowSafely(window) {
-  if (window && window.webContents.getURL().includes("display.html") && window.isFullScreen()) {
-    // If display window in fullscreen, exit fullscreen first, then hide
+function hideWindowSafely(window, settings = null) {
+  if (!window || !settings) {
+    console.warn("hideWindowSafely: invalid parameters!");
+    return;
+  }
+
+  if (window.webContents.getURL().includes("display.html") && window.isFullScreen()) {
+    // If display window in fullscreen, exit fullscreen first, then hide/minimize
     const onceLeaveFullScreen = () => {
-      window.removeListener('leave-full-screen', onceLeaveFullScreen);
-      window.hide();
+      window.removeListener("leave-full-screen", onceLeaveFullScreen);
+
+      // On Windows, when not in tray mode (showInDock = true), minimize instead of hide
+      if (isWindows && settings.display?.showInDock !== false) {
+        window.minimize();
+      } else {
+        window.hide();
+      }
       resetFullscreenVars();
     };
-    
-    window.once('leave-full-screen', onceLeaveFullScreen);
+
+    window.once("leave-full-screen", onceLeaveFullScreen);
     window.setFullScreen(false);
   } else {
     // Normal hide for other windows or non-fullscreen display window
-    window?.hide();
+    // On Windows, when not in tray mode (showInDock = true), minimize display window instead of hide
+    if (
+      isWindows &&
+      settings.display?.showInDock !== false &&
+      window.webContents.getURL().includes("display.html")
+    ) {
+      window.minimize();
+    } else {
+      window.hide();
+    }
   }
 }
 
@@ -620,6 +664,7 @@ module.exports = {
   updateAlwaysOnTopMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
+  updateShowDisplayMenuItem,
   createTrayMenu,
   appendCaptureDevicesMenu,
   updateTrayRecordingMenuItems,
