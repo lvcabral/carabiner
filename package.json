@@ -2,7 +2,7 @@
   "name": "carabiner",
   "productName": "Carabiner",
   "description": "Screen Capture and Remote Control for Streaming Devices",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "main": "public/main.js",
   "license": "MIT",
   "author": {
@@ -46,13 +46,10 @@
     "test": "react-scripts test",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "publish": "electron-forge publish && npm run generate-yml",
+    "publish": "electron-forge publish",
     "make:mac": "npm run make -- --platform=darwin --arch=universal",
     "make:all": "npm run make -- --platform=darwin --arch=universal && npm run make -- --platform=win32 --arch=x64 && npm run make -- --platform=linux --arch=x64",
-    "generate-yml": "node scripts/generate-yml.js",
-    "upload-yml": "node scripts/upload-yml.js",
-    "debug": "npm run build && ELECTRON_IS_DEV=1 npm run electron",
-    "debug-updater": "npm run build && ELECTRON_UPDATER_DEV=1 npm run electron"
+    "debug": "npm run build && ELECTRON_IS_DEV=1 npm run electron"
   },
   "eslintConfig": {
     "extends": [

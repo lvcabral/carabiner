@@ -1,7 +1,7 @@
 <p align="center">
   <img src="images/carabiner-icon.png" height="125px" alt="Carabiner logo" />
   <br><br>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.2.0"><img src="https://img.shields.io/badge/Version-1.2.0-blue.svg" alt="Version 1.2.0" /></a>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.3.0"><img src="https://img.shields.io/badge/Version-1.3.0-blue.svg" alt="Version 1.3.0" /></a>
   <img src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
