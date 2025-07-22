@@ -246,7 +246,35 @@ function createDisplayWindow() {
 
   win.on("move", () => {
     win.webContents.send("window-moved");
+    // Save position when window is moved
+    if (!win.isFullScreen()) {
+      const bounds = win.getBounds();
+      settings["displayWindow"] = bounds;
+      saveSettings(settings);
+    }
   });
+
+  // Save size when window is resized
+  win.on("resize", () => {
+    // Check for fullscreen state and toggling state on Windows/Linux
+    if (!win.isFullScreen() && !isTogglingFullscreen()) {
+      const bounds = win.getBounds();
+      settings["displayWindow"] = bounds;
+      saveSettings(settings);
+    }
+  });
+
+  // Add close event handler to save window position and size
+  win.on("close", (event) => {
+    if (!win.isFullScreen()) {
+      const bounds = win.getBounds();
+      settings["displayWindow"] = bounds;
+      saveSettings(settings);
+    }
+    resetFullscreenVars();
+    app.quit();
+  });
+
   return win;
 }
 
