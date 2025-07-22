@@ -224,6 +224,9 @@ function renderDisplay(constraints) {
       console.debug(err.name + ": " + err.message);
       showToast("Error loading capture devices!", 5000, true);
       videoState = "stopped";
+      // Show fallback image when capture device fails to load
+      overlayImage.style.opacity = "1";
+      overlayImage.src = "images/no-capture-device.png";
     });
 }
 
