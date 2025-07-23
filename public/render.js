@@ -221,12 +221,12 @@ function renderDisplay(constraints) {
       videoState = "playing";
     })
     .catch((err) => {
-      console.debug(err.name + ": " + err.message);
-      showToast("Error loading capture devices!", 5000, true);
+      showToast(`Error loading capture device! ${err.message}`, 5000, true);
       videoState = "stopped";
       // Show fallback image when capture device fails to load
       overlayImage.style.opacity = "1";
       overlayImage.src = "images/no-capture-device.png";
+      overlayImage.style.display = "block";
     });
 }
 
@@ -336,6 +336,7 @@ window.addEventListener("DOMContentLoaded", function () {
     } else {
       overlayImage.style.opacity = "1";
       overlayImage.src = "images/no-capture-device.png";
+      overlayImage.style.display = "block";
       showToast("No capture device found!", 5000, true);
     }
   });
@@ -1169,6 +1170,7 @@ function updateCaptureDeviceList(captureDevices) {
     // No devices available
     overlayImage.style.opacity = "1";
     overlayImage.src = "images/no-capture-device.png";
+    overlayImage.style.display = "block";
     showToast("No capture devices available!", 5000, true);
 
     // Stop current video stream if no devices
@@ -1181,6 +1183,7 @@ function updateCaptureDeviceList(captureDevices) {
     if (overlayImage.src.includes("no-capture-device.png")) {
       overlayImage.style.opacity = "0";
       overlayImage.src = "";
+      overlayImage.style.display = "none";
     }
 
     // Check if current device is still available
