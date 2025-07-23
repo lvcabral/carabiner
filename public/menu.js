@@ -486,12 +486,6 @@ function toggleDockIcon(showInDock, mainWindow, displayWindow = null, packageInf
     if (isMacOS) {
       // Hide dock icon
       app.dock.hide();
-    } else if (isWindows) {
-      // On Windows, hide both windows from taskbar
-      mainWindow.setSkipTaskbar(true);
-      if (display) {
-        display.setSkipTaskbar(true);
-      }
     }
   }
 
