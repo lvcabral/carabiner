@@ -204,8 +204,6 @@ function createDisplayWindow() {
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
 
-  // This is a workaround for the issue where frameless windows on Windows 11
-  // show a title bar when the window loses focus and removes the 1-pixel border.
   if (isWindows) {
     // Apply Windows 11 specific fixes after the window is ready
     win.once("ready-to-show", () => {
@@ -217,21 +215,17 @@ function createDisplayWindow() {
         win.show();
       }
     });
-
+    // This is a workaround for the issue where frameless windows on Windows 11
+    // show a title bar when the window loses focus and removes the 1-pixel border.
     win.on("blur", () => {
       win.setBackgroundColor("#00000000");
     });
-
     win.on("focus", () => {
       win.setBackgroundColor("#00000000");
     });
-
-    // Additional event to ensure border stays removed
     win.on("show", () => {
       win.setBackgroundColor("#00000000");
     });
-
-    // Force background update when window is restored from minimized state
     win.on("restore", () => {
       win.setBackgroundColor("#00000000");
     });
@@ -334,6 +328,10 @@ app.whenReady().then(async () => {
     updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
     // Set initial state of show display menu item based on display window visibility
     updateShowDisplayMenuItem(settings.display?.visible !== false);
+  } else {
+    displayWindow.on("system-context-menu", (event, point) => {
+      event.preventDefault();
+    });
   }
 
   // This is a workaround for the issue where frameless windows on Windows 11
@@ -670,7 +668,7 @@ app.whenReady().then(async () => {
       captureDevices,
       settings
     );
-    menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
+    menu.popup({ window: displayWindow });
   });
 
   // Reusable function for loading and sending image data to display window
