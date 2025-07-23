@@ -199,7 +199,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
             </Form.Control>
           </Form.Group>
           <Row className="mt-2">
-            <Col>
+            <Col xs={7}>
               <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
               {isMacOS && (
                 <Form.Group className="mt-3">
@@ -266,7 +266,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 </Form.Group>
               )}
             </Col>
-            <Col className="d-flex flex-column align-items-start">
+            <Col xs={5} className="d-flex flex-column align-items-start">
               <Form.Check
                 type="checkbox"
                 label="Launch at Login"
