@@ -93,7 +93,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
       captureDevice = value;
       setDeviceId(value);
-      notifyCaptureChange(value, null, false); // Don't show display window for automatic updates
+      notifyCaptureChange(value, null, true);
       const linked = streamingDevicesRef.current.find((device) => device.linked === value);
       currentLinked = linked?.id ?? "";
       setLinkedDevice(currentLinked);

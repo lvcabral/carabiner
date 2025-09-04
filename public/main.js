@@ -379,13 +379,16 @@ app.whenReady().then(async () => {
     }, 30000);
 
     // Check for updates every 4 hours
-    setInterval(async () => {
-      try {
-        await checkForUpdates();
-      } catch (error) {
-        console.error("Error checking for updates:", error);
-      }
-    }, 4 * 60 * 60 * 1000);
+    setInterval(
+      async () => {
+        try {
+          await checkForUpdates();
+        } catch (error) {
+          console.error("Error checking for updates:", error);
+        }
+      },
+      4 * 60 * 60 * 1000
+    );
   }
 
   // Hide app when both windows are hidden in macOS (only in dock mode)
@@ -448,10 +451,25 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("shared-window-channel", (event, arg) => {
-    displayWindow?.webContents?.send("shared-window-channel", arg);
+    // Only forward set-video-stream messages if display window is visible or being shown
+    // Forward all other messages unconditionally
+    if (arg.type !== "set-video-stream") {
+      displayWindow?.webContents?.send("shared-window-channel", arg);
+    }
     saveFlag = true;
     if (arg.type && arg.type === "set-capture-devices") {
-      captureDevices = JSON.parse(arg.payload);
+      const newDevices = JSON.parse(arg.payload);
+      const currentDeviceId = settings.display.deviceId;
+
+      // Check if current capture device was removed
+      if (currentDeviceId && !newDevices.find((device) => device.deviceId === currentDeviceId)) {
+        // If current device was removed and display window is hidden, show it
+        if (displayWindow && !displayWindow.isVisible()) {
+          displayWindow.show();
+        }
+      }
+
+      captureDevices = newDevices;
       mainWindow?.webContents?.send("shared-window-channel", arg);
       const tray = getTray();
       if (tray) {
@@ -475,10 +493,18 @@ app.whenReady().then(async () => {
         settings.display.captureHeight = arg.payload.video.height;
         saveFlag = true;
       }
-      // Only show display window if explicitly requested or if it's a user-initiated change
-      // Don't auto-show on device list refreshes to avoid unwanted window appearances
+
+      // Only start video stream if display window is visible
+      // Always save the settings, but only forward to display window if it's visible
+      if (displayWindow?.isVisible()) {
+        displayWindow.webContents.send("shared-window-channel", arg);
+      }
+
+      // Show display window if explicitly requested
       if (arg.payload?.showDisplayWindow && !displayWindow.isVisible()) {
         displayWindow.show();
+        // When showing the window, send the video stream settings to start playback
+        displayWindow.webContents.send("shared-window-channel", arg);
       }
     } else if (arg.type && arg.type === "set-transparency") {
       saveFlag = false;
@@ -516,14 +542,20 @@ app.whenReady().then(async () => {
         displayWindow.show();
       }
     } else if (arg.type && arg.type === "set-control-list") {
+      let currentDeviceRemoved = false;
       const found = arg.payload.find((device) => device.id === settings.control.deviceId);
-      if (!found) {
+      if (!found && settings.control.deviceId) {
+        currentDeviceRemoved = true;
         settings.control.deviceId = "";
         if (isADBConnected) {
           isADBConnected = disconnectADB();
         }
       }
       settings.control.deviceList = arg.payload;
+      // If current device was removed and display window is hidden, show it
+      if (currentDeviceRemoved && displayWindow && !displayWindow.isVisible()) {
+        displayWindow.show();
+      }
     } else if (arg.type && arg.type === "set-control-selected") {
       settings.control.deviceId = arg.payload;
       const oldControlIp = controlIp;
