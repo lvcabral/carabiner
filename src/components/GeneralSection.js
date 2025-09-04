@@ -87,8 +87,8 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     });
 
     window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
-    window.electronAPI.onMessageReceived("update-always-on-top", (event, value) => {
-      // This message is now handled by DisplaySection
+    window.electronAPI.onMessageReceived("update-audio-enabled", (event, value) => {
+      setAudioEnabled(value);
     });
     window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
       captureDevice = value;
@@ -102,7 +102,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
 
     return () => {
       window.electronAPI.removeListener("open-display-tab");
-      window.electronAPI.removeListener("update-always-on-top");
+      window.electronAPI.removeListener("update-audio-enabled");
       window.electronAPI.removeListener("update-capture-device");
     };
   }, []);
