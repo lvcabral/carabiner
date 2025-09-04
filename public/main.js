@@ -472,7 +472,9 @@ app.whenReady().then(async () => {
         settings.display.captureHeight = arg.payload.video.height;
         saveFlag = true;
       }
-      if (!displayWindow.isVisible()) {
+      // Only show display window if explicitly requested or if it's a user-initiated change
+      // Don't auto-show on device list refreshes to avoid unwanted window appearances
+      if (arg.payload?.showDisplayWindow && !displayWindow.isVisible()) {
         displayWindow.show();
       }
     } else if (arg.type && arg.type === "set-transparency") {
