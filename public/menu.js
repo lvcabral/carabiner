@@ -16,6 +16,7 @@ let saveScreenshotMenuItem;
 let startRecordingMenuItem;
 let stopRecordingMenuItem;
 let showDisplayMenuItem;
+let enableAudioMenuItem;
 
 // Tray-related variables
 let tray = null;
@@ -23,9 +24,11 @@ let trayContextMenu = null;
 let trayStartRecordingItem = null;
 let trayStopRecordingItem = null;
 let trayAlwaysOnTopItem = null;
+let trayEnableAudioItem = null;
 
 // Context menu variables
 let contextAlwaysOnTopItem = null;
+let contextEnableAudioItem = null;
 
 const isMacOS = process.platform === "darwin";
 const isWindows = process.platform === "win32";
@@ -114,6 +117,23 @@ const MenuItems = {
       // Use the same logic as the React component
       const { ipcMain } = require("electron");
       ipcMain.emit("save-always-on-top", null, item.checked);
+    },
+  }),
+
+  enableAudio: (displayWindow, mainWindow) => ({
+    id: "enable-audio",
+    label: "Enable Audio",
+    type: "checkbox",
+    checked: false,
+    enabled: true,
+    click: (item) => {
+      const { ipcMain } = require("electron");
+      ipcMain.emit("save-audio-enabled", null, item.checked);
+      // Notify the render process using the same pattern as the Settings screen
+      displayWindow?.webContents.send("shared-window-channel", {
+        type: "set-audio-enabled",
+        payload: item.checked,
+      });
     },
   }),
 
@@ -254,6 +274,7 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
         MenuItems.devTools(),
         MenuItems.separator(),
         MenuItems.alwaysOnTop(displayWindow, mainWindow),
+        MenuItems.enableAudio(displayWindow, mainWindow),
       ],
     },
     {
@@ -280,6 +301,7 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
   startRecordingMenuItem = menu.getMenuItemById("start-recording");
   stopRecordingMenuItem = menu.getMenuItemById("stop-recording");
   showDisplayMenuItem = menu.getMenuItemById("show-display");
+  enableAudioMenuItem = menu.getMenuItemById("enable-audio");
 }
 
 function updateAlwaysOnTopMenuItem(value) {
@@ -291,6 +313,18 @@ function updateAlwaysOnTopMenuItem(value) {
   }
   if (contextAlwaysOnTopItem) {
     contextAlwaysOnTopItem.checked = value;
+  }
+}
+
+function updateEnableAudioMenuItem(value) {
+  if (enableAudioMenuItem) {
+    enableAudioMenuItem.checked = value;
+  }
+  if (trayEnableAudioItem) {
+    trayEnableAudioItem.checked = value;
+  }
+  if (contextEnableAudioItem) {
+    contextEnableAudioItem.checked = value;
   }
 }
 
@@ -380,6 +414,11 @@ function createTrayMenu(
       id: "tray-always-on-top",
       checked: settings?.display?.alwaysOnTop ?? displayWindow.isAlwaysOnTop(),
     },
+    {
+      ...MenuItems.enableAudio(displayWindow, mainWindow),
+      id: "tray-enable-audio",
+      checked: settings?.display?.audioEnabled ?? false,
+    },
   ];
 
   const trayMenu = Menu.buildFromTemplate(menuItems);
@@ -409,6 +448,7 @@ function createTrayMenu(
   trayStartRecordingItem = trayContextMenu.getMenuItemById("tray-start-recording");
   trayStopRecordingItem = trayContextMenu.getMenuItemById("tray-stop-recording");
   trayAlwaysOnTopItem = trayContextMenu.getMenuItemById("tray-always-on-top");
+  trayEnableAudioItem = trayContextMenu.getMenuItemById("tray-enable-audio");
   updateTrayRecordingMenuItems(isCurrentlyRecording);
 
   // Set the context menu for the tray
@@ -474,6 +514,8 @@ function toggleDockIcon(showInDock, mainWindow, displayWindow = null, packageInf
       trayContextMenu = null;
       trayStartRecordingItem = null;
       trayStopRecordingItem = null;
+      trayAlwaysOnTopItem = null;
+      trayEnableAudioItem = null;
     }
   } else {
     // Hide from dock/taskbar and create tray
@@ -513,12 +555,18 @@ function createContextMenu(
     MenuItems.pasteText(displayWindow),
     MenuItems.separator(),
     MenuItems.toggleFullscreen(displayWindow),
+    MenuItems.hideScreen(displayWindow, settings),
+    MenuItems.separator(),
     {
       ...MenuItems.alwaysOnTop(displayWindow, mainWindow),
       id: "context-always-on-top",
       checked: settings?.display?.alwaysOnTop ?? displayWindow.isAlwaysOnTop(),
     },
-    MenuItems.hideScreen(displayWindow, settings),
+    {
+      ...MenuItems.enableAudio(displayWindow, mainWindow),
+      id: "context-enable-audio",
+      checked: settings?.display?.audioEnabled ?? false,
+    },
   ];
 
   const menu = Menu.buildFromTemplate(menuItems);
@@ -544,6 +592,7 @@ function createContextMenu(
 
   // Store reference to the context always on top menu item
   contextAlwaysOnTopItem = menu.getMenuItemById("context-always-on-top");
+  contextEnableAudioItem = menu.getMenuItemById("context-enable-audio");
 
   return menu;
 }
@@ -656,6 +705,7 @@ function getTray() {
 module.exports = {
   createMacOSMenu,
   updateAlwaysOnTopMenuItem,
+  updateEnableAudioMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
   updateShowDisplayMenuItem,

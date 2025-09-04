@@ -27,6 +27,7 @@ const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
 const {
   createMacOSMenu,
   updateAlwaysOnTopMenuItem,
+  updateEnableAudioMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
   updateShowDisplayMenuItem,
@@ -326,6 +327,8 @@ app.whenReady().then(async () => {
     createMacOSMenu(mainWindow, displayWindow, packageInfo, settings);
     // Ensure menu reflects the correct always on top state from settings
     updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
+    // Ensure menu reflects the correct enable audio state from settings
+    updateEnableAudioMenuItem(settings.display.audioEnabled ?? false);
     // Set initial state of show display menu item based on display window visibility
     updateShowDisplayMenuItem(settings.display?.visible !== false);
   } else {
@@ -606,6 +609,12 @@ app.whenReady().then(async () => {
   ipcMain.on("save-audio-enabled", (event, audioEnabled) => {
     settings.display.audioEnabled = audioEnabled;
     saveSettings(settings);
+
+    // Update all menu items to reflect the new state
+    updateEnableAudioMenuItem(audioEnabled);
+
+    // Broadcast the change to the React UI
+    mainWindow.webContents.send("update-audio-enabled", audioEnabled);
   });
 
   ipcMain.on("save-dark-mode", (event, darkMode) => {
