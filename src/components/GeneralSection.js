@@ -320,7 +320,7 @@ export function notifyCaptureChange(videoSource, resolution, showDisplayWindow =
       width: width ?? 1280,
       height: height ?? 720,
     },
-    showDisplayWindow: showDisplayWindow,
+    showDisplayWindow,
   };
   electronAPI.sendSync("shared-window-channel", {
     type: "set-video-stream",
