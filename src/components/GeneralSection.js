@@ -93,7 +93,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
       captureDevice = value;
       setDeviceId(value);
-      notifyCaptureChange(value);
+      notifyCaptureChange(value, null, false); // Don't show display window for automatic updates
       const linked = streamingDevicesRef.current.find((device) => device.linked === value);
       currentLinked = linked?.id ?? "";
       setLinkedDevice(currentLinked);
@@ -118,7 +118,9 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const handleCaptureDeviceChange = (e) => {
     captureDevice = e.target.value;
     setDeviceId(captureDevice);
-    notifyCaptureChange(captureDevice);
+    // Show display window if this is a user-initiated change or if the previous device was removed
+    const showDisplay = e.target.deviceRemoved !== undefined ? e.target.deviceRemoved : true;
+    notifyCaptureChange(captureDevice, null, showDisplay);
     const linked = streamingDevicesRef.current.find((device) => device.linked === captureDevice);
     currentLinked = linked?.id ?? "";
     setLinkedDevice(currentLinked);
@@ -305,7 +307,7 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   );
 }
 
-export function notifyCaptureChange(videoSource, resolution) {
+export function notifyCaptureChange(videoSource, resolution, showDisplayWindow = false) {
   if (resolution) {
     captureResolution = resolution;
   }
@@ -318,6 +320,7 @@ export function notifyCaptureChange(videoSource, resolution) {
       width: width ?? 1280,
       height: height ?? 720,
     },
+    showDisplayWindow,
   };
   electronAPI.sendSync("shared-window-channel", {
     type: "set-video-stream",

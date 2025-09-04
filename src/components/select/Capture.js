@@ -58,32 +58,48 @@ const Capture = ({ value, onChange }) => {
             .then((settings) => {
               let selectedDeviceId = null;
 
-              // Check if the saved device ID exists in available devices
-              if (settings?.display?.deviceId) {
+              // First priority: check if current UI value still exists in the updated device list
+              if (value && value !== "loading") {
+                const currentDeviceExists = validDevices.find(
+                  (device) => device.deviceId === value
+                );
+                if (currentDeviceExists) {
+                  selectedDeviceId = value;
+                  console.debug("[Carabiner] Current device still available, preserving selection");
+                }
+              }
+
+              // Second priority: check if the saved device ID exists in available devices
+              if (!selectedDeviceId && settings?.display?.deviceId) {
                 const savedDeviceExists = validDevices.find(
                   (device) => device.deviceId === settings.display.deviceId
                 );
                 if (savedDeviceExists) {
                   selectedDeviceId = settings.display.deviceId;
+                  console.debug("[Carabiner] Using saved device from settings");
                 }
               }
 
-              // If saved device doesn't exist or no saved device, use first available
-              if (!selectedDeviceId && validDevices.length > 0) {
+              // Last resort: use first available device only if we don't have a current selection
+              if (!selectedDeviceId && validDevices.length > 0 && (!value || value === "loading")) {
                 selectedDeviceId = validDevices[0].deviceId;
                 console.debug(
-                  "[Carabiner] Previous capture device not found, falling back to first available device"
+                  "[Carabiner] No previous device found, using first available device"
                 );
               }
 
-              if (selectedDeviceId) {
-                onChange({ target: { value: selectedDeviceId } });
+              // Only trigger onChange if we actually need to change the selection
+              if (selectedDeviceId && selectedDeviceId !== value) {
+                console.debug(`[Carabiner] Changing device selection from ${value} to ${selectedDeviceId}`);
+                // Check if this is due to current device being removed
+                const currentDeviceRemoved = value && value !== "loading" && !validDevices.find(d => d.deviceId === value);
+                onChange({ target: { value: selectedDeviceId, deviceRemoved: currentDeviceRemoved } });
               }
             })
             .catch((error) => {
               console.error("[Carabiner] Error loading settings:", error);
-              // Fallback to first device if settings can't be loaded
-              if (validDevices.length > 0) {
+              // Fallback to first device only if we don't have a current selection
+              if (validDevices.length > 0 && (!value || value === "loading")) {
                 onChange({ target: { value: validDevices[0].deviceId } });
               }
             });
