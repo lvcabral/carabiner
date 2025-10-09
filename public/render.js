@@ -1101,18 +1101,26 @@ function showToast(message, duration = 3000, error = false, onClick = null) {
 
 // Monitor device changes using Chrome's native devicechange event
 let deviceChangeTimeout;
-const DEVICE_CHANGE_DEBOUNCE_DELAY = 250; // Debounce device changes to prevent cascading updates
+const DEVICE_CHANGE_DEBOUNCE_DELAY = 3000; // Wait 3 seconds for monitor wake-up scenarios
+let lastKnownDeviceId = null; // Track the last selected device for recovery
+let deviceRecoveryAttempts = 0; // Track recovery attempts
+const MAX_RECOVERY_ATTEMPTS = 3; // Maximum times to try recovering a device
 
 function setupDeviceMonitoring() {
   navigator.mediaDevices.addEventListener("devicechange", async () => {
     // Clear any existing timeout to debounce rapid device changes
     clearTimeout(deviceChangeTimeout);
 
-    // Small delay to ensure device enumeration is stable and prevent cascading updates
+    console.debug("[Carabiner] Device change detected, waiting for connections to stabilize...");
+
+    // Extended delay to ensure all devices reconnect after monitor wake-up
     deviceChangeTimeout = setTimeout(async () => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const captureDevices = devices.filter((device) => device.kind === "videoinput");
+        console.debug(
+          `[Carabiner] Processing device changes after debounce (${captureDevices.length} devices found)`
+        );
         updateCaptureDeviceList(captureDevices);
       } catch (error) {
         console.error("[Carabiner] Error handling device change:", error);
@@ -1128,6 +1136,12 @@ function updateCaptureDeviceList(captureDevices) {
   const currentDeviceId =
     currentConstraints?.video?.deviceId?.exact || currentConstraints?.video?.deviceId;
   const currentDeviceStillExists = captureDevices.find((d) => d.deviceId === currentDeviceId);
+
+  // Track the last known device ID for recovery
+  if (currentDeviceId && currentDeviceStillExists) {
+    lastKnownDeviceId = currentDeviceId;
+    deviceRecoveryAttempts = 0; // Reset recovery attempts when device is working
+  }
 
   // Check if device list actually changed (same count and same device IDs)
   if (previousCount === newCount) {
@@ -1188,15 +1202,65 @@ function updateCaptureDeviceList(captureDevices) {
 
     // Check if current device is still available
     if (currentDeviceId && !currentDeviceStillExists && videoState !== "stopped") {
-      // Current device was disconnected, stop stream and update UI
+      // Current device was disconnected, stop stream
       stopVideoStream();
       showToast("Current capture device was disconnected!", 3000, true);
       shouldUpdateUI = true;
+
+      // Try to recover the last known device if it comes back online
+      if (lastKnownDeviceId && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
+        const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
+        if (recoveredDevice) {
+          console.debug(
+            `[Carabiner] Attempting to restore previous device: ${recoveredDevice.label || recoveredDevice.deviceId}`
+          );
+          deviceRecoveryAttempts++;
+
+          // Restore the device by sending it to the main window
+          setTimeout(() => {
+            window.electronAPI.sendSync("shared-window-channel", {
+              type: "set-capture-device",
+              payload: lastKnownDeviceId,
+            });
+            showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
+            deviceRecoveryAttempts = 0; // Reset after successful recovery
+          }, 500); // Small delay to ensure stream is fully stopped
+        } else {
+          console.debug(
+            `[Carabiner] Previous device not yet available, waiting for reconnection... (attempt ${deviceRecoveryAttempts + 1}/${MAX_RECOVERY_ATTEMPTS})`
+          );
+        }
+      }
     } else if (newCount > previousCount) {
-      // New device connected - show toast but don't update UI to avoid flash
-      showToast(`New capture device connected: ${captureDevices.length} device(s) available`);
-      // Only update UI if this is the first device (going from 0 to 1+)
-      shouldUpdateUI = previousCount === 0;
+      // New device connected
+      const isRecoveringDevice =
+        lastKnownDeviceId &&
+        !currentDeviceId &&
+        captureDevices.some((d) => d.deviceId === lastKnownDeviceId);
+
+      if (isRecoveringDevice && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
+        // Try to restore the last known device automatically
+        const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
+        console.debug(
+          `[Carabiner] Previous device reconnected: ${recoveredDevice.label || recoveredDevice.deviceId}`
+        );
+        deviceRecoveryAttempts++;
+
+        setTimeout(() => {
+          window.electronAPI.sendSync("shared-window-channel", {
+            type: "set-capture-device",
+            payload: lastKnownDeviceId,
+          });
+          showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
+          deviceRecoveryAttempts = 0; // Reset after successful recovery
+        }, 500);
+        shouldUpdateUI = true;
+      } else {
+        // New device connected - show toast but don't update UI to avoid flash
+        showToast(`New capture device connected: ${captureDevices.length} device(s) available`);
+        // Only update UI if this is the first device (going from 0 to 1+)
+        shouldUpdateUI = previousCount === 0;
+      }
     } else if (newCount < previousCount && currentDeviceId && currentDeviceStillExists) {
       // Device was removed but current device is still available - show toast but don't refresh UI
       showToast(`Capture device disconnected: ${captureDevices.length} device(s) remaining`);
