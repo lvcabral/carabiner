@@ -161,15 +161,9 @@ async function updateAudioConstraints() {
             noiseSuppression: false,
             echoCancellation: false,
           };
-          console.debug(
-            `[Carabiner] Found matching audio device: ${audioDevice.label} for video device: ${videoDevice.label}`
-          );
         } else {
           // If no matching audio device found, disable audio to avoid using microphone
           currentConstraints.audio = false;
-          console.debug(
-            `[Carabiner] No matching audio device found for video device: ${videoDevice.label}, audio disabled`
-          );
         }
       } else {
         currentConstraints.audio = false;
@@ -1111,23 +1105,17 @@ function setupDeviceMonitoring() {
     // Clear any existing timeout to debounce rapid device changes
     clearTimeout(deviceChangeTimeout);
 
-    console.debug("[Carabiner] Device change detected, waiting for connections to stabilize...");
-
     // Extended delay to ensure all devices reconnect after monitor wake-up
     deviceChangeTimeout = setTimeout(async () => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const captureDevices = devices.filter((device) => device.kind === "videoinput");
-        console.debug(
-          `[Carabiner] Processing device changes after debounce (${captureDevices.length} devices found)`
-        );
         updateCaptureDeviceList(captureDevices);
       } catch (error) {
         console.error("[Carabiner] Error handling device change:", error);
       }
     }, DEVICE_CHANGE_DEBOUNCE_DELAY);
   });
-  console.debug("[Carabiner] Device monitoring enabled using native devicechange events");
 }
 
 function updateCaptureDeviceList(captureDevices) {
@@ -1154,17 +1142,6 @@ function updateCaptureDeviceList(captureDevices) {
     if (listsAreIdentical) {
       return; // No changes detected, skip update
     }
-  }
-
-  // Log significant device changes
-  if (newCount > previousCount) {
-    console.debug(
-      `[Carabiner] ${newCount - previousCount} capture device(s) connected (total: ${newCount})`
-    );
-  } else if (newCount < previousCount) {
-    console.debug(
-      `[Carabiner] ${previousCount - newCount} capture device(s) disconnected (total: ${newCount})`
-    );
   }
 
   // Update the current device list
@@ -1211,9 +1188,6 @@ function updateCaptureDeviceList(captureDevices) {
       if (lastKnownDeviceId && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
         if (recoveredDevice) {
-          console.debug(
-            `[Carabiner] Attempting to restore previous device: ${recoveredDevice.label || recoveredDevice.deviceId}`
-          );
           deviceRecoveryAttempts++;
 
           // Restore the device by sending it to the main window
@@ -1225,10 +1199,6 @@ function updateCaptureDeviceList(captureDevices) {
             showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
             deviceRecoveryAttempts = 0; // Reset after successful recovery
           }, 500); // Small delay to ensure stream is fully stopped
-        } else {
-          console.debug(
-            `[Carabiner] Previous device not yet available, waiting for reconnection... (attempt ${deviceRecoveryAttempts + 1}/${MAX_RECOVERY_ATTEMPTS})`
-          );
         }
       }
     } else if (newCount > previousCount) {
@@ -1241,9 +1211,6 @@ function updateCaptureDeviceList(captureDevices) {
       if (isRecoveringDevice && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
         // Try to restore the last known device automatically
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
-        console.debug(
-          `[Carabiner] Previous device reconnected: ${recoveredDevice.label || recoveredDevice.deviceId}`
-        );
         deviceRecoveryAttempts++;
 
         setTimeout(() => {

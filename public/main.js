@@ -461,6 +461,18 @@ app.whenReady().then(async () => {
       const newDevices = JSON.parse(arg.payload);
       const currentDeviceId = settings.display.deviceId;
 
+      // Check if device list actually changed (not just selection)
+      // Compare device IDs in both directions to ensure lists are identical
+      const devicesChanged =
+        !captureDevices ||
+        captureDevices.length !== newDevices.length ||
+        !captureDevices.every((oldDev) =>
+          newDevices.some((newDev) => newDev.deviceId === oldDev.deviceId)
+        ) ||
+        !newDevices.every((newDev) =>
+          captureDevices.some((oldDev) => oldDev.deviceId === newDev.deviceId)
+        );
+
       // Check if current capture device was removed
       if (currentDeviceId && !newDevices.find((device) => device.deviceId === currentDeviceId)) {
         // If current device was removed and display window is hidden, show it
@@ -471,27 +483,52 @@ app.whenReady().then(async () => {
 
       captureDevices = newDevices;
       mainWindow?.webContents?.send("shared-window-channel", arg);
-      const tray = getTray();
-      if (tray) {
-        createTrayMenu(
-          mainWindow,
-          displayWindow,
-          packageInfo,
-          captureDevices,
-          settings,
-          isCurrentlyRecording
-        );
+
+      // Only rebuild tray menu when device list actually changes (devices added/removed)
+      if (devicesChanged) {
+        const tray = getTray();
+        if (tray) {
+          createTrayMenu(
+            mainWindow,
+            displayWindow,
+            packageInfo,
+            captureDevices,
+            settings,
+            isCurrentlyRecording
+          );
+        }
       }
     } else if (arg.type && arg.type === "set-video-stream") {
       saveFlag = false;
+      let deviceIdChanged = false;
       if (arg.payload?.video?.deviceId?.exact) {
-        settings.display.deviceId = arg.payload.video.deviceId.exact;
+        const newDeviceId = arg.payload.video.deviceId.exact;
+        if (settings.display.deviceId !== newDeviceId) {
+          settings.display.deviceId = newDeviceId;
+          deviceIdChanged = true;
+        }
         saveFlag = true;
       }
       if (arg.payload?.video?.width && arg.payload?.video?.height) {
         settings.display.captureWidth = arg.payload.video.width;
         settings.display.captureHeight = arg.payload.video.height;
         saveFlag = true;
+      }
+
+      // Rebuild tray menu with updated settings to reflect new selection
+      // This is more reliable than trying to update individual menu items
+      if (deviceIdChanged && captureDevices?.length > 0) {
+        const tray = getTray();
+        if (tray) {
+          createTrayMenu(
+            mainWindow,
+            displayWindow,
+            packageInfo,
+            captureDevices,
+            settings,
+            isCurrentlyRecording
+          );
+        }
       }
 
       // Only start video stream if display window is visible
