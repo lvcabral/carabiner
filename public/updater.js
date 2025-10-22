@@ -9,19 +9,21 @@
  *--------------------------------------------------------------------------------------------*/
 const { dialog, BrowserWindow, shell } = require("electron");
 const https = require("https");
+const packageInfo = require("../package.json");
 
 let updateAvailable = false;
 let latestVersion = null;
+let dialogShown = false;
 
 // Function to compare version strings
 function compareVersions(current, latest) {
-  const currentParts = current.replace('v', '').split('.').map(Number);
-  const latestParts = latest.replace('v', '').split('.').map(Number);
-  
+  const currentParts = current.replace("v", "").split(".").map(Number);
+  const latestParts = latest.replace("v", "").split(".").map(Number);
+
   for (let i = 0; i < Math.max(currentParts.length, latestParts.length); i++) {
     const currentPart = currentParts[i] || 0;
     const latestPart = latestParts[i] || 0;
-    
+
     if (latestPart > currentPart) {
       return 1; // Latest is newer
     } else if (latestPart < currentPart) {
@@ -33,61 +35,84 @@ function compareVersions(current, latest) {
 
 // Function to check for updates via GitHub API
 function checkForUpdates() {
+  console.log("Checking for updates...");
   return new Promise((resolve, reject) => {
+    // Get repository info from package.json
+    const repoUrl = packageInfo.repository.url
+      .replace(/^https?:\/\/github\.com\//, "")
+      .replace(/\.git$/, "");
+
     const options = {
-      hostname: 'api.github.com',
-      path: '/repos/lvcabral/carabiner/releases/latest',
-      method: 'GET',
+      hostname: "api.github.com",
+      path: `/repos/${repoUrl}/releases/latest`,
+      method: "GET",
       headers: {
-        'User-Agent': 'Carabiner-App',
-        'Accept': 'application/vnd.github.v3+json'
-      }
+        "User-Agent": "Carabiner-App",
+        Accept: "application/vnd.github.v3+json",
+      },
     };
 
     const req = https.request(options, (res) => {
-      let data = '';
+      let data = "";
 
-      res.on('data', (chunk) => {
+      res.on("data", (chunk) => {
         data += chunk;
       });
 
-      res.on('end', () => {
+      res.on("end", () => {
         try {
           const release = JSON.parse(data);
-          
+
           if (res.statusCode === 200 && release.tag_name) {
             latestVersion = release.tag_name;
-            
+
             // Get current version from package.json
-            const packageInfo = require('../package.json');
-            const currentVersion = 'v' + packageInfo.version;
-            
+            const currentVersion = "v" + packageInfo.version;
+
             console.log(`Current version: ${currentVersion}, Latest version: ${latestVersion}`);
-            
+
             if (compareVersions(currentVersion, latestVersion) === 1) {
               updateAvailable = true;
-              
-              // Notify user about available update
+
+              // Notify user about available update (only if not already shown)
               const mainWindow = BrowserWindow.getAllWindows().find((win) =>
                 win.webContents.getURL().includes("index.html")
               );
+              const displayWindow = BrowserWindow.getAllWindows().find((win) =>
+                win.webContents.getURL().includes("display.html")
+              );
 
-              if (mainWindow) {
-                dialog.showMessageBox(mainWindow, {
-                  type: "info",
-                  title: "Update Available",
-                  message: `A new version (${latestVersion}) is available!`,
-                  detail: "Click 'Download' to visit the releases page and download the latest version.",
-                  buttons: ["Download", "Later"],
-                  defaultId: 0,
-                }).then((result) => {
-                  if (result.response === 0) {
-                    // User chose to download - open releases page
-                    shell.openExternal('https://github.com/lvcabral/carabiner/releases/latest');
-                  }
-                });
+              // Prioritize displayWindow if visible, otherwise use mainWindow
+              let targetWindow = null;
+              if (displayWindow && displayWindow.isVisible()) {
+                targetWindow = displayWindow;
+              } else if (mainWindow) {
+                targetWindow = mainWindow;
               }
-              
+
+              if (targetWindow && !dialogShown) {
+                dialogShown = true;
+                dialog
+                  .showMessageBox(targetWindow, {
+                    type: "info",
+                    title: "Update Available",
+                    message: `A new version (${latestVersion}) is available!`,
+                    detail:
+                      "Click 'Download' to visit the releases page and download the latest version.",
+                    buttons: ["Download", "Later"],
+                    defaultId: 0,
+                  })
+                  .then((result) => {
+                    if (result.response === 0) {
+                      // User chose to download - open releases page
+                      const repoUrl = packageInfo.repository.url.replace(/\.git$/, "");
+                      shell.openExternal(`${repoUrl}/releases/latest`);
+                    }
+                    // Reset flag when dialog is dismissed
+                    dialogShown = false;
+                  });
+              }
+
               resolve({ updateAvailable: true, version: latestVersion });
             } else {
               updateAvailable = false;
@@ -105,14 +130,14 @@ function checkForUpdates() {
       });
     });
 
-    req.on('error', (error) => {
+    req.on("error", (error) => {
       console.error("Error checking for updates:", error);
       reject(error);
     });
 
     req.setTimeout(10000, () => {
       req.destroy();
-      reject(new Error('Request timeout'));
+      reject(new Error("Request timeout"));
     });
 
     req.end();

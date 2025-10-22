@@ -42,7 +42,7 @@ const {
   resetFullscreenVars,
   hideWindowSafely,
 } = require("./menu");
-const { checkForUpdates, getUpdateStatus } = require("./updater");
+const { checkForUpdates } = require("./updater");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
@@ -896,21 +896,6 @@ app.whenReady().then(async () => {
     isCurrentlyRecording = isRecording;
     updateRecordingMenuItems(true, isRecording);
     updateTrayRecordingMenuItems(isRecording);
-  });
-
-  // Version checking IPC handlers
-  ipcMain.handle("check-for-updates", async () => {
-    try {
-      const result = await checkForUpdates();
-      return { success: true, ...result };
-    } catch (error) {
-      console.error("Error checking for updates:", error);
-      return { success: false, error: error.message };
-    }
-  });
-
-  ipcMain.handle("get-update-status", async () => {
-    return getUpdateStatus();
   });
 
   // Save screenshot dialog

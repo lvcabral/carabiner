@@ -53,7 +53,6 @@ For detailed setup and usage instructions, see our comprehensive guides:
 - **🔧 [Building from Source](./docs/building-from-source.md)** - Developer setup and contribution guide
 - **⌨️ [Keyboard Mappings](./docs/key-mappings.md)** - Complete keyboard control reference
 - **📸 [Screenshots](./docs/screenshots.md)** - Visual showcase of the application interface
-- **🔄 [Version Check Guide](./docs/version-check-guide.md)** - How version checking and update notifications work
 
 ## Contributing
 
