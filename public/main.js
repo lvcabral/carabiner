@@ -32,6 +32,8 @@ const {
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
   updateShowDisplayMenuItem,
+  updateScriptRecordingMenuItems,
+  updateScriptsSubmenu,
   createTrayMenu,
   updateTrayRecordingMenuItems,
   toggleDockIcon,
@@ -58,6 +60,8 @@ let isADBConnected = false;
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
+let isScriptRecording = false;
+let isScriptPlaying = false;
 let saveFlag = false;
 
 const appLauncher = new AutoLaunch({
@@ -127,9 +131,9 @@ function createMainWindow() {
     "mainWindow",
     {
       height: isMacOS ? 620 : 645,
-      width: 630,
+      width: 700,
       minHeight: isMacOS ? 620 : 645,
-      minWidth: 630,
+      minWidth: 700,
       maximizable: false,
       resizable: false,
       autoHideMenuBar: true,
@@ -440,11 +444,19 @@ app.whenReady().then(async () => {
   displayWindow.on("hide", () => {
     displayWindow.webContents.send("window-hide");
     updateShowDisplayMenuItem(false);
+    if (isScriptRecording) {
+      isScriptRecording = false;
+      updateScriptRecordingMenuItems(false, false);
+    }
   });
 
   displayWindow.on("minimize", () => {
     displayWindow.webContents.send("window-minimize");
     updateShowDisplayMenuItem(false);
+    if (isScriptRecording) {
+      isScriptRecording = false;
+      updateScriptRecordingMenuItems(false, false);
+    }
   });
 
   displayWindow.on("restore", () => {
@@ -748,7 +760,9 @@ app.whenReady().then(async () => {
       packageInfo,
       isCurrentlyRecording,
       captureDevices,
-      settings
+      settings,
+      isScriptRecording,
+      isScriptPlaying
     );
     menu.popup({ window: displayWindow });
   });
@@ -969,6 +983,72 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Script recording controls — forwarded to display window
+  ipcMain.on("start-script-recording", () => {
+    if (!isScriptRecording) {
+      if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
+      isScriptRecording = true;
+      updateScriptRecordingMenuItems(true, true);
+      mainWindow?.webContents.send("script-recording-state-changed", true);
+      displayWindow?.webContents.send("start-script-recording");
+    }
+  });
+
+  ipcMain.on("stop-script-recording", () => {
+    if (isScriptRecording) {
+      displayWindow?.webContents.send("stop-script-recording");
+    }
+  });
+
+  ipcMain.on("script-recording-state-changed", (event, recording) => {
+    isScriptRecording = recording;
+    updateScriptRecordingMenuItems(recording, recording);
+    mainWindow?.webContents.send("script-recording-state-changed", recording);
+  });
+
+  ipcMain.on("save-script", (event, script) => {
+    if (!settings.scripts) settings.scripts = [];
+    script.name = `Script ${settings.scripts.length + 1}`;
+    settings.scripts.push(script);
+    saveSettings(settings);
+    isScriptRecording = false;
+    updateScriptRecordingMenuItems(false, false);
+    mainWindow?.webContents.send("script-recording-state-changed", false);
+    mainWindow?.webContents.send("shared-window-channel", {
+      type: "scripts-updated",
+      payload: settings.scripts,
+    });
+    updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+    const tray = getTray();
+    if (tray) {
+      createTrayMenu(mainWindow, displayWindow, packageInfo, captureDevices, settings, isCurrentlyRecording);
+    }
+  });
+
+  ipcMain.on("run-script", (event, scriptId) => {
+    const script = settings.scripts?.find((s) => s.id === scriptId);
+    if (script) {
+      if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
+      isScriptPlaying = true;
+      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording);
+      displayWindow?.webContents.send("play-script", {
+        id: script.id,
+        steps: script.steps,
+        controlType: script.controlType,
+      });
+    }
+  });
+
+  ipcMain.on("stop-script", () => {
+    displayWindow?.webContents.send("stop-script");
+  });
+
+  ipcMain.on("script-playback-done", (event, scriptId) => {
+    isScriptPlaying = false;
+    updateScriptRecordingMenuItems(isScriptRecording, isScriptRecording);
+    mainWindow?.webContents.send("script-playback-done", scriptId);
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
@@ -978,6 +1058,9 @@ app.whenReady().then(async () => {
     isQuitting = true;
     if (isADBConnected) {
       disconnectADB();
+    }
+    if (isScriptRecording) {
+      displayWindow?.webContents.send("discard-script-recording");
     }
   });
 });
@@ -1014,6 +1097,52 @@ ipcMain.on("save-recording-path", (event, recordingPath) => {
 ipcMain.on("renderer-log", (event, level, ...args) => {
   const fn = typeof log[level] === "function" ? log[level] : log.debug;
   fn.call(log, "[Renderer]", ...args);
+});
+
+// Script management handlers
+ipcMain.handle("get-scripts", async () => {
+  return settings.scripts || [];
+});
+
+ipcMain.on("update-script-name", (event, { id, name }) => {
+  const script = settings.scripts?.find((s) => s.id === id);
+  if (script) {
+    script.name = name.trim() || script.name;
+    saveSettings(settings);
+    const mainWindow = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes("index.html"));
+    const displayWindow = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes("display.html"));
+    mainWindow?.webContents.send("shared-window-channel", { type: "scripts-updated", payload: settings.scripts });
+    updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+    const tray = getTray();
+    if (tray) {
+      createTrayMenu(mainWindow, displayWindow, packageInfo, null, settings, false);
+    }
+  }
+});
+
+ipcMain.on("update-script-steps", (event, { id, steps }) => {
+  const script = settings.scripts?.find((s) => s.id === id);
+  if (script) {
+    script.steps = steps;
+    saveSettings(settings);
+    const mainWindow = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes("index.html"));
+    mainWindow?.webContents.send("shared-window-channel", { type: "scripts-updated", payload: settings.scripts });
+  }
+});
+
+ipcMain.on("delete-script", (event, scriptId) => {
+  if (settings.scripts) {
+    settings.scripts = settings.scripts.filter((s) => s.id !== scriptId);
+    saveSettings(settings);
+    const mainWindow = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes("index.html"));
+    const displayWindow = BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes("display.html"));
+    mainWindow?.webContents.send("shared-window-channel", { type: "scripts-updated", payload: settings.scripts });
+    updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+    const tray = getTray();
+    if (tray) {
+      createTrayMenu(mainWindow, displayWindow, packageInfo, null, settings, false);
+    }
+  }
 });
 
 // Handler for opening folder containing file

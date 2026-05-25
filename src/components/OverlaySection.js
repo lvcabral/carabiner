@@ -240,7 +240,7 @@ function OverlaySection() {
   };
 
   return (
-    <Container className="p-2" style={{ position: "relative" }}>
+    <Container fluid className="p-2" style={{ position: "relative" }}>
       {showAlert && (
         <Alert
           variant="info"

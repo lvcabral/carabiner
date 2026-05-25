@@ -20,6 +20,7 @@ import ControlSection from "./components/ControlSection";
 import OverlaySection from "./components/OverlaySection";
 import FilesSection from "./components/FilesSection";
 import AboutSection from "./components/AboutSection";
+import AutomationSection from "./components/AutomationSection";
 
 const { electronAPI } = window;
 
@@ -92,6 +93,11 @@ function App() {
                 onUpdateStreamingDevices={handleUpdateStreamingDevices}
                 onDeletedDevice={handleDeletedDevice}
               />
+            </div>
+          </Tab>
+          <Tab eventKey="automation" title="Automation">
+            <div className="tab-content-container">
+              <AutomationSection />
             </div>
           </Tab>
           <Tab eventKey="overlay" title="Overlay">

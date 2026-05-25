@@ -24,6 +24,13 @@ After installing Carabiner, launch the application to access the settings window
    - **Type**: Select Roku, Fire TV or Google TV
 3. Click "Add Device" to register a new streaming device
 
+> **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
+>
+> 1. Press the **Home** button on your Roku remote.
+> 2. Go to **Settings > System > Advanced system settings**.
+> 3. Select **Control by mobile apps**.
+> 4. Set to **Enabled** or **Permissive**.
+
 ### 3. Link Devices
 
 1. Return to the **General** tab
@@ -88,6 +95,35 @@ Record your streaming device sessions (in MP4/WebM) for documentation, tutorials
 - **Interactive Save Notifications**: Click the toast notification after saving to open the containing folder
 
 > **💡 Tip**: Recordings capture what you see in the display window, perfect for creating tutorials or documenting app behavior! After saving, click the toast notification to quickly navigate to your saved file.
+
+### Automation Scripts
+
+The **Automation** tab lets you record key sequences (with the exact timing between keypresses) and replay them on demand. This is useful for repetitive test flows — navigating to a menu, resetting app state, launching a specific screen — that you would otherwise repeat manually every session.
+
+**Recording a script:**
+
+1. Open the **Automation** tab in settings.
+2. Click **Start Recording** (or press `Cmd+Shift+A` on macOS / `Ctrl+Shift+A` on Windows/Linux).
+3. Switch focus to the display window and press the keys you want to record. Each keypress is captured along with the delay since the previous key.
+4. Press **Stop Recording** (or `Cmd+Shift+Z` / `Ctrl+Shift+Z`) when done. The script is saved automatically.
+
+**Playing back a script:**
+
+- Click the **▶** button next to any script in the list, or
+- Use the **File → Run Script** submenu (also available in the tray and right-click context menu).
+- Click the **■** button to interrupt playback.
+
+**Editing a script:**
+
+- **Rename**: Click the **✎** (pencil) button and type a new name.
+- **Edit steps**: Click the **≡** button to expand the step editor. From there you can:
+  - Change the delay before any step (in milliseconds, 0–5000).
+  - Reorder steps with **↑** / **↓**.
+  - Remove individual steps with **✕**.
+- Click **Save Changes** to apply edits or **Cancel** to revert.
+- Click **🗑** to delete a script entirely.
+
+> **Note:** Scripts are tied to the protocol of the device that was active when they were recorded (ECP for Roku, ADB for Android). Playing a script on a device with a different protocol will show a warning toast, but playback will still proceed.
 
 ### Overlay Images
 

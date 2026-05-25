@@ -80,12 +80,23 @@
 }
 
 .nav-tabs .nav-link {
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.75rem;
 }
 
 /* Prevent body overflow */
 body {
   overflow: hidden;
+}
+
+/* Automation section script header */
+.script-header-row {
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+[data-bs-theme="dark"] .script-header-row {
+  background-color: #3d4349 !important;
+  color: #fff !important;
 }
 
 /* Dark Mode Styles */

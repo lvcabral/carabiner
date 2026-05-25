@@ -44,6 +44,15 @@ let isRecording = false;
 // Device monitoring variables
 let currentDeviceList = [];
 
+// Script recording/playback variables
+let isScriptRecording = false;
+let currentScriptSteps = [];
+let currentScriptControlType = "";
+let currentScriptId = null;
+let lastKeyTimestamp = null;
+let isPlayingScript = false;
+let scriptPlaybackCancelled = false;
+
 // Load settings from main process
 window.electronAPI.invoke("load-settings").then(async (settings) => {
   if (settings.control && settings.control.deviceId) {
@@ -358,12 +367,26 @@ window.addEventListener("DOMContentLoaded", function () {
     if (videoState !== "stopped") {
       stopVideoStream();
     }
+    if (isScriptRecording) {
+      isScriptRecording = false;
+      currentScriptSteps = [];
+      currentScriptId = null;
+      window.electronAPI.send("script-recording-state-changed", false);
+      showToast("Script recording cancelled.", 3000, true);
+    }
   });
 
   window.electronAPI.onMessageReceived("window-minimize", () => {
     // Window is minimized - stop video stream to save resources
     if (videoState !== "stopped") {
       stopVideoStream();
+    }
+    if (isScriptRecording) {
+      isScriptRecording = false;
+      currentScriptSteps = [];
+      currentScriptId = null;
+      window.electronAPI.send("script-recording-state-changed", false);
+      showToast("Script recording cancelled.", 3000, true);
     }
   });
 
@@ -418,6 +441,59 @@ window.addEventListener("DOMContentLoaded", function () {
     if (videoState === "stopped") {
       renderDisplay(currentConstraints);
     }
+  });
+
+  // Script recording IPC listeners
+  window.electronAPI.onMessageReceived("start-script-recording", () => {
+    if (isScriptRecording) return;
+    isScriptRecording = true;
+    currentScriptSteps = [];
+    currentScriptControlType = controlType;
+    currentScriptId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    lastKeyTimestamp = Date.now();
+    window.electronAPI.send("script-recording-state-changed", true);
+    showToast("Script recording started...");
+  });
+
+  window.electronAPI.onMessageReceived("stop-script-recording", () => {
+    if (!isScriptRecording) return;
+    isScriptRecording = false;
+    if (currentScriptSteps.length === 0) {
+      showToast("Script has no steps. Recording discarded.", 3000, true);
+      currentScriptId = null;
+      window.electronAPI.send("script-recording-state-changed", false);
+      return;
+    }
+    window.electronAPI.send("save-script", {
+      id: currentScriptId,
+      name: "",
+      controlType: currentScriptControlType,
+      steps: currentScriptSteps,
+    });
+    currentScriptSteps = [];
+    currentScriptId = null;
+    showToast("Script saved!");
+  });
+
+  window.electronAPI.onMessageReceived("play-script", (_, payload) => {
+    if (isScriptRecording) {
+      showToast("Cannot play script while recording.", 3000, true);
+      return;
+    }
+    playScript(payload.steps, payload.controlType).then(() => {
+      window.electronAPI.send("script-playback-done", payload.id);
+    });
+  });
+
+  window.electronAPI.onMessageReceived("discard-script-recording", () => {
+    isScriptRecording = false;
+    currentScriptSteps = [];
+    currentScriptId = null;
+    window.electronAPI.send("script-recording-state-changed", false);
+  });
+
+  window.electronAPI.onMessageReceived("stop-script", () => {
+    scriptPlaybackCancelled = true;
   });
 
   const newWidth = window.innerWidth - widthOff;
@@ -512,6 +588,22 @@ window.addEventListener("DOMContentLoaded", function () {
       window.electronAPI.send("open-display-devtools");
       handled = true;
     }
+    // Start Script Recording: Ctrl+Shift+A / Cmd+Shift+A
+    const isStartScriptRecording =
+      (isMacOS && event.metaKey && event.shiftKey && key === "a") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && key === "a");
+    if (isStartScriptRecording) {
+      window.electronAPI.send("start-script-recording");
+      handled = true;
+    }
+    // Stop Script Recording: Ctrl+Shift+Z / Cmd+Shift+Z
+    const isStopScriptRecording =
+      (isMacOS && event.metaKey && event.shiftKey && key === "z") ||
+      (!isMacOS && event.ctrlKey && event.shiftKey && key === "z");
+    if (isStopScriptRecording) {
+      window.electronAPI.send("stop-script-recording");
+      handled = true;
+    }
 
     return handled;
   }
@@ -530,16 +622,20 @@ window.addEventListener("DOMContentLoaded", function () {
     if (controlType === "ecp") {
       const key = ecpKeysMap.get(keyCode);
       if (key && key.toLowerCase() !== "ignore") {
+        recordScriptStep(key, mod);
         sendKey(key, mod);
       } else if (
         !["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key) &&
         mod === 0
       ) {
-        sendKey(`lit_${encodeURIComponent(event.key)}`, -1);
+        const litKey = `lit_${encodeURIComponent(event.key)}`;
+        recordScriptStep(litKey, -1);
+        sendKey(litKey, -1);
       }
     } else if (controlType === "adb") {
       const key = adbKeysMap.get(keyCode);
       if (key) {
+        recordScriptStep(key, mod);
         sendKey(key, mod);
       }
     }
@@ -1093,6 +1189,47 @@ async function typeText(text) {
       }
     }
   }
+}
+
+function recordScriptStep(key, mod) {
+  if (!isScriptRecording) return;
+  const delay = currentScriptSteps.length === 0 ? 0 : Date.now() - lastKeyTimestamp;
+  currentScriptSteps.push({ key, mod, delay });
+  lastKeyTimestamp = Date.now();
+}
+
+async function playScript(steps, scriptControlType) {
+  if (!steps || steps.length === 0) {
+    showToast("Script has no steps.", 2000, true);
+    return;
+  }
+  if (!isValidIP(controlIp)) {
+    showToast("No device connected for script playback!", 3000, true);
+    return;
+  }
+  if (isPlayingScript) {
+    showToast("A script is already playing.", 2000, true);
+    return;
+  }
+  if (scriptControlType && scriptControlType !== controlType) {
+    showToast(
+      `Warning: Script recorded for ${scriptControlType.toUpperCase()}, current device is ${controlType.toUpperCase()}.`,
+      4000,
+      true
+    );
+  }
+  isPlayingScript = true;
+  scriptPlaybackCancelled = false;
+  for (let i = 0; i < steps.length; i++) {
+    if (scriptPlaybackCancelled) break;
+    if (i > 0 && steps[i].delay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(steps[i].delay, 5000)));
+    }
+    if (scriptPlaybackCancelled) break;
+    sendKey(steps[i].key, steps[i].mod);
+  }
+  isPlayingScript = false;
+  scriptPlaybackCancelled = false;
 }
 
 function sendKey(key, mod) {

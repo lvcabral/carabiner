@@ -31,6 +31,7 @@ function loadSettings() {
       screenshotPath: "", // Empty string means use default (Pictures)
       recordingPath: "", // Empty string means use default (Movies on macOS, Videos elsewhere)
     },
+    scripts: [],
   };
   try {
     return Object.assign(defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath)));
