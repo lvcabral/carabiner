@@ -296,7 +296,7 @@ function AutomationSection() {
                       title="Stop script"
                       style={{ fontSize: "0.75rem", padding: "2px 6px" }}
                     >
-                      ⏹
+                      ■
                     </Button>
                   ) : (
                     <Button
