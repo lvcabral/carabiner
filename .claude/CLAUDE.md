@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Carabiner is an Electron desktop app for streaming device development and QA. It shows live video from a capture card (HDMI capture device) in a floating overlay window, while letting users control Roku devices via ECP (HTTP) or Android/Fire TV/Google TV devices via ADB. Primary users are developers testing streaming apps without a physical TV.
 
+## Workflow
+
+Always create a new git branch before starting work on any new feature or fix. Never work directly on `main`.
+
 ## Commands
 
 ```bash
