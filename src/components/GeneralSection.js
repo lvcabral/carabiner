@@ -100,10 +100,17 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
       notifyControlChange("set-control-selected", currentLinked);
     });
 
+    window.electronAPI.onMessageReceived("update-control-device", (event, data) => {
+      const deviceId = typeof data === "string" ? data : data?.deviceId;
+      currentLinked = deviceId ?? "";
+      setLinkedDevice(deviceId ?? "");
+    });
+
     return () => {
       window.electronAPI.removeListener("open-display-tab");
       window.electronAPI.removeListener("update-audio-enabled");
       window.electronAPI.removeListener("update-capture-device");
+      window.electronAPI.removeListener("update-control-device");
     };
   }, []);
 

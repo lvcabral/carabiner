@@ -29,6 +29,14 @@ function App() {
   const onDeletedDeviceRef = useRef(null);
 
   useEffect(() => {
+    electronAPI.onMessageReceived("update-control-device", (event, data) => {
+      if (data?.deviceList) {
+        setStreamingDevices(data.deviceList);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     // Load initial settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.deviceList) {
