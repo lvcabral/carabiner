@@ -213,6 +213,10 @@ function renderDisplay(constraints) {
       videoPlayer.play();
       currentConstraints = constraints;
       videoState = "playing";
+      if (deviceId) {
+        lastKnownDeviceId = deviceId;
+        deviceRecoveryAttempts = 0;
+      }
     })
     .catch((err) => {
       showToast(`Error loading capture device! ${err.message}`, 5000, true);
@@ -266,9 +270,6 @@ async function getCaptureDeviceLabel(deviceId) {
 window.addEventListener("DOMContentLoaded", function () {
   // Ensure the display window gets focus when it loads
   window.focus();
-
-  // Setup device monitoring
-  setupDeviceMonitoring();
 
   // Handle window visibility changes via Electron IPC events
   window.electronAPI.onMessageReceived("window-show", () => {
@@ -1140,7 +1141,23 @@ function updateCaptureDeviceList(captureDevices) {
       previousIds.every((id, index) => id === newIds[index]);
 
     if (listsAreIdentical) {
-      return; // No changes detected, skip update
+      // Even with identical device list, recover stream if it stopped (e.g., monitor wake
+      // where disconnect+reconnect happened within the debounce window)
+      if (
+        videoState === "stopped" &&
+        lastKnownDeviceId &&
+        captureDevices.some((d) => d.deviceId === lastKnownDeviceId) &&
+        deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS
+      ) {
+        deviceRecoveryAttempts++;
+        const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
+        setTimeout(() => {
+          renderDisplay(currentConstraints);
+          showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
+          deviceRecoveryAttempts = 0;
+        }, 500);
+      }
+      return;
     }
   }
 
@@ -1183,43 +1200,20 @@ function updateCaptureDeviceList(captureDevices) {
       stopVideoStream();
       showToast("Current capture device was disconnected!", 3000, true);
       shouldUpdateUI = true;
-
-      // Try to recover the last known device if it comes back online
-      if (lastKnownDeviceId && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
-        const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
-        if (recoveredDevice) {
-          deviceRecoveryAttempts++;
-
-          // Restore the device by sending it to the main window
-          setTimeout(() => {
-            window.electronAPI.sendSync("shared-window-channel", {
-              type: "set-capture-device",
-              payload: lastKnownDeviceId,
-            });
-            showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
-            deviceRecoveryAttempts = 0; // Reset after successful recovery
-          }, 500); // Small delay to ensure stream is fully stopped
-        }
-      }
     } else if (newCount > previousCount) {
       // New device connected
       const isRecoveringDevice =
         lastKnownDeviceId &&
-        !currentDeviceId &&
+        videoState === "stopped" &&
         captureDevices.some((d) => d.deviceId === lastKnownDeviceId);
 
       if (isRecoveringDevice && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
-        // Try to restore the last known device automatically
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
         deviceRecoveryAttempts++;
-
         setTimeout(() => {
-          window.electronAPI.sendSync("shared-window-channel", {
-            type: "set-capture-device",
-            payload: lastKnownDeviceId,
-          });
+          renderDisplay(currentConstraints);
           showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
-          deviceRecoveryAttempts = 0; // Reset after successful recovery
+          deviceRecoveryAttempts = 0;
         }, 500);
         shouldUpdateUI = true;
       } else {
