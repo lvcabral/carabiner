@@ -87,32 +87,32 @@ Builds installers sequentially for macOS (universal DMG), Windows (x64), and Lin
 
 ```console
 carabiner/
-├── public/                   # Electron main process and display window files
-│   ├── main.js               # Main Electron process — window management and IPC routing
-│   ├── preload.js            # contextBridge — exposes electronAPI to both renderers
-│   ├── display.html          # Display window HTML (loaded by displayWindow)
-│   ├── render.js             # Display window renderer — video, keyboard, recording, scripts
-│   ├── menu.js               # macOS menu bar, system tray, and right-click context menu
-│   ├── settings.js           # Load/save settings.json from userData
-│   ├── adb.js                # Android Debug Bridge integration
-│   └── updater.js            # GitHub Releases version check
-├── src/                      # React frontend source (settings panel)
-│   ├── App.js                # Root component — tab layout
-│   ├── index.js              # React entry point
-│   └── components/           # One component per settings tab
-│       ├── GeneralSection.js # Capture device picker and device link
-│       ├── DisplaySection.js # Border, transparency, window options
-│       ├── ControlSection.js # Add/remove streaming devices, ADB path
+├── public/                      # Electron main process and display window files
+│   ├── main.js                  # Main Electron process — window management and IPC routing
+│   ├── preload.js               # contextBridge — exposes electronAPI to both renderers
+│   ├── display.html             # Display window HTML (loaded by displayWindow)
+│   ├── render.js                # Display window renderer — video, keyboard, recording, scripts
+│   ├── menu.js                  # macOS menu bar, system tray, and right-click context menu
+│   ├── settings.js              # Load/save settings.json from userData
+│   ├── adb.js                   # Android Debug Bridge integration
+│   └── updater.js               # GitHub Releases version check
+├── src/                         # React frontend source (settings panel)
+│   ├── App.js                   # Root component — tab layout
+│   ├── index.js                 # React entry point
+│   └── components/              # One component per settings tab
+│       ├── GeneralSection.js    # Capture device picker and device link
+│       ├── DisplaySection.js    # Border, transparency, window options
+│       ├── ControlSection.js    # Add/remove streaming devices, ADB path
 │       ├── AutomationSection.js # Script recording, playback, and step editing
-│       ├── OverlaySection.js # Reference image overlay with opacity control
-│       ├── FilesSection.js   # Default save paths for screenshots/recordings
-│       └── AboutSection.js   # Version info and links
-├── docs/                     # Documentation
-├── images/                   # Application icons and images
-├── build/                    # Built React application (generated)
-├── out/                      # Built Electron application and installers (generated)
-├── forge.config.js           # Electron Forge configuration
-└── package.json              # Project configuration
+│       ├── OverlaySection.js    # Reference image overlay with opacity control
+│       ├── FilesSection.js      # Default save paths for screenshots/recordings
+│       └── AboutSection.js      # Version info and links
+├── docs/                        # Documentation
+├── images/                      # Application icons and images
+├── build/                       # Built React application (generated)
+├── out/                         # Built Electron application and installers (generated)
+├── forge.config.js              # Electron Forge configuration
+└── package.json                 # Project configuration
 ```
 
 ## Contributing to Development
