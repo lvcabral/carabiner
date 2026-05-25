@@ -41,6 +41,37 @@
             .recording-active {
                 animation: recording-pulse 2s infinite !important;
             }
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+            #reconnecting-overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                background: rgba(0, 0, 0, 0.65);
+                z-index: 900;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+                gap: 14px;
+                -webkit-app-region: no-drag;
+            }
+            #reconnecting-spinner {
+                width: 36px;
+                height: 36px;
+                border: 4px solid rgba(255, 255, 255, 0.25);
+                border-top-color: #ffffff;
+                border-radius: 50%;
+                animation: spin 0.9s linear infinite;
+            }
+            #reconnecting-label {
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: 500;
+                letter-spacing: 0.4px;
+                opacity: 0.9;
+            }
             /* Ensure Toastify toasts are clickable */
             .toastify {
                 -webkit-app-region: no-drag;
@@ -69,6 +100,10 @@
             playsinlines
         ></video>
         <img id="overlay-image" style="opacity: 0" />
+        <div id="reconnecting-overlay">
+            <div id="reconnecting-spinner"></div>
+            <div id="reconnecting-label">Reconnecting capture device...</div>
+        </div>
         <div
             id="recording-indicator"
             style="

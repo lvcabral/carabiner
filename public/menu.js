@@ -462,21 +462,21 @@ function appendCaptureDevicesMenu(menu, mainWindow, captureDevices = null, setti
     // If no capture devices are available, just return
     return;
   }
+
   menu.append(new MenuItem({ type: "separator" }));
-  captureDevices.forEach((device) => {
-    let deviceLabel = device.label || `Device ${captureDevices.indexOf(device) + 1}`;
+  captureDevices.forEach((device, index) => {
+    let deviceLabel = device.label || `Device ${index + 1}`;
     const found = settings?.control?.deviceList?.find((d) => d.linked === device.deviceId);
     deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
-    menu.append(
-      new MenuItem({
-        label: deviceLabel,
-        type: "radio",
-        checked: settings?.display?.deviceId === device.deviceId,
-        click: () => {
-          mainWindow.webContents.send("update-capture-device", device.deviceId);
-        },
-      })
-    );
+    const menuItem = new MenuItem({
+      label: deviceLabel,
+      type: "radio",
+      checked: settings?.display?.deviceId === device.deviceId,
+      click: () => {
+        mainWindow.webContents.send("update-capture-device", device.deviceId);
+      },
+    });
+    menu.append(menuItem);
   });
 }
 
