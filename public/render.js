@@ -198,27 +198,76 @@ const eventHandlers = {
   "set-audio-enabled": handleSetAudioEnabled,
 };
 
-function renderDisplay(constraints) {
+function renderDisplay(constraints, isBlankRetry = false) {
+  const deviceId = constraints.video?.deviceId?.exact || constraints.video?.deviceId;
+  console.debug(
+    `[Carabiner] renderDisplay called - deviceId: ${deviceId || "default"}, videoState: ${videoState}, isBlankRetry: ${isBlankRetry}`
+  );
   if (videoState !== "stopped") {
+    console.debug("[Carabiner] Stopping existing stream before starting new one");
     stopVideoStream();
   }
   videoState = "starting";
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then(async (stream) => {
-      // Handle both direct deviceId and deviceId.exact formats
-      const deviceId = constraints.video?.deviceId?.exact || constraints.video?.deviceId;
+      const videoTrack = stream.getVideoTracks()[0];
+      console.debug(
+        `[Carabiner] getUserMedia succeeded - track: "${videoTrack?.label}", readyState: ${videoTrack?.readyState}, enabled: ${videoTrack?.enabled}, muted: ${videoTrack?.muted}`
+      );
       deviceLabel.textContent = await getCaptureDeviceLabel(deviceId);
+      videoPlayer.srcObject = null; // Release any previous stream before assigning new one
       videoPlayer.srcObject = stream;
-      videoPlayer.play();
+      const playPromise = videoPlayer.play();
+      if (playPromise) {
+        playPromise
+          .then(() =>
+            console.debug(
+              `[Carabiner] videoPlayer.play() resolved - videoWidth: ${videoPlayer.videoWidth}, videoHeight: ${videoPlayer.videoHeight}`
+            )
+          )
+          .catch((err) => console.error("[Carabiner] videoPlayer.play() failed:", err.message));
+      }
       currentConstraints = constraints;
       videoState = "playing";
       if (deviceId) {
         lastKnownDeviceId = deviceId;
         deviceRecoveryAttempts = 0;
+        console.debug(`[Carabiner] lastKnownDeviceId set to: ${deviceId.slice(0, 8)}...`);
       }
+      // Monitor track for unexpected end (e.g., device disconnected while playing)
+      if (videoTrack) {
+        videoTrack.addEventListener("ended", () => {
+          console.debug(
+            `[Carabiner] Video track ended unexpectedly (videoState was: ${videoState}, videoWidth: ${videoPlayer.videoWidth})`
+          );
+          if (videoState === "playing") {
+            videoState = "stopped";
+          }
+        });
+      }
+      // Check if stream is actually delivering frames 3 seconds after play starts.
+      // The device may appear in enumerateDevices before it is fully ready to stream,
+      // causing getUserMedia to succeed but the video to remain blank.
+      setTimeout(() => {
+        if (videoState === "playing" && videoPlayer.videoWidth === 0 && !isBlankRetry) {
+          console.debug(
+            "[Carabiner] Stream appears blank (videoWidth=0 after 3s) - retrying renderDisplay once"
+          );
+          renderDisplay(constraints, true);
+        } else if (videoState === "playing") {
+          console.debug(
+            `[Carabiner] Stream health check OK - ${videoPlayer.videoWidth}x${videoPlayer.videoHeight}`
+          );
+        } else {
+          console.debug(
+            `[Carabiner] Stream health check skipped - videoState is now: ${videoState}`
+          );
+        }
+      }, 3000);
     })
     .catch((err) => {
+      console.error(`[Carabiner] getUserMedia failed: ${err.name} - ${err.message}`);
       showToast(`Error loading capture device! ${err.message}`, 5000, true);
       videoState = "stopped";
       // Show fallback image when capture device fails to load
@@ -1103,14 +1152,17 @@ const MAX_RECOVERY_ATTEMPTS = 3; // Maximum times to try recovering a device
 
 function setupDeviceMonitoring() {
   navigator.mediaDevices.addEventListener("devicechange", async () => {
-    // Clear any existing timeout to debounce rapid device changes
+    console.debug("[Carabiner] devicechange event fired - resetting debounce timer");
     clearTimeout(deviceChangeTimeout);
-
-    // Extended delay to ensure all devices reconnect after monitor wake-up
     deviceChangeTimeout = setTimeout(async () => {
+      console.debug("[Carabiner] Debounce settled, enumerating devices...");
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const captureDevices = devices.filter((device) => device.kind === "videoinput");
+        console.debug(
+          `[Carabiner] Found ${captureDevices.length} video device(s):`,
+          captureDevices.map((d) => `"${d.label || "Unnamed"}" [${d.deviceId.slice(0, 8)}...]`)
+        );
         updateCaptureDeviceList(captureDevices);
       } catch (error) {
         console.error("[Carabiner] Error handling device change:", error);
@@ -1126,10 +1178,18 @@ function updateCaptureDeviceList(captureDevices) {
     currentConstraints?.video?.deviceId?.exact || currentConstraints?.video?.deviceId;
   const currentDeviceStillExists = captureDevices.find((d) => d.deviceId === currentDeviceId);
 
+  console.debug(
+    `[Carabiner] updateCaptureDeviceList - previous: ${previousCount}, new: ${newCount}, videoState: ${videoState}` +
+      `, currentDeviceId: ${currentDeviceId ? currentDeviceId.slice(0, 8) + "..." : "none"}` +
+      `, lastKnownDeviceId: ${lastKnownDeviceId ? lastKnownDeviceId.slice(0, 8) + "..." : "none"}` +
+      `, currentDeviceStillExists: ${!!currentDeviceStillExists}`
+  );
+
   // Track the last known device ID for recovery
   if (currentDeviceId && currentDeviceStillExists) {
     lastKnownDeviceId = currentDeviceId;
     deviceRecoveryAttempts = 0; // Reset recovery attempts when device is working
+    console.debug(`[Carabiner] lastKnownDeviceId confirmed: ${lastKnownDeviceId.slice(0, 8)}...`);
   }
 
   // Check if device list actually changed (same count and same device IDs)
@@ -1151,11 +1211,21 @@ function updateCaptureDeviceList(captureDevices) {
       ) {
         deviceRecoveryAttempts++;
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
-        setTimeout(() => {
+        console.debug(
+          `[Carabiner] Identical list but stream stopped - scheduling recovery (attempt ${deviceRecoveryAttempts}) for: "${recoveredDevice?.label}"`
+        );
+        setTimeout(async () => {
+          console.debug("[Carabiner] Executing recovery (identical-list path) - updating audio constraints...");
+          await updateAudioConstraints();
+          console.debug("[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
           showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
           deviceRecoveryAttempts = 0;
-        }, 500);
+        }, 2000);
+      } else {
+        console.debug(
+          `[Carabiner] Device list unchanged, no action needed (videoState: ${videoState}, lastKnownDeviceId: ${lastKnownDeviceId ? "set" : "null"}, attempts: ${deviceRecoveryAttempts}/${MAX_RECOVERY_ATTEMPTS})`
+        );
       }
       return;
     }
@@ -1176,6 +1246,7 @@ function updateCaptureDeviceList(captureDevices) {
   // Handle device list updates
   if (captureDevices.length === 0) {
     // No devices available
+    console.debug("[Carabiner] No video devices available - showing fallback image");
     overlayImage.style.opacity = "1";
     overlayImage.src = "images/no-capture-device.png";
     overlayImage.style.display = "block";
@@ -1197,6 +1268,9 @@ function updateCaptureDeviceList(captureDevices) {
     // Check if current device is still available
     if (currentDeviceId && !currentDeviceStillExists && videoState !== "stopped") {
       // Current device was disconnected, stop stream
+      console.debug(
+        `[Carabiner] Current device ${currentDeviceId.slice(0, 8)}... disconnected, stopping stream`
+      );
       stopVideoStream();
       showToast("Current capture device was disconnected!", 3000, true);
       shouldUpdateUI = true;
@@ -1207,28 +1281,40 @@ function updateCaptureDeviceList(captureDevices) {
         videoState === "stopped" &&
         captureDevices.some((d) => d.deviceId === lastKnownDeviceId);
 
+      console.debug(
+        `[Carabiner] New device detected - isRecoveringDevice: ${isRecoveringDevice}, recoveryAttempts: ${deviceRecoveryAttempts}/${MAX_RECOVERY_ATTEMPTS}`
+      );
+
       if (isRecoveringDevice && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
         deviceRecoveryAttempts++;
-        setTimeout(() => {
+        console.debug(
+          `[Carabiner] Scheduling recovery (attempt ${deviceRecoveryAttempts}) for device: "${recoveredDevice?.label}"`
+        );
+        setTimeout(async () => {
+          console.debug("[Carabiner] Executing recovery (new-device path) - updating audio constraints...");
+          await updateAudioConstraints();
+          console.debug("[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
           showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
           deviceRecoveryAttempts = 0;
-        }, 500);
+        }, 2000);
         shouldUpdateUI = true;
       } else {
         // New device connected - show toast but don't update UI to avoid flash
+        console.debug(`[Carabiner] New device connected (not a recovery), showing toast`);
         showToast(`New capture device connected: ${captureDevices.length} device(s) available`);
         // Only update UI if this is the first device (going from 0 to 1+)
         shouldUpdateUI = previousCount === 0;
       }
     } else if (newCount < previousCount && currentDeviceId && currentDeviceStillExists) {
       // Device was removed but current device is still available - show toast but don't refresh UI
+      console.debug(`[Carabiner] A device was removed but current device still active, no stream action needed`);
       showToast(`Capture device disconnected: ${captureDevices.length} device(s) remaining`);
-      // Don't update UI to avoid flash
       shouldUpdateUI = false;
     } else if (newCount < previousCount) {
       // Device was removed and we need to update (either no current device or current was removed)
+      console.debug(`[Carabiner] Device removed, updating UI`);
       shouldUpdateUI = true;
     }
   }
