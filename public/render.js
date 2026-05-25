@@ -254,6 +254,11 @@ function renderDisplay(constraints, isBlankRetry = false) {
           );
           if (videoState !== "stopped") {
             videoState = "stopped";
+            // Show reconnecting overlay immediately so the user knows to wait.
+            // It will be hidden by renderDisplay() when recovery succeeds or fails.
+            if (lastKnownDeviceId) {
+              showReconnectingOverlay();
+            }
           }
         });
       }
@@ -1233,7 +1238,6 @@ function updateCaptureDeviceList(captureDevices) {
         );
         setTimeout(async () => {
           window.electronAPI.log("debug","[Carabiner] Executing recovery (identical-list path) - updating audio constraints...");
-          showReconnectingOverlay();
           await updateAudioConstraints();
           window.electronAPI.log("debug","[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
@@ -1292,6 +1296,9 @@ function updateCaptureDeviceList(captureDevices) {
       stopVideoStream();
       showToast("Current capture device was disconnected!", 3000, true);
       shouldUpdateUI = true;
+      if (lastKnownDeviceId) {
+        showReconnectingOverlay();
+      }
     } else if (newCount > previousCount) {
       // New device connected
       const isRecoveringDevice =
@@ -1311,7 +1318,6 @@ function updateCaptureDeviceList(captureDevices) {
         );
         setTimeout(async () => {
           window.electronAPI.log("debug","[Carabiner] Executing recovery (new-device path) - updating audio constraints...");
-          showReconnectingOverlay();
           await updateAudioConstraints();
           window.electronAPI.log("debug","[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
