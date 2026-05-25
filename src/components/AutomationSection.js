@@ -227,7 +227,7 @@ function AutomationSection() {
           onClick={handleStartRecording}
           title="Start Recording (Cmd+Shift+A on Mac / Ctrl+Shift+A on Win/Linux)"
         >
-          ⏺ Start Recording
+          ● Start Recording
         </Button>
         <Button
           size="sm"
@@ -236,7 +236,7 @@ function AutomationSection() {
           onClick={handleStopRecording}
           title="Stop Recording (Cmd+Shift+Z on Mac / Ctrl+Shift+Z on Win/Linux)"
         >
-          ⏹ Stop Recording
+          ■ Stop Recording
         </Button>
       </div>
 
