@@ -32,6 +32,9 @@ let trayEnableAudioItem = null;
 let trayStartScriptRecordingItem = null;
 let trayStopScriptRecordingItem = null;
 
+// Control device switch callback (stored for reuse across menu rebuilds)
+let _onDeviceSelected = null;
+
 // Context menu variables
 let contextAlwaysOnTopItem = null;
 let contextEnableAudioItem = null;
@@ -482,8 +485,10 @@ function createTrayMenu(
   packageInfo,
   captureDevices = null,
   settings = null,
-  isCurrentlyRecording = false
+  isCurrentlyRecording = false,
+  onDeviceSelected = null
 ) {
+  if (onDeviceSelected) _onDeviceSelected = onDeviceSelected;
   const menuItems = [
     MenuItems.showCarabiner(displayWindow),
     MenuItems.separator(),
@@ -523,6 +528,9 @@ function createTrayMenu(
 
   // Add capture devices menu
   appendCaptureDevicesMenu(trayMenu, mainWindow, captureDevices, settings);
+
+  // Add control device quick-switch submenu
+  appendControlDevicesMenu(trayMenu, _onDeviceSelected, settings);
 
   // Add common menu items
   const commonItems = [
@@ -578,6 +586,26 @@ function appendCaptureDevicesMenu(menu, mainWindow, captureDevices = null, setti
     });
     menu.append(menuItem);
   });
+}
+
+function appendControlDevicesMenu(menu, onDeviceSelected, settings) {
+  const deviceList = settings?.control?.deviceList;
+  if (!deviceList || deviceList.length === 0) return;
+
+  menu.append(new MenuItem({ type: "separator" }));
+  menu.append(
+    new MenuItem({
+      label: "Control Device",
+      submenu: deviceList.map((device) => ({
+        label: device.alias
+          ? `${device.type}: ${device.alias} - ${device.ipAddress}`
+          : `${device.type}: ${device.ipAddress}`,
+        type: "radio",
+        checked: settings?.control?.deviceId === device.id,
+        click: () => onDeviceSelected?.(device.id),
+      })),
+    })
+  );
 }
 
 function updateTrayRecordingMenuItems(isRecording) {
@@ -642,8 +670,10 @@ function createContextMenu(
   captureDevices = null,
   settings = null,
   isScriptRecording = false,
-  isScriptPlaying = false
+  isScriptPlaying = false,
+  onDeviceSelected = null
 ) {
+  if (onDeviceSelected) _onDeviceSelected = onDeviceSelected;
   const menuItems = [
     MenuItems.copyScreenshot(displayWindow),
     MenuItems.saveScreenshot(displayWindow),
@@ -680,6 +710,9 @@ function createContextMenu(
 
   // Add capture devices menu
   appendCaptureDevicesMenu(menu, mainWindow, captureDevices, settings);
+
+  // Add control device quick-switch submenu
+  appendControlDevicesMenu(menu, _onDeviceSelected, settings);
 
   // Add remaining menu items
   const additionalItems = [
@@ -820,6 +853,7 @@ module.exports = {
   updateScriptsSubmenu,
   createTrayMenu,
   appendCaptureDevicesMenu,
+  appendControlDevicesMenu,
   updateTrayRecordingMenuItems,
   toggleDockIcon,
   createContextMenu,

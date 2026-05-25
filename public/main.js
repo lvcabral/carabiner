@@ -464,6 +464,56 @@ app.whenReady().then(async () => {
     updateShowDisplayMenuItem(true);
   });
 
+  function switchControlDevice(deviceId) {
+    if (!deviceId) return;
+    settings.control.deviceId = deviceId;
+    // Update linked property so the capture device label in menus reflects the new selection
+    const currentCaptureId = settings.display.deviceId;
+    if (currentCaptureId && settings.control.deviceList) {
+      settings.control.deviceList = settings.control.deviceList.map((device) => {
+        if (device.id === deviceId) {
+          return { ...device, linked: currentCaptureId };
+        } else if (device.linked === currentCaptureId) {
+          return { ...device, linked: "" };
+        }
+        return device;
+      });
+    }
+    saveSettings(settings);
+    const oldControlIp = controlIp;
+    [controlIp, controlType] = deviceId.split("|");
+    if (isADBConnected && oldControlIp !== controlIp) {
+      isADBConnected = disconnectADB();
+    }
+    if (!isADBConnected && controlType === "adb") {
+      isADBConnected = connectADB(controlIp, settings.control?.adbPath);
+    }
+    displayWindow?.webContents?.send("shared-window-channel", {
+      type: "set-control-selected",
+      payload: deviceId,
+    });
+    displayWindow?.webContents?.send("shared-window-channel", {
+      type: "set-control-list",
+      payload: settings.control.deviceList,
+    });
+    mainWindow?.webContents?.send("update-control-device", {
+      deviceId,
+      deviceList: settings.control.deviceList,
+    });
+    const currentTray = getTray();
+    if (currentTray) {
+      createTrayMenu(
+        mainWindow,
+        displayWindow,
+        packageInfo,
+        captureDevices,
+        settings,
+        isCurrentlyRecording,
+        switchControlDevice
+      );
+    }
+  }
+
   ipcMain.on("shared-window-channel", (event, arg) => {
     // Only forward set-video-stream messages if display window is visible or being shown
     // Forward all other messages unconditionally
@@ -508,7 +558,8 @@ app.whenReady().then(async () => {
             packageInfo,
             captureDevices,
             settings,
-            isCurrentlyRecording
+            isCurrentlyRecording,
+            switchControlDevice
           );
         }
       }
@@ -540,7 +591,8 @@ app.whenReady().then(async () => {
             packageInfo,
             captureDevices,
             settings,
-            isCurrentlyRecording
+            isCurrentlyRecording,
+            switchControlDevice
           );
         }
       }
@@ -762,7 +814,8 @@ app.whenReady().then(async () => {
       captureDevices,
       settings,
       isScriptRecording,
-      isScriptPlaying
+      isScriptPlaying,
+      switchControlDevice
     );
     menu.popup({ window: displayWindow });
   });
@@ -1021,7 +1074,7 @@ app.whenReady().then(async () => {
     updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
     const tray = getTray();
     if (tray) {
-      createTrayMenu(mainWindow, displayWindow, packageInfo, captureDevices, settings, isCurrentlyRecording);
+      createTrayMenu(mainWindow, displayWindow, packageInfo, captureDevices, settings, isCurrentlyRecording, switchControlDevice);
     }
   });
 
