@@ -9,6 +9,9 @@
  *--------------------------------------------------------------------------------------------*/
 const { contextBridge, ipcRenderer, shell } = require("electron");
 
+// When packaged, __dirname is inside an .asar archive. Use this to gate debug logging.
+const isPackaged = __dirname.includes(".asar");
+
 contextBridge.exposeInMainWorld("electronAPI", {
   sendSync: (chan, message) => ipcRenderer.sendSync(chan, message),
   send: (chan, message) => ipcRenderer.send(chan, message),
@@ -18,5 +21,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   loadImage: () => ipcRenderer.invoke("load-image"),
   getPackageInfo: () => ipcRenderer.invoke("get-package-info"),
   openExternal: (url) => shell.openExternal(url),
-  log: (level, ...args) => ipcRenderer.send("renderer-log", level, ...args),
+  log: (level, ...args) => {
+    if (!isPackaged) {
+      ipcRenderer.send("renderer-log", level, ...args);
+    }
+  },
 });
