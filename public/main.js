@@ -986,6 +986,7 @@ app.whenReady().then(async () => {
   // Script recording controls — forwarded to display window
   ipcMain.on("start-script-recording", () => {
     if (!isScriptRecording) {
+      if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
       isScriptRecording = true;
       updateScriptRecordingMenuItems(true, true);
       mainWindow?.webContents.send("script-recording-state-changed", true);
@@ -1027,6 +1028,7 @@ app.whenReady().then(async () => {
   ipcMain.on("run-script", (event, scriptId) => {
     const script = settings.scripts?.find((s) => s.id === scriptId);
     if (script) {
+      if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
       isScriptPlaying = true;
       updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording);
       displayWindow?.webContents.send("play-script", {
