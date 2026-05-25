@@ -286,6 +286,7 @@ function setAlwaysOnTop(alwaysOnTop, window) {
 function registerShortcut(shortcut, window) {
   globalShortcut.unregisterAll();
   globalShortcut.register(shortcut, () => {
+    if (window.isDestroyed()) return;
     if (window.isVisible()) {
       hideWindowSafely(window, settings);
     } else {
