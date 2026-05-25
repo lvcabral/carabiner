@@ -241,7 +241,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
           window.electronAPI.log("debug",
             `[Carabiner] Video track ended unexpectedly (videoState was: ${videoState}, videoWidth: ${videoPlayer.videoWidth})`
           );
-          if (videoState === "playing") {
+          if (videoState !== "stopped") {
             videoState = "stopped";
           }
         });
@@ -906,7 +906,12 @@ window.addEventListener("DOMContentLoaded", function () {
 
 // Video Events
 videoPlayer.addEventListener("loadstart", () => {
-  videoState = "loading";
+  // Only advance to "loading" from the explicit "starting" state.
+  // A second loadstart fired by a capture card resetting mid-initialization
+  // must not downgrade an already-playing or already-stopped stream.
+  if (videoState === "starting") {
+    videoState = "loading";
+  }
 });
 
 videoPlayer.addEventListener("play", () => {
@@ -1204,7 +1209,7 @@ function updateCaptureDeviceList(captureDevices) {
       // Even with identical device list, recover stream if it stopped (e.g., monitor wake
       // where disconnect+reconnect happened within the debounce window)
       if (
-        videoState === "stopped" &&
+        (videoState === "stopped" || videoState === "loading") &&
         lastKnownDeviceId &&
         captureDevices.some((d) => d.deviceId === lastKnownDeviceId) &&
         deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS
@@ -1212,7 +1217,7 @@ function updateCaptureDeviceList(captureDevices) {
         deviceRecoveryAttempts++;
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
         window.electronAPI.log("debug",
-          `[Carabiner] Identical list but stream stopped - scheduling recovery (attempt ${deviceRecoveryAttempts}) for: "${recoveredDevice?.label}"`
+          `[Carabiner] Identical list but stream stopped/loading - scheduling recovery (attempt ${deviceRecoveryAttempts}) for: "${recoveredDevice?.label}"`
         );
         setTimeout(async () => {
           window.electronAPI.log("debug","[Carabiner] Executing recovery (identical-list path) - updating audio constraints...");
@@ -1278,7 +1283,7 @@ function updateCaptureDeviceList(captureDevices) {
       // New device connected
       const isRecoveringDevice =
         lastKnownDeviceId &&
-        videoState === "stopped" &&
+        (videoState === "stopped" || videoState === "loading") &&
         captureDevices.some((d) => d.deviceId === lastKnownDeviceId);
 
       window.electronAPI.log("debug",
