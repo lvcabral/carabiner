@@ -9,10 +9,20 @@
  *--------------------------------------------------------------------------------------------*/
 const videoPlayer = document.getElementById("video-player");
 const overlayImage = document.getElementById("overlay-image");
+const reconnectingOverlay = document.getElementById("reconnecting-overlay");
 const settingsButton = document.getElementById("settings-button");
 const deviceLabel = document.getElementById("device-label");
 const recordingIndicator = document.getElementById("recording-indicator");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+
+function showReconnectingOverlay() {
+  reconnectingOverlay.style.display = "flex";
+}
+
+function hideReconnectingOverlay() {
+  reconnectingOverlay.style.display = "none";
+}
+
 const widthOff = 16;
 const heightOff = 9;
 const margin = 5;
@@ -215,6 +225,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
       window.electronAPI.log("debug",
         `[Carabiner] getUserMedia succeeded - track: "${videoTrack?.label}", readyState: ${videoTrack?.readyState}, enabled: ${videoTrack?.enabled}, muted: ${videoTrack?.muted}`
       );
+      hideReconnectingOverlay();
       deviceLabel.textContent = await getCaptureDeviceLabel(deviceId);
       videoPlayer.srcObject = null; // Release any previous stream before assigning new one
       videoPlayer.srcObject = stream;
@@ -268,6 +279,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
     })
     .catch((err) => {
       console.error(`[Carabiner] getUserMedia failed: ${err.name} - ${err.message}`);
+      hideReconnectingOverlay();
       showToast(`Error loading capture device! ${err.message}`, 5000, true);
       videoState = "stopped";
       // Show fallback image when capture device fails to load
@@ -1221,6 +1233,7 @@ function updateCaptureDeviceList(captureDevices) {
         );
         setTimeout(async () => {
           window.electronAPI.log("debug","[Carabiner] Executing recovery (identical-list path) - updating audio constraints...");
+          showReconnectingOverlay();
           await updateAudioConstraints();
           window.electronAPI.log("debug","[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
@@ -1298,6 +1311,7 @@ function updateCaptureDeviceList(captureDevices) {
         );
         setTimeout(async () => {
           window.electronAPI.log("debug","[Carabiner] Executing recovery (new-device path) - updating audio constraints...");
+          showReconnectingOverlay();
           await updateAudioConstraints();
           window.electronAPI.log("debug","[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
