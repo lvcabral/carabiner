@@ -25,6 +25,7 @@ After installing Carabiner, launch the application to access the settings window
 3. Click "Add Device" to register a new streaming device
 
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
+>
 > 1. Press the **Home** button on your Roku remote.
 > 2. Go to **Settings > System > Advanced system settings**.
 > 3. Select **Control by mobile apps**.
@@ -110,6 +111,7 @@ The **Automation** tab lets you record key sequences (with the exact timing betw
 
 - Click the **▶** button next to any script in the list, or
 - Use the **File → Run Script** submenu (also available in the tray and right-click context menu).
+- Click the **■** button to interrupt playback.
 
 **Editing a script:**
 
