@@ -25,6 +25,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
 - **Text Pasting**: Paste clipboard content directly to streaming devices
 - **Screenshot Capture**: Save or copy screenshots with one click
+- **Automation Scripts**: Record key sequences with precise timing and replay them on demand
 
 ### Additional Features
 
