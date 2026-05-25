@@ -9,6 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 const path = require("path");
 const os = require("os");
+const log = require("electron-log");
 const {
   app,
   BrowserWindow,
@@ -1006,6 +1007,12 @@ ipcMain.on("save-recording-path", (event, recordingPath) => {
   }
   settings.files.recordingPath = recordingPath;
   saveSettings(settings);
+});
+
+// Forward renderer-process log calls to the main-process logger
+ipcMain.on("renderer-log", (event, level, ...args) => {
+  const fn = typeof log[level] === "function" ? log[level] : log.debug;
+  fn.call(log, "[Renderer]", ...args);
 });
 
 // Handler for opening folder containing file

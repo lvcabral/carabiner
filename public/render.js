@@ -200,11 +200,11 @@ const eventHandlers = {
 
 function renderDisplay(constraints, isBlankRetry = false) {
   const deviceId = constraints.video?.deviceId?.exact || constraints.video?.deviceId;
-  console.debug(
+  window.electronAPI.log("debug",
     `[Carabiner] renderDisplay called - deviceId: ${deviceId || "default"}, videoState: ${videoState}, isBlankRetry: ${isBlankRetry}`
   );
   if (videoState !== "stopped") {
-    console.debug("[Carabiner] Stopping existing stream before starting new one");
+    window.electronAPI.log("debug","[Carabiner] Stopping existing stream before starting new one");
     stopVideoStream();
   }
   videoState = "starting";
@@ -212,7 +212,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
     .getUserMedia(constraints)
     .then(async (stream) => {
       const videoTrack = stream.getVideoTracks()[0];
-      console.debug(
+      window.electronAPI.log("debug",
         `[Carabiner] getUserMedia succeeded - track: "${videoTrack?.label}", readyState: ${videoTrack?.readyState}, enabled: ${videoTrack?.enabled}, muted: ${videoTrack?.muted}`
       );
       deviceLabel.textContent = await getCaptureDeviceLabel(deviceId);
@@ -222,7 +222,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
       if (playPromise) {
         playPromise
           .then(() =>
-            console.debug(
+            window.electronAPI.log("debug",
               `[Carabiner] videoPlayer.play() resolved - videoWidth: ${videoPlayer.videoWidth}, videoHeight: ${videoPlayer.videoHeight}`
             )
           )
@@ -233,12 +233,12 @@ function renderDisplay(constraints, isBlankRetry = false) {
       if (deviceId) {
         lastKnownDeviceId = deviceId;
         deviceRecoveryAttempts = 0;
-        console.debug(`[Carabiner] lastKnownDeviceId set to: ${deviceId.slice(0, 8)}...`);
+        window.electronAPI.log("debug",`[Carabiner] lastKnownDeviceId set to: ${deviceId.slice(0, 8)}...`);
       }
       // Monitor track for unexpected end (e.g., device disconnected while playing)
       if (videoTrack) {
         videoTrack.addEventListener("ended", () => {
-          console.debug(
+          window.electronAPI.log("debug",
             `[Carabiner] Video track ended unexpectedly (videoState was: ${videoState}, videoWidth: ${videoPlayer.videoWidth})`
           );
           if (videoState === "playing") {
@@ -251,16 +251,16 @@ function renderDisplay(constraints, isBlankRetry = false) {
       // causing getUserMedia to succeed but the video to remain blank.
       setTimeout(() => {
         if (videoState === "playing" && videoPlayer.videoWidth === 0 && !isBlankRetry) {
-          console.debug(
+          window.electronAPI.log("debug",
             "[Carabiner] Stream appears blank (videoWidth=0 after 3s) - retrying renderDisplay once"
           );
           renderDisplay(constraints, true);
         } else if (videoState === "playing") {
-          console.debug(
+          window.electronAPI.log("debug",
             `[Carabiner] Stream health check OK - ${videoPlayer.videoWidth}x${videoPlayer.videoHeight}`
           );
         } else {
-          console.debug(
+          window.electronAPI.log("debug",
             `[Carabiner] Stream health check skipped - videoState is now: ${videoState}`
           );
         }
@@ -540,7 +540,7 @@ window.addEventListener("DOMContentLoaded", function () {
         })
         .catch((err) => {
           showToast("Error copying screenshot to clipboard!", 5000, true);
-          console.debug(`error copying screenshot to clipboard: ${err.message}`);
+          window.electronAPI.log("debug",`error copying screenshot to clipboard: ${err.message}`);
         });
     });
   }
@@ -629,7 +629,7 @@ window.addEventListener("DOMContentLoaded", function () {
   // Video Recording Functions
   function handleStartRecording() {
     if (isRecording || !videoPlayer.srcObject) {
-      console.debug("[Carabiner] Cannot start recording: already recording or no video stream");
+      window.electronAPI.log("debug","[Carabiner] Cannot start recording: already recording or no video stream");
       return;
     }
 
@@ -696,7 +696,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
   function handleStopRecording() {
     if (!isRecording || !mediaRecorder) {
-      console.debug("[Carabiner] Cannot stop recording: not currently recording");
+      window.electronAPI.log("debug","[Carabiner] Cannot stop recording: not currently recording");
       return;
     }
 
@@ -756,10 +756,10 @@ window.addEventListener("DOMContentLoaded", function () {
             window.electronAPI.invoke("open-containing-folder", result.filePath);
           }
         );
-        console.debug("[Carabiner] Recording saved:", result.filePath);
+        window.electronAPI.log("debug","[Carabiner] Recording saved:", result.filePath);
       } else if (result.canceled) {
         // User canceled - don't show any message
-        console.debug("[Carabiner] Recording save canceled by user");
+        window.electronAPI.log("debug","[Carabiner] Recording save canceled by user");
       } else {
         showToast("Failed to save recording!", 5000, true);
         console.error("[Carabiner] Error saving recording:", result.error);
@@ -830,7 +830,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Handle double-click on overlay image to toggle fullscreen
   overlayImage.addEventListener("dblclick", (event) => {
-    console.debug("[Carabiner] Double-click detected on overlay image");
+    window.electronAPI.log("debug","[Carabiner] Double-click detected on overlay image");
     window.electronAPI.send("toggle-fullscreen-window");
   });
 
@@ -1051,7 +1051,7 @@ async function typeText(text) {
     showToast("No valid text to paste after cleaning special characters", 3000, true);
     return;
   }
-  console.debug(`[Carabiner] Cleaned text for pasting: "${cleanText}"`);
+  window.electronAPI.log("debug",`[Carabiner] Cleaned text for pasting: "${cleanText}"`);
   if (controlType === "adb") {
     // For ADB, send the entire text at once to avoid character ordering issues
     window.electronAPI.sendSync("shared-window-channel", {
@@ -1152,14 +1152,14 @@ const MAX_RECOVERY_ATTEMPTS = 3; // Maximum times to try recovering a device
 
 function setupDeviceMonitoring() {
   navigator.mediaDevices.addEventListener("devicechange", async () => {
-    console.debug("[Carabiner] devicechange event fired - resetting debounce timer");
+    window.electronAPI.log("debug","[Carabiner] devicechange event fired - resetting debounce timer");
     clearTimeout(deviceChangeTimeout);
     deviceChangeTimeout = setTimeout(async () => {
-      console.debug("[Carabiner] Debounce settled, enumerating devices...");
+      window.electronAPI.log("debug","[Carabiner] Debounce settled, enumerating devices...");
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const captureDevices = devices.filter((device) => device.kind === "videoinput");
-        console.debug(
+        window.electronAPI.log("debug",
           `[Carabiner] Found ${captureDevices.length} video device(s):`,
           captureDevices.map((d) => `"${d.label || "Unnamed"}" [${d.deviceId.slice(0, 8)}...]`)
         );
@@ -1178,7 +1178,7 @@ function updateCaptureDeviceList(captureDevices) {
     currentConstraints?.video?.deviceId?.exact || currentConstraints?.video?.deviceId;
   const currentDeviceStillExists = captureDevices.find((d) => d.deviceId === currentDeviceId);
 
-  console.debug(
+  window.electronAPI.log("debug",
     `[Carabiner] updateCaptureDeviceList - previous: ${previousCount}, new: ${newCount}, videoState: ${videoState}` +
       `, currentDeviceId: ${currentDeviceId ? currentDeviceId.slice(0, 8) + "..." : "none"}` +
       `, lastKnownDeviceId: ${lastKnownDeviceId ? lastKnownDeviceId.slice(0, 8) + "..." : "none"}` +
@@ -1189,7 +1189,7 @@ function updateCaptureDeviceList(captureDevices) {
   if (currentDeviceId && currentDeviceStillExists) {
     lastKnownDeviceId = currentDeviceId;
     deviceRecoveryAttempts = 0; // Reset recovery attempts when device is working
-    console.debug(`[Carabiner] lastKnownDeviceId confirmed: ${lastKnownDeviceId.slice(0, 8)}...`);
+    window.electronAPI.log("debug",`[Carabiner] lastKnownDeviceId confirmed: ${lastKnownDeviceId.slice(0, 8)}...`);
   }
 
   // Check if device list actually changed (same count and same device IDs)
@@ -1211,19 +1211,19 @@ function updateCaptureDeviceList(captureDevices) {
       ) {
         deviceRecoveryAttempts++;
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
-        console.debug(
+        window.electronAPI.log("debug",
           `[Carabiner] Identical list but stream stopped - scheduling recovery (attempt ${deviceRecoveryAttempts}) for: "${recoveredDevice?.label}"`
         );
         setTimeout(async () => {
-          console.debug("[Carabiner] Executing recovery (identical-list path) - updating audio constraints...");
+          window.electronAPI.log("debug","[Carabiner] Executing recovery (identical-list path) - updating audio constraints...");
           await updateAudioConstraints();
-          console.debug("[Carabiner] Audio constraints updated, calling renderDisplay...");
+          window.electronAPI.log("debug","[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
           showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
           deviceRecoveryAttempts = 0;
         }, 2000);
       } else {
-        console.debug(
+        window.electronAPI.log("debug",
           `[Carabiner] Device list unchanged, no action needed (videoState: ${videoState}, lastKnownDeviceId: ${lastKnownDeviceId ? "set" : "null"}, attempts: ${deviceRecoveryAttempts}/${MAX_RECOVERY_ATTEMPTS})`
         );
       }
@@ -1246,7 +1246,7 @@ function updateCaptureDeviceList(captureDevices) {
   // Handle device list updates
   if (captureDevices.length === 0) {
     // No devices available
-    console.debug("[Carabiner] No video devices available - showing fallback image");
+    window.electronAPI.log("debug","[Carabiner] No video devices available - showing fallback image");
     overlayImage.style.opacity = "1";
     overlayImage.src = "images/no-capture-device.png";
     overlayImage.style.display = "block";
@@ -1268,7 +1268,7 @@ function updateCaptureDeviceList(captureDevices) {
     // Check if current device is still available
     if (currentDeviceId && !currentDeviceStillExists && videoState !== "stopped") {
       // Current device was disconnected, stop stream
-      console.debug(
+      window.electronAPI.log("debug",
         `[Carabiner] Current device ${currentDeviceId.slice(0, 8)}... disconnected, stopping stream`
       );
       stopVideoStream();
@@ -1281,20 +1281,20 @@ function updateCaptureDeviceList(captureDevices) {
         videoState === "stopped" &&
         captureDevices.some((d) => d.deviceId === lastKnownDeviceId);
 
-      console.debug(
+      window.electronAPI.log("debug",
         `[Carabiner] New device detected - isRecoveringDevice: ${isRecoveringDevice}, recoveryAttempts: ${deviceRecoveryAttempts}/${MAX_RECOVERY_ATTEMPTS}`
       );
 
       if (isRecoveringDevice && deviceRecoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
         const recoveredDevice = captureDevices.find((d) => d.deviceId === lastKnownDeviceId);
         deviceRecoveryAttempts++;
-        console.debug(
+        window.electronAPI.log("debug",
           `[Carabiner] Scheduling recovery (attempt ${deviceRecoveryAttempts}) for device: "${recoveredDevice?.label}"`
         );
         setTimeout(async () => {
-          console.debug("[Carabiner] Executing recovery (new-device path) - updating audio constraints...");
+          window.electronAPI.log("debug","[Carabiner] Executing recovery (new-device path) - updating audio constraints...");
           await updateAudioConstraints();
-          console.debug("[Carabiner] Audio constraints updated, calling renderDisplay...");
+          window.electronAPI.log("debug","[Carabiner] Audio constraints updated, calling renderDisplay...");
           renderDisplay(currentConstraints);
           showToast(`Restored capture device: ${recoveredDevice.label || "Device"}`, 3000);
           deviceRecoveryAttempts = 0;
@@ -1302,19 +1302,19 @@ function updateCaptureDeviceList(captureDevices) {
         shouldUpdateUI = true;
       } else {
         // New device connected - show toast but don't update UI to avoid flash
-        console.debug(`[Carabiner] New device connected (not a recovery), showing toast`);
+        window.electronAPI.log("debug",`[Carabiner] New device connected (not a recovery), showing toast`);
         showToast(`New capture device connected: ${captureDevices.length} device(s) available`);
         // Only update UI if this is the first device (going from 0 to 1+)
         shouldUpdateUI = previousCount === 0;
       }
     } else if (newCount < previousCount && currentDeviceId && currentDeviceStillExists) {
       // Device was removed but current device is still available - show toast but don't refresh UI
-      console.debug(`[Carabiner] A device was removed but current device still active, no stream action needed`);
+      window.electronAPI.log("debug",`[Carabiner] A device was removed but current device still active, no stream action needed`);
       showToast(`Capture device disconnected: ${captureDevices.length} device(s) remaining`);
       shouldUpdateUI = false;
     } else if (newCount < previousCount) {
       // Device was removed and we need to update (either no current device or current was removed)
-      console.debug(`[Carabiner] Device removed, updating UI`);
+      window.electronAPI.log("debug",`[Carabiner] Device removed, updating UI`);
       shouldUpdateUI = true;
     }
   }

@@ -18,4 +18,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   loadImage: () => ipcRenderer.invoke("load-image"),
   getPackageInfo: () => ipcRenderer.invoke("get-package-info"),
   openExternal: (url) => shell.openExternal(url),
+  log: (level, ...args) => ipcRenderer.send("renderer-log", level, ...args),
 });
