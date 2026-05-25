@@ -126,6 +126,11 @@ function AutomationSection() {
     electronAPI.send("run-script", script.id);
   };
 
+  const handleStop = () => {
+    setPlayingId(null);
+    electronAPI.send("stop-script");
+  };
+
   const handleRename = (script) => {
     setEditingNameId(script.id);
     setEditingName(script.name);
@@ -283,16 +288,28 @@ function AutomationSection() {
 
                 {/* Action buttons */}
                 <div className="d-flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline-primary"
-                    disabled={isRecording || playingId === script.id}
-                    onClick={() => handlePlay(script)}
-                    title="Play script"
-                    style={{ fontSize: "0.75rem", padding: "2px 6px" }}
-                  >
-                    ▶
-                  </Button>
+                  {playingId === script.id ? (
+                    <Button
+                      size="sm"
+                      variant="warning"
+                      onClick={handleStop}
+                      title="Stop script"
+                      style={{ fontSize: "0.75rem", padding: "2px 6px" }}
+                    >
+                      ⏹
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline-primary"
+                      disabled={isRecording || isPlaying}
+                      onClick={() => handlePlay(script)}
+                      title="Play script"
+                      style={{ fontSize: "0.75rem", padding: "2px 6px" }}
+                    >
+                      ▶
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline-primary"

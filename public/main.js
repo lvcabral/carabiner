@@ -1039,6 +1039,10 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.on("stop-script", () => {
+    displayWindow?.webContents.send("stop-script");
+  });
+
   ipcMain.on("script-playback-done", (event, scriptId) => {
     isScriptPlaying = false;
     updateScriptRecordingMenuItems(isScriptRecording, isScriptRecording);

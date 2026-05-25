@@ -51,6 +51,7 @@ let currentScriptControlType = "";
 let currentScriptId = null;
 let lastKeyTimestamp = null;
 let isPlayingScript = false;
+let scriptPlaybackCancelled = false;
 
 // Load settings from main process
 window.electronAPI.invoke("load-settings").then(async (settings) => {
@@ -489,6 +490,10 @@ window.addEventListener("DOMContentLoaded", function () {
     currentScriptSteps = [];
     currentScriptId = null;
     window.electronAPI.send("script-recording-state-changed", false);
+  });
+
+  window.electronAPI.onMessageReceived("stop-script", () => {
+    scriptPlaybackCancelled = true;
   });
 
   const newWidth = window.innerWidth - widthOff;
@@ -1214,13 +1219,17 @@ async function playScript(steps, scriptControlType) {
     );
   }
   isPlayingScript = true;
+  scriptPlaybackCancelled = false;
   for (let i = 0; i < steps.length; i++) {
+    if (scriptPlaybackCancelled) break;
     if (i > 0 && steps[i].delay > 0) {
       await new Promise((resolve) => setTimeout(resolve, Math.min(steps[i].delay, 5000)));
     }
+    if (scriptPlaybackCancelled) break;
     sendKey(steps[i].key, steps[i].mod);
   }
   isPlayingScript = false;
+  scriptPlaybackCancelled = false;
 }
 
 function sendKey(key, mod) {
