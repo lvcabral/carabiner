@@ -214,12 +214,13 @@ function AutomationSection() {
       )}
 
       {/* Controls */}
-      <div className="d-flex gap-2 mb-3">
+      <div className="d-flex gap-2 mb-2">
         <Button
           size="sm"
           variant="danger"
           disabled={isRecording || isPlaying}
           onClick={handleStartRecording}
+          title="Start Recording (Cmd+Shift+A on Mac / Ctrl+Shift+A on Win/Linux)"
         >
           ⏺ Start Recording
         </Button>
@@ -228,13 +229,10 @@ function AutomationSection() {
           variant="secondary"
           disabled={!isRecording}
           onClick={handleStopRecording}
+          title="Stop Recording (Cmd+Shift+Z on Mac / Ctrl+Shift+Z on Win/Linux)"
         >
           ⏹ Stop Recording
         </Button>
-      </div>
-
-      <div style={{ fontSize: "0.75rem", color: "#6c757d", marginBottom: "0.5rem" }}>
-        Shortcuts: <strong>Cmd+Shift+A</strong> (Mac) / <strong>Ctrl+Shift+A</strong> (Win/Linux) to start, <strong>+Z</strong> to stop.
       </div>
 
       {/* Script list */}
@@ -243,7 +241,7 @@ function AutomationSection() {
           No scripts recorded yet. Press <strong>Start Recording</strong>, perform actions on your device, then press <strong>Stop Recording</strong>.
         </p>
       ) : (
-        <div>
+        <div style={{ maxHeight: "calc(100vh - 265px)", overflowY: "scroll" }}>
           {scripts.map((script) => (
             <div key={script.id} className="mb-2 border rounded" style={{ overflow: "hidden" }}>
               {/* Script header row */}

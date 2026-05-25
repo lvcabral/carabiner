@@ -91,7 +91,7 @@ const MenuItems = {
 
   startRecording: (displayWindow, enabled = false) => ({
     id: "start-recording",
-    label: "Start Recording",
+    label: "Start Video Recording",
     accelerator: ACCELERATORS.startRecording,
     enabled,
     click: () => {
@@ -104,7 +104,7 @@ const MenuItems = {
 
   stopRecording: (displayWindow, enabled = false) => ({
     id: "stop-recording",
-    label: "Stop Recording",
+    label: "Stop Video Recording",
     accelerator: ACCELERATORS.stopRecording,
     enabled,
     click: () => displayWindow?.webContents.send("stop-recording"),

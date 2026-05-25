@@ -101,14 +101,15 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   };
 
   return (
-    <div className="p-3" style={{ position: "relative" }}>
+    <div className="p-2" style={{ position: "relative", fontSize: "0.85rem" }}>
       <Card>
-        <Card.Body>
+        <Card.Body className="p-2">
           <Form>
             <Form.Group controlId="formIpAddress" className="form-group-spacing">
-              <Row>
+              <Row className="align-items-center">
                 <Col>
                   <Form.Control
+                    size="sm"
                     type="text"
                     placeholder="Enter IP address"
                     value={ipAddress}
@@ -118,11 +119,17 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 </Col>
                 <Col>
                   <Form.Control
+                    size="sm"
                     type="text"
                     placeholder="Enter Alias"
                     value={alias}
                     onChange={(e) => setAlias(e.target.value)}
                   />
+                </Col>
+                <Col xs="auto">
+                  <Button size="sm" title="Add Device" variant="primary" onClick={handleAddDevice}>
+                    &#x271A;
+                  </Button>
                 </Col>
               </Row>
             </Form.Group>
@@ -160,11 +167,6 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                     disabled={!adbPath}
                   />
                 </Col>
-                <Col xs="auto" className="d-flex align-items-center ml-auto">
-                  <Button title="Add Device" variant="primary" onClick={handleAddDevice}>
-                    &#x271A;
-                  </Button>
-                </Col>
               </Row>
             </Form.Group>
             <Form.Group controlId="formDeviceList" className="form-group-spacing">
@@ -189,7 +191,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               <Form.Label>Streaming Device List</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
-                  <Form.Control as="select" value={selectedDevice} onChange={handleDeviceSelect}>
+                  <Form.Control size="sm" as="select" value={selectedDevice} onChange={handleDeviceSelect}>
                     <option value="">Select a device to delete</option>
                     {streamingDevices.map((device, index) => (
                       <option key={index} value={device.id}>
@@ -200,7 +202,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                   </Form.Control>
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
-                  <Button title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
+                  <Button size="sm" title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
                     &#x232B;
                   </Button>
                 </Col>
@@ -210,10 +212,10 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               <Form.Label>ADB Tool Path</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
-                  <Form.Control type="text" readOnly value={adbPath} />
+                  <Form.Control size="sm" type="text" readOnly value={adbPath} />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
-                  <Button title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
+                  <Button size="sm" title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
                     &#x2026;
                   </Button>
                 </Col>
@@ -222,6 +224,15 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
           </Form>
         </Card.Body>
       </Card>
+
+      <Alert variant="warning" className="mt-2 mb-0 p-2" style={{ fontSize: "0.78rem" }}>
+        <strong>Roku users:</strong> To enable ECP (External Control Protocol), follow these steps on your device:
+        <ol className="mb-0 mt-1 ps-3">
+          <li>Go to <strong>Settings &gt; System &gt; Advanced system settings</strong>.</li>
+          <li>Select <strong>Control by mobile apps</strong>.</li>
+          <li>Set to <strong>Enabled</strong> or <strong>Permissive</strong>.</li>
+        </ol>
+      </Alert>
     </div>
   );
 }
