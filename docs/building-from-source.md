@@ -8,6 +8,7 @@ Ensure you have the following installed on your system:
 
 - **Node.js**: v18.0 or higher
 - **Git**: For cloning the repository
+- **Electron**: v42 (installed automatically via `npm install`)
 - **Platform-specific tools**:
   - **macOS**: Xcode Command Line Tools
   - **Windows**: Visual Studio Build Tools or Visual Studio Community
@@ -44,9 +45,13 @@ The first command builds the React frontend, and the second starts the Electron 
 ### Core Commands
 
 - **`npm run build`**: Build the React application for production
-- **`npm run forge`**: Run the Electron app in development mode
-- **`npm run make`**: Create platform-specific installers
-- **`npm run publish`**: Publish the application as a draft release on GitHub
+- **`npm run forge`**: Run the Electron app (requires a prior `build`)
+- **`npm run debug`**: Build and run with `ELECTRON_IS_DEV=1` for development logging
+- **`npm run test`**: Run React component tests
+- **`npm run make`**: Create a platform-specific installer for the current OS (output: `out/make/`)
+- **`npm run make:mac`**: Create a universal macOS DMG (Intel + Apple Silicon)
+- **`npm run make:all`**: Create installers for macOS (universal), Windows (x64), and Linux (x64)
+- **`npm run publish`**: Build and publish a draft release to GitHub
 
 ## Creating Installers
 
@@ -60,28 +65,54 @@ npm run make
 
 The installer will be created in the `./out/make` directory.
 
+### macOS Universal Binary
+
+```console
+npm run make:mac
+```
+
+Produces a single DMG that runs natively on both Intel and Apple Silicon Macs.
+
+> **macOS notarization** requires the `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` environment variables to be set before running `make:mac` or `publish`.
+
+### All Platforms
+
+```console
+npm run make:all
+```
+
+Builds installers sequentially for macOS (universal DMG), Windows (x64), and Linux (x64).
+
 ## Project Structure
 
 ```console
 carabiner/
-├── public/             # Electron main process files
-│   ├── main.js         # Main Electron process
-│   ├── preload.js      # Bridge script between main and renderer processes
-│   ├── render.js       # Display window renderer
-│   ├── menu.js         # Application menus
-│   ├── settings.js     # Settings management
-│   ├── adb.js          # Android Debug Bridge integration
-│   └── updater.js      # Version check functionality
-├── src/                # React frontend source
-│   ├── App.js          # Main React application
-│   ├── index.js        # React entry point
-│   └── components/     # React components
-├── docs/               # Documentation
-├── images/             # Application icons and images
-├── build/              # Built React application
-├── out/                # Built Electron application
-├── forge.config.js     # Electron Forge configuration
-└── package.json        # Project configuration
+├── public/                   # Electron main process and display window files
+│   ├── main.js               # Main Electron process — window management and IPC routing
+│   ├── preload.js            # contextBridge — exposes electronAPI to both renderers
+│   ├── display.html          # Display window HTML (loaded by displayWindow)
+│   ├── render.js             # Display window renderer — video, keyboard, recording, scripts
+│   ├── menu.js               # macOS menu bar, system tray, and right-click context menu
+│   ├── settings.js           # Load/save settings.json from userData
+│   ├── adb.js                # Android Debug Bridge integration
+│   └── updater.js            # GitHub Releases version check
+├── src/                      # React frontend source (settings panel)
+│   ├── App.js                # Root component — tab layout
+│   ├── index.js              # React entry point
+│   └── components/           # One component per settings tab
+│       ├── GeneralSection.js # Capture device picker and device link
+│       ├── DisplaySection.js # Border, transparency, window options
+│       ├── ControlSection.js # Add/remove streaming devices, ADB path
+│       ├── AutomationSection.js # Script recording, playback, and step editing
+│       ├── OverlaySection.js # Reference image overlay with opacity control
+│       ├── FilesSection.js   # Default save paths for screenshots/recordings
+│       └── AboutSection.js   # Version info and links
+├── docs/                     # Documentation
+├── images/                   # Application icons and images
+├── build/                    # Built React application (generated)
+├── out/                      # Built Electron application and installers (generated)
+├── forge.config.js           # Electron Forge configuration
+└── package.json              # Project configuration
 ```
 
 ## Contributing to Development
