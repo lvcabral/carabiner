@@ -704,6 +704,12 @@ app.whenReady().then(async () => {
       sendADBText(arg.payload);
     } else if (arg.type && arg.type === "send-atv-key") {
       sendATVKey(arg.payload);
+    } else if (arg.type && arg.type === "set-adb-path") {
+      settings.control.adbPath = arg.payload;
+      saveFlag = true;
+    } else if (arg.type && arg.type === "set-atv-path") {
+      settings.control.atvremotePath = arg.payload;
+      saveFlag = true;
     } else if (arg.type && arg.type === "set-audio-enabled") {
       settings.display.audioEnabled = arg.payload;
       saveFlag = true;
