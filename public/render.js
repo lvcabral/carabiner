@@ -704,6 +704,12 @@ window.addEventListener("DOMContentLoaded", function () {
         recordScriptStep(key, mod);
         sendKey(key, mod);
       }
+    } else if (controlType === "atv") {
+      const key = atvKeysMap.get(keyCode);
+      if (key && mod === 0) {
+        recordScriptStep(key, mod);
+        sendKey(key, mod);
+      }
     }
   }
 
@@ -1227,6 +1233,32 @@ adbKeysMap.set("Shift+Digit8", "\\*");
 adbKeysMap.set("Shift+Digit9", "162");
 adbKeysMap.set("Shift+Digit0", "163");
 
+// Apple TV Keyboard Mapping (pyatv / atvremote command names)
+const atvKeysMap = new Map();
+atvKeysMap.set("ArrowUp", "up");
+atvKeysMap.set("ArrowDown", "down");
+atvKeysMap.set("ArrowLeft", "left");
+atvKeysMap.set("ArrowRight", "right");
+atvKeysMap.set("Enter", "select");
+atvKeysMap.set("Escape", "menu");
+atvKeysMap.set("Delete", "menu");
+atvKeysMap.set("Home", "home");
+atvKeysMap.set("Shift+Escape", "home");
+atvKeysMap.set("Control+Escape", "home");
+atvKeysMap.set("End", "play_pause");
+atvKeysMap.set("PageUp", "volume_up");
+atvKeysMap.set("PageDown", "volume_down");
+atvKeysMap.set("Insert", "top_menu");
+if (isMacOS) {
+  atvKeysMap.set("Command+Enter", "play_pause");
+  atvKeysMap.set("Command+ArrowLeft", "previous");
+  atvKeysMap.set("Command+ArrowRight", "next");
+} else {
+  atvKeysMap.set("Control+Enter", "play_pause");
+  atvKeysMap.set("Control+ArrowLeft", "previous");
+  atvKeysMap.set("Control+ArrowRight", "next");
+}
+
 // Type text character by character with proper timing
 async function typeText(text) {
   // Clean the text by replacing special characters with spaces
@@ -1304,6 +1336,11 @@ function sendKey(key, mod) {
   } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
     window.electronAPI.sendSync("shared-window-channel", {
       type: "send-adb-key",
+      payload: key,
+    });
+  } else if (isValidIP(controlIp) && controlType === "atv" && mod === 0) {
+    window.electronAPI.sendSync("shared-window-channel", {
+      type: "send-atv-key",
       payload: key,
     });
   }

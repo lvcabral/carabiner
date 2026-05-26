@@ -25,6 +25,7 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
+const { connectATV, disconnectATV, sendATVKey } = require("./appletv");
 const {
   createMacOSMenu,
   updateAlwaysOnTopMenuItem,
@@ -57,6 +58,7 @@ let lastSize = [500, 290];
 let controlIp = "";
 let controlType = "";
 let isADBConnected = false;
+let isATVConnected = false;
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
@@ -369,6 +371,16 @@ app.whenReady().then(async () => {
     }
   }
 
+  if (
+    typeof settings?.control?.deviceId === "string" &&
+    settings.control.deviceId.includes("|atv")
+  ) {
+    [controlIp, controlType] = settings.control.deviceId.split("|");
+    if (!isATVConnected) {
+      isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
+    }
+  }
+
   if (settings.display?.shortcut) {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
@@ -653,6 +665,9 @@ app.whenReady().then(async () => {
         if (isADBConnected) {
           isADBConnected = disconnectADB();
         }
+        if (isATVConnected) {
+          isATVConnected = disconnectATV();
+        }
       }
       settings.control.deviceList = arg.payload;
       // If current device was removed and display window is hidden, show it
@@ -666,13 +681,21 @@ app.whenReady().then(async () => {
       if (isADBConnected && oldControlIp !== controlIp) {
         isADBConnected = disconnectADB();
       }
+      if (isATVConnected && oldControlIp !== controlIp) {
+        isATVConnected = disconnectATV();
+      }
       if (!isADBConnected && controlType === "adb") {
         isADBConnected = connectADB(controlIp, settings.control?.adbPath);
+      }
+      if (!isATVConnected && controlType === "atv") {
+        isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
       }
     } else if (arg.type && arg.type === "send-adb-key") {
       sendADBKey(arg.payload);
     } else if (arg.type && arg.type === "send-adb-text") {
       sendADBText(arg.payload);
+    } else if (arg.type && arg.type === "send-atv-key") {
+      sendATVKey(arg.payload);
     } else if (arg.type && arg.type === "set-audio-enabled") {
       settings.display.audioEnabled = arg.payload;
       saveFlag = true;
@@ -855,6 +878,21 @@ app.whenReady().then(async () => {
       const adbPath = result.filePaths[0];
       settings.control.adbPath = adbPath;
       return adbPath;
+    }
+  });
+
+  ipcMain.handle("select-atv-path", async () => {
+    resetFramelessWindow();
+    const result = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [{ name: "Executables", extensions: ["exe", "bat", "sh", ""] }],
+    });
+    if (result.canceled) {
+      return null;
+    } else {
+      const atvremotePath = result.filePaths[0];
+      settings.control.atvremotePath = atvremotePath;
+      return atvremotePath;
     }
   });
 

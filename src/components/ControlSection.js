@@ -23,15 +23,22 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [deviceType, setDeviceType] = useState("roku");
   const [selectedDevice, setSelectedDevice] = useState("");
   const [adbPath, setAdbPath] = useState("");
+  const [atvremotePath, setAtvremotePath] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const ipAddressRef = useRef(null);
 
   useEffect(() => {
-    // Load settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.adbPath) {
         setAdbPath(settings.control.adbPath);
       }
+      if (settings.control && settings.control.atvremotePath) {
+        setAtvremotePath(settings.control.atvremotePath);
+      }
+    });
+    electronAPI.getPackageInfo().then((info) => {
+      if (info?.repository?.url) setRepoUrl(info.repository.url);
     });
   }, []);
 
@@ -55,7 +62,12 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     }
 
     if (ipAddress && deviceType) {
-      const protocol = deviceType === "roku" ? "ecp" : "adb";
+      let protocol = "ecp";
+      if (deviceType === "firetv" || deviceType === "googletv") {
+        protocol = "adb";
+      } else if (deviceType === "appletv") {
+        protocol = "atv";
+      }
       let type = "";
       if (deviceType === "roku") {
         type = "Roku";
@@ -63,6 +75,8 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         type = "Fire TV";
       } else if (deviceType === "googletv") {
         type = "Google TV";
+      } else if (deviceType === "appletv") {
+        type = "Apple TV";
       }
       const newDevice = {
         id: `${ipAddress}|${protocol}`,
@@ -97,6 +111,13 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     if (path) {
       setAdbPath(path);
       notifyControlChange("set-adb-path", path);
+    }
+  };
+
+  const handleSelectAtvPath = async () => {
+    const path = await electronAPI.invoke("select-atv-path");
+    if (path) {
+      setAtvremotePath(path);
     }
   };
 
@@ -167,6 +188,17 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                     disabled={!adbPath}
                   />
                 </Col>
+                <Col xs="auto" className="d-flex align-items-center">
+                  <Form.Check
+                    type="radio"
+                    label="Apple TV"
+                    name="deviceType"
+                    value="appletv"
+                    checked={deviceType === "appletv"}
+                    onChange={(e) => setDeviceType(e.target.value)}
+                    disabled={!atvremotePath}
+                  />
+                </Col>
               </Row>
             </Form.Group>
             <Form.Group controlId="formDeviceList" className="form-group-spacing">
@@ -209,7 +241,16 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               </Row>
             </Form.Group>
             <Form.Group controlId="formAdbPath" className="form-group-spacing">
-              <Form.Label>ADB Tool Path</Form.Label>
+              <Form.Label className="d-flex justify-content-between align-items-center w-100">
+                ADB Tool Path (Android based devices like Fire TV and Google TV)
+                <a
+                  href="#adb-setup"
+                  style={{ fontSize: "0.75rem" }}
+                  onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-android-firetv.md`); }}
+                >
+                  Setup Guide ↗
+                </a>
+              </Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
                   <Form.Control size="sm" type="text" readOnly value={adbPath} />
@@ -221,11 +262,33 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 </Col>
               </Row>
             </Form.Group>
+            <Form.Group controlId="formAtvremotePath" className="form-group-spacing">
+              <Form.Label className="d-flex justify-content-between align-items-center w-100">
+                atvremote Tool Path (Apple TV devices)
+                <a
+                  href="#atv-setup"
+                  style={{ fontSize: "0.75rem" }}
+                  onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-apple-tv.md`); }}
+                >
+                  Setup Guide ↗
+                </a>
+              </Form.Label>
+              <Row>
+                <Col className="d-flex align-items-center flex-grow-1">
+                  <Form.Control size="sm" type="text" readOnly value={atvremotePath} />
+                </Col>
+                <Col xs="auto" className="d-flex align-items-center">
+                  <Button size="sm" title="Select atvremote Path" variant="primary" onClick={handleSelectAtvPath}>
+                    &#x2026;
+                  </Button>
+                </Col>
+              </Row>
+            </Form.Group>
           </Form>
         </Card.Body>
       </Card>
 
-      <Alert variant="warning" className="mt-2 mb-0 p-2" style={{ fontSize: "0.78rem" }}>
+      <Alert variant="warning" className="mt-2 mb-0 p-1" style={{ fontSize: "0.72rem" }}>
         <strong>Roku users:</strong> To enable ECP (External Control Protocol), follow these steps on your device:
         <ol className="mb-0 mt-1 ps-3">
           <li>Go to <strong>Settings &gt; System &gt; Advanced system settings</strong>.</li>
@@ -233,6 +296,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
           <li>Set to <strong>Enabled</strong> or <strong>Permissive</strong>.</li>
         </ol>
       </Alert>
+
     </div>
   );
 }
