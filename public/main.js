@@ -884,7 +884,6 @@ app.whenReady().then(async () => {
     resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
-      filters: [{ name: "Executables", extensions: ["exe", "bat", "sh", ""] }],
     });
     if (result.canceled) {
       return null;
@@ -899,7 +898,6 @@ app.whenReady().then(async () => {
     resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
-      filters: [{ name: "Executables", extensions: ["exe", "bat", "sh", ""] }],
     });
     if (result.canceled) {
       return null;
