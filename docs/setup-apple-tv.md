@@ -4,7 +4,6 @@ Carabiner controls Apple TV using **pyatv** — an open-source Python library th
 
 ## Requirements
 
-- Python 3.9+ installed
 - Apple TV HD or Apple TV 4K (any generation), running tvOS 9+
 - Device on the same local network
 
@@ -12,13 +11,36 @@ Carabiner controls Apple TV using **pyatv** — an open-source Python library th
 
 ## 1. Install pyatv
 
+Modern macOS (12+) blocks `pip install` into the system Python with an `externally-managed-environment` error. Use **pipx** instead — it is the recommended way to install Python CLI tools in an isolated environment.
+
+### Install pipx (if you don't have it)
+
 ```bash
-pip install pyatv
+brew install pipx
+pipx ensurepath
+```
+
+Or without Homebrew:
+
+```bash
+pip3 install pipx --break-system-packages
+```
+
+### Install pyatv via pipx
+
+```bash
+pipx install pyatv
 which atvremote   # note this path for Carabiner
 ```
 
-> On macOS with Homebrew Python or a virtualenv, the path may be something like  
-> `/opt/homebrew/bin/atvremote` or `/usr/local/bin/atvremote`.
+The binary is typically at `/Users/<you>/.local/bin/atvremote`.
+
+> **Alternative (virtual environment):** If you prefer, create a venv and install there:
+> ```bash
+> python3 -m venv ~/.venvs/pyatv
+> ~/.venvs/pyatv/bin/pip install pyatv
+> # use ~/.venvs/pyatv/bin/atvremote as your path in Carabiner
+> ```
 
 ---
 
@@ -64,6 +86,7 @@ To find your Apple TV's IP address:
 
 | Problem | Fix |
 |---------|-----|
+| `error: externally-managed-environment` | Use `pipx install pyatv` instead of `pip install` — see Step 1 above |
 | `PairError` during pairing | Make sure the Apple TV is awake and on the same network |
 | Commands are slow (~1–2 s) | Normal — each key press starts a new connection; this is a limitation of the `atvremote` CLI approach |
 | `AuthenticationError` | Re-pair: `atvremote --address <ip> --protocol mrp pair` |
