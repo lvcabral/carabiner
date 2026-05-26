@@ -253,7 +253,13 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               </Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
-                  <Form.Control size="sm" type="text" readOnly value={adbPath} />
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    value={adbPath}
+                    onChange={(e) => { setAdbPath(e.target.value); notifyControlChange("set-adb-path", e.target.value); }}
+                    placeholder="Paste or select path to adb binary"
+                  />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
                   <Button size="sm" title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
@@ -275,7 +281,13 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               </Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
-                  <Form.Control size="sm" type="text" readOnly value={atvremotePath} />
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    value={atvremotePath}
+                    onChange={(e) => { setAtvremotePath(e.target.value); notifyControlChange("set-atv-path", e.target.value); }}
+                    placeholder="Paste or select path to atvremote binary"
+                  />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
                   <Button size="sm" title="Select atvremote Path" variant="primary" onClick={handleSelectAtvPath}>
