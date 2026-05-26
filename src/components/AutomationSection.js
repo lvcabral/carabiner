@@ -246,7 +246,7 @@ function AutomationSection() {
           No scripts recorded yet. Press <strong>Start Recording</strong>, perform actions on your device, then press <strong>Stop Recording</strong>.
         </p>
       ) : (
-        <div style={{ maxHeight: "calc(100vh - 265px)", overflowY: "scroll" }}>
+        <div className="script-list-scroll" style={{ maxHeight: "calc(100vh - 230px)", overflowY: "scroll" }}>
           {scripts.map((script) => (
             <div key={script.id} className="mb-2 border rounded" style={{ overflow: "hidden" }}>
               {/* Script header row */}
