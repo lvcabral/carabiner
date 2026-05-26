@@ -107,7 +107,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   };
 
   const handleSelectAdbPath = async () => {
-    const path = await electronAPI.invoke("select-adb-path");
+    const path = await electronAPI.invoke("select-adb-path", adbPath);
     if (path) {
       setAdbPath(path);
       notifyControlChange("set-adb-path", path);
@@ -115,7 +115,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   };
 
   const handleSelectAtvPath = async () => {
-    const path = await electronAPI.invoke("select-atv-path");
+    const path = await electronAPI.invoke("select-atv-path", atvremotePath);
     if (path) {
       setAtvremotePath(path);
     }

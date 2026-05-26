@@ -880,10 +880,11 @@ app.whenReady().then(async () => {
     }
   };
 
-  ipcMain.handle("select-adb-path", async () => {
+  ipcMain.handle("select-adb-path", async (event, currentPath) => {
     resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
+      defaultPath: currentPath ? path.dirname(currentPath) : undefined,
     });
     if (result.canceled) {
       return null;
@@ -894,10 +895,11 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle("select-atv-path", async () => {
+  ipcMain.handle("select-atv-path", async (event, currentPath) => {
     resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
+      defaultPath: currentPath ? path.dirname(currentPath) : undefined,
     });
     if (result.canceled) {
       return null;
