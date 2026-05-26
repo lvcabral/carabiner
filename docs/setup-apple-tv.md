@@ -35,6 +35,8 @@ which atvremote   # note this path for Carabiner
 
 The binary is typically at `/Users/<you>/.local/bin/atvremote`.
 
+**Note:** There is currently [an issue](https://github.com/postlund/pyatv/pull/2831) in `pyatv` with Python 3.14 so if you have that version, use Python 3.12  with `pipx install --python python3.12 pyatv` instead.
+
 > **Alternative (virtual environment):** If you prefer, create a venv and install there:
 > ```bash
 > python3 -m venv ~/.venvs/pyatv
