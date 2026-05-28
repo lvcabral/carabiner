@@ -44,6 +44,65 @@ let isRecording = false;
 // Device monitoring variables
 let currentDeviceList = [];
 
+// Key press overlay variables
+let showKeystrokes = false;
+const MAX_KEY_INDICATORS = 3;
+let activeKeyIndicators = [];
+
+const ECP_DISPLAY_NAMES = {
+  up: "Up", down: "Down", left: "Left", right: "Right",
+  select: "OK", back: "Back", home: "Home",
+  play: "Play", pause: "Pause", playpause: "Play/Pause",
+  fwd: "Fwd", rev: "Rev", replay: "Replay", instantreplay: "Replay",
+  info: "*", search: "Search", backspace: "⌫", enter: "Enter",
+  volumeup: "Vol+", volumedown: "Vol-", volumemute: "Mute",
+  channelup: "Ch+", channeldown: "Ch-", findremote: "Find Remote",
+  poweroff: "Power", a: "A", b: "B", c: "C", d: "D",
+};
+
+const ADB_DISPLAY_NAMES = {
+  "3": "Home", "4": "Back",
+  "19": "Up", "20": "Down", "21": "Left", "22": "Right",
+  "66": "OK", "67": "⌫",
+  "85": "Play", "86": "Stop", "87": "Next", "88": "Prev",
+  "89": "Rev", "90": "Fwd",
+  "91": "Vol+", "92": "Vol-", "164": "Mute",
+  "1": "Menu",
+};
+
+function formatDeviceKeyLabel(key, type) {
+  if (type === "ecp") {
+    return ECP_DISPLAY_NAMES[key.toLowerCase()] || key.charAt(0).toUpperCase() + key.slice(1);
+  }
+  // ADB: numeric keycodes → readable name
+  if (ADB_DISPLAY_NAMES[key]) return ADB_DISPLAY_NAMES[key];
+  const code = parseInt(key, 10);
+  if (!isNaN(code)) {
+    if (code >= 29 && code <= 54) return String.fromCharCode(code + 36); // A–Z
+    if (code >= 7 && code <= 16) return String(code - 7); // 0–9
+  }
+  // Non-numeric ADB value (e.g. special chars like "\\<")
+  return key.replace(/^\\/, "");
+}
+
+function displayKeyIndicator(label) {
+  const overlay = document.getElementById("key-overlay");
+  if (!overlay) return;
+  if (activeKeyIndicators.length >= MAX_KEY_INDICATORS) {
+    const oldest = activeKeyIndicators.shift();
+    oldest.remove();
+  }
+  const el = document.createElement("div");
+  el.className = "key-indicator";
+  el.textContent = label;
+  overlay.appendChild(el);
+  activeKeyIndicators.push(el);
+  el.addEventListener("animationend", () => {
+    el.remove();
+    activeKeyIndicators = activeKeyIndicators.filter((x) => x !== el);
+  });
+}
+
 // Script recording/playback variables
 let isScriptRecording = false;
 let currentScriptSteps = [];
@@ -61,6 +120,9 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
   if (settings.display && settings.display.audioEnabled !== undefined) {
     audioEnabled = settings.display.audioEnabled;
     // Note: updateAudioConstraints() will be called when video stream is set
+  }
+  if (settings.display && settings.display.showKeystrokes !== undefined) {
+    showKeystrokes = settings.display.showKeystrokes;
   }
 });
 
@@ -215,6 +277,7 @@ const eventHandlers = {
   "set-control-selected": handleControlSelected,
   "set-overlay-opacity": handleOverlayOpacity,
   "set-audio-enabled": handleSetAudioEnabled,
+  "set-show-keystrokes": (payload) => { showKeystrokes = payload; },
 };
 
 function renderDisplay(constraints, isBlankRetry = false) {
@@ -622,12 +685,14 @@ window.addEventListener("DOMContentLoaded", function () {
     if (controlType === "ecp") {
       const key = ecpKeysMap.get(keyCode);
       if (key && key.toLowerCase() !== "ignore") {
+        if (mod === 0 && showKeystrokes) displayKeyIndicator(formatDeviceKeyLabel(key, "ecp"));
         recordScriptStep(key, mod);
         sendKey(key, mod);
       } else if (
         !["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key) &&
         mod === 0
       ) {
+        if (showKeystrokes) displayKeyIndicator(event.key.toUpperCase());
         const litKey = `lit_${encodeURIComponent(event.key)}`;
         recordScriptStep(litKey, -1);
         sendKey(litKey, -1);
@@ -635,6 +700,7 @@ window.addEventListener("DOMContentLoaded", function () {
     } else if (controlType === "adb") {
       const key = adbKeysMap.get(keyCode);
       if (key) {
+        if (mod === 0 && showKeystrokes) displayKeyIndicator(formatDeviceKeyLabel(key, "adb"));
         recordScriptStep(key, mod);
         sendKey(key, mod);
       }

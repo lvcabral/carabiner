@@ -76,6 +76,35 @@
             .toastify {
                 -webkit-app-region: no-drag;
             }
+            #key-overlay {
+                position: fixed;
+                bottom: 110px;
+                left: 50%;
+                width: 0;
+                height: 0;
+                z-index: 2000;
+                pointer-events: none;
+            }
+            @keyframes key-float {
+                0%   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1);   }
+                10%  { opacity: 1;                                                            }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-80vh) scale(0.7); }
+            }
+            .key-indicator {
+                position: absolute;
+                left: 0;
+                bottom: 0;
+                white-space: nowrap;
+                background: rgba(0, 0, 0, 0.72);
+                color: #fff;
+                border: 2px solid rgba(255, 255, 255, 0.45);
+                border-radius: 10px;
+                padding: 8px 18px;
+                font-size: 26px;
+                font-weight: bold;
+                font-family: monospace;
+                animation: key-float 1.5s ease-out forwards;
+            }
         </style>
         <link href="../node_modules/toastify-js/src/toastify.css" rel="stylesheet" />
     </head>
@@ -128,6 +157,7 @@
             title="Show Settings"
         >⋯</button>
         <div id="device-label" style="opacity: 0"></div>
+        <div id="key-overlay"></div>
         <script src="../node_modules/toastify-js/src/toastify.js"></script>
         <script src="render.js"></script>
     </body>
