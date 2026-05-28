@@ -676,6 +676,9 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-audio-enabled") {
       settings.display.audioEnabled = arg.payload;
       saveFlag = true;
+    } else if (arg.type && arg.type === "set-show-keystrokes") {
+      settings.display.showKeystrokes = arg.payload;
+      saveFlag = true;
     } else if (arg.type && arg.type === "clear-overlay-image") {
       saveFlag = false;
       // Clear the overlay image by sending a specific clear message

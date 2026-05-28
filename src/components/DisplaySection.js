@@ -58,6 +58,7 @@ function DisplaySection() {
   const [displaySize, setDisplaySize] = useState("custom"); // Default fallback
   const [transparency, setTransparency] = useState(0);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [showKeystrokes, setShowKeystrokes] = useState(false);
   const [mainDisplaySize, setMainDisplaySize] = useState({
     width: 1920,
     height: 1080,
@@ -99,6 +100,9 @@ function DisplaySection() {
         }
         if (settings.display && settings.display.alwaysOnTop !== undefined) {
           setAlwaysOnTop(settings.display.alwaysOnTop);
+        }
+        if (settings.display && settings.display.showKeystrokes !== undefined) {
+          setShowKeystrokes(settings.display.showKeystrokes);
         }
 
         // Set display size based on current window size and filtered predefined options
@@ -177,6 +181,14 @@ function DisplaySection() {
   const handleAlwaysOnTopChange = (e) => {
     setAlwaysOnTop(e.target.checked);
     electronAPI.send("save-always-on-top", e.target.checked);
+  };
+
+  const handleShowKeystrokesChange = (e) => {
+    setShowKeystrokes(e.target.checked);
+    electronAPI.sendSync("shared-window-channel", {
+      type: "set-show-keystrokes",
+      payload: e.target.checked,
+    });
   };
 
   const handleResolutionChange = (e) => {
@@ -271,6 +283,13 @@ function DisplaySection() {
                     checked={alwaysOnTop}
                     onChange={handleAlwaysOnTopChange}
                     className="text-nowrap"
+                  />
+                  <Form.Check
+                    type="checkbox"
+                    label="Show Key Presses"
+                    checked={showKeystrokes}
+                    onChange={handleShowKeystrokesChange}
+                    className="text-nowrap mt-2"
                   />
                 </div>
               </div>

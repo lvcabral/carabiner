@@ -22,6 +22,7 @@ function loadSettings() {
     display: {
       showInDock: true, // macOS: true = dock mode, false = menubar mode
       autoUpdate: true, // Check for updates enabled by default
+      showKeystrokes: false,
     },
     border: {},
     control: {
