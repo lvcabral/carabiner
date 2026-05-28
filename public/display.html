@@ -112,6 +112,7 @@
     <body>
         <video
             id="video-player"
+            draggable="false"
             style="
                 width: 480px;
                 height: 270px;
@@ -128,7 +129,7 @@
             autoplay
             playsinlines
         ></video>
-        <img id="overlay-image" style="opacity: 0" />
+        <img id="overlay-image" style="opacity: 0" draggable="false" />
         <div id="reconnecting-overlay">
             <div id="reconnecting-spinner"></div>
             <div id="reconnecting-label">Reconnecting capture device...</div>
@@ -153,6 +154,7 @@
             id="settings-button"
             style="opacity: 0"
             class="interactive"
+            tabindex="-1"
             alt="show settings"
             title="Show Settings"
         >⋯</button>

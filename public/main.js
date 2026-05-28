@@ -264,6 +264,14 @@ function createDisplayWindow() {
     }
   });
 
+  win.on("enter-full-screen", () => {
+    win.webContents.send("enter-full-screen");
+  });
+
+  win.on("leave-full-screen", () => {
+    win.webContents.send("leave-full-screen");
+  });
+
   // Add close event handler to save window position and size
   win.on("close", (event) => {
     if (!win.isFullScreen()) {
