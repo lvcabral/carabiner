@@ -74,9 +74,19 @@ const ADB_DISPLAY_NAMES = {
   "1": "Menu",
 };
 
+const ATV_DISPLAY_NAMES = {
+  up: "Up", down: "Down", left: "Left", right: "Right",
+  select: "OK", menu: "Back", home: "Home",
+  play_pause: "Play/Pause", volume_up: "Vol+", volume_down: "Vol-",
+  top_menu: "Top Menu", previous: "Prev", next: "Next",
+};
+
 function formatDeviceKeyLabel(key, type) {
   if (type === "ecp") {
     return ECP_DISPLAY_NAMES[key.toLowerCase()] || key.charAt(0).toUpperCase() + key.slice(1);
+  }
+  if (type === "atv") {
+    return ATV_DISPLAY_NAMES[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
   // ADB: numeric keycodes → readable name
   if (ADB_DISPLAY_NAMES[key]) return ADB_DISPLAY_NAMES[key];
@@ -736,6 +746,7 @@ window.addEventListener("DOMContentLoaded", function () {
     } else if (controlType === "atv") {
       const key = atvKeysMap.get(keyCode);
       if (key && mod === 0) {
+        if (showKeystrokes) displayKeyIndicator(formatDeviceKeyLabel(key, "atv"));
         recordScriptStep(key, mod);
         sendKey(key, mod);
       }
