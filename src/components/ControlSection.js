@@ -48,15 +48,22 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     return regex.test(ip);
   };
 
+  const isValidAtvDeviceId = (id) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const macRegex = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
+    return uuidRegex.test(id) || macRegex.test(id) || isValidIpAddress(id);
+  };
+
   const handleAddDevice = () => {
-    if (!isValidIpAddress(ipAddress)) {
-      setErrorMessage("Invalid IP address format.");
+    const isAppleTV = deviceType === "appletv";
+    if (isAppleTV ? !isValidAtvDeviceId(ipAddress) : !isValidIpAddress(ipAddress)) {
+      setErrorMessage(isAppleTV ? "Invalid device ID (use UUID, MAC address, or IP)." : "Invalid IP address format.");
       setTimeout(() => setErrorMessage(""), 3000);
       return;
     }
 
     if (streamingDevices.some((device) => device.ipAddress === ipAddress)) {
-      setErrorMessage("IP address already exists.");
+      setErrorMessage(isAppleTV ? "Device ID already exists." : "IP address already exists.");
       setTimeout(() => setErrorMessage(""), 3000);
       return;
     }
@@ -132,7 +139,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                   <Form.Control
                     size="sm"
                     type="text"
-                    placeholder="Enter IP address"
+                    placeholder={deviceType === "appletv" ? "Enter Device ID (UUID or MAC)" : "Enter IP address"}
                     value={ipAddress}
                     onChange={(e) => setIpAddress(e.target.value)}
                     ref={ipAddressRef}

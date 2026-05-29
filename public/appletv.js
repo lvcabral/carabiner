@@ -8,11 +8,12 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 const { exec } = require("child_process");
+const IP_REGEX = /^(\d{1,3}\.){3}\d{1,3}$/;
 let atvremotePath = "";
-let deviceIp = "";
+let deviceId = "";
 let isATVConnected = false;
 
-function connectATV(ip, path) {
+function connectATV(id, path) {
   if (typeof path === "string") {
     atvremotePath = path;
   }
@@ -20,22 +21,23 @@ function connectATV(ip, path) {
     console.error("atvremote path not set.");
     return false;
   }
-  deviceIp = ip;
+  deviceId = id;
   isATVConnected = true;
-  console.log("Apple TV configured for " + ip);
+  console.log("Apple TV configured for " + id);
   return isATVConnected;
 }
 
 function disconnectATV() {
-  deviceIp = "";
+  deviceId = "";
   isATVConnected = false;
   console.log("Disconnected from Apple TV");
   return isATVConnected;
 }
 
 function sendATVKey(key) {
-  if (isATVConnected && typeof key === "string" && atvremotePath !== "" && deviceIp !== "") {
-    exec(`"${atvremotePath}" --address ${deviceIp} --protocol mrp ${key}`, puts);
+  if (isATVConnected && typeof key === "string" && atvremotePath !== "" && deviceId !== "") {
+    const addrFlag = IP_REGEX.test(deviceId) ? `--address ${deviceId}` : `--id ${deviceId}`;
+    exec(`"${atvremotePath}" ${addrFlag} --protocol mrp ${key}`, puts);
   }
 }
 
