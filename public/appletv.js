@@ -45,13 +45,14 @@ function sendATVKey(key) {
 }
 
 function puts(error, stdout, stderr) {
-  if (error) console.error(error);
   if (stdout) console.log(stdout);
-  // Companion protocol state-check errors are benign when using MRP; the full
-  // traceback spans many lines so suppress the entire stderr block when detected
-  if (stderr && !stderr.includes("pyatv.protocols.companion")) {
-    console.error(stderr.trim());
-  }
+  // pyatv exits non-zero when Companion initialization fails even though the MRP
+  // key command succeeded. The traceback appears in both error.message and stderr.
+  // Suppress the entire output block when the benign companion marker is detected.
+  const allOutput = `${stderr || ""}${error?.message || ""}`;
+  if (allOutput.includes("pyatv.protocols.companion")) return;
+  if (error) console.error(error);
+  if (stderr) console.error(stderr.trim());
 }
 
 module.exports = { connectATV, disconnectATV, sendATVKey };
