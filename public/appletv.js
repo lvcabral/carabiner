@@ -47,13 +47,10 @@ function sendATVKey(key) {
 function puts(error, stdout, stderr) {
   if (error) console.error(error);
   if (stdout) console.log(stdout);
-  if (stderr) {
-    // Companion protocol state-check errors are benign when using MRP — suppress them
-    const filtered = stderr.split("\n")
-      .filter((line) => !line.includes("pyatv.protocols.companion"))
-      .join("\n")
-      .trim();
-    if (filtered) console.error(filtered);
+  // Companion protocol state-check errors are benign when using MRP; the full
+  // traceback spans many lines so suppress the entire stderr block when detected
+  if (stderr && !stderr.includes("pyatv.protocols.companion")) {
+    console.error(stderr.trim());
   }
 }
 
