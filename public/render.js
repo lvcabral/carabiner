@@ -44,6 +44,10 @@ let isRecording = false;
 // Device monitoring variables
 let currentDeviceList = [];
 
+// Fullscreen state
+let isFullScreen = false;
+let savedBorderStyle = { width: "0.1px", style: "solid" };
+
 // Key press overlay variables
 let showKeystrokes = false;
 const MAX_KEY_INDICATORS = 3;
@@ -136,12 +140,32 @@ function updateOverlayPosition() {
   overlayImage.style.height = `${rect.height - 2 * borderWidth}px`;
 }
 
+function adjustVideoLayout() {
+  const B = parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
+  const elementHeight = parseFloat(videoPlayer.style.height) || (window.innerHeight - heightOff);
+  if (B > 0.5) {
+    // Widen the element so the content area inside the border stays 16:9
+    const contentHeight = elementHeight - 2 * B;
+    const contentWidth = contentHeight * 16 / 9;
+    const elementWidth = contentWidth + 2 * B;
+    videoPlayer.style.width = `${elementWidth}px`;
+    videoPlayer.style.left = `${(window.innerWidth - elementWidth) / 2}px`;
+  } else {
+    videoPlayer.style.width = `${window.innerWidth - widthOff}px`;
+    videoPlayer.style.left = `${widthOff / 2}px`;
+  }
+}
+
 function handleSetResolution(style) {
-  const borderWidth = parseFloat(getComputedStyle(videoPlayer).borderWidth) || 0;
-  videoPlayer.style.top = `${margin + borderWidth}px`;
-  videoPlayer.style.left = `${margin + borderWidth}px`;
-  videoPlayer.style.width = style.width;
   videoPlayer.style.height = style.height;
+  if (isFullScreen) {
+    videoPlayer.style.top = "0px";
+    videoPlayer.style.left = "0px";
+    videoPlayer.style.width = style.width;
+  } else {
+    videoPlayer.style.top = `${heightOff / 2}px`;
+    adjustVideoLayout();
+  }
   document.body.style.width = style.width;
   document.body.style.height = style.height;
   updateOverlayPosition();
@@ -168,6 +192,7 @@ function handleSetBorderWidth(borderWidth) {
     videoPlayer.style.borderColor = currentColor;
   }
   videoPlayer.style.borderWidth = borderWidth;
+  adjustVideoLayout();
   updateOverlayPosition();
 }
 
@@ -569,6 +594,10 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Keyboard handlers
   function keyDownHandler(event) {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      return;
+    }
     if (!event.repeat) {
       // Handle menu shortcuts
       if (handleMenuShortcuts(event)) {
@@ -1003,14 +1032,33 @@ window.addEventListener("DOMContentLoaded", function () {
   overlayImage.style.position = "absolute";
   updateOverlayPosition();
   overlayImage.style.objectFit = "contain";
-  overlayImage.style.pointerEvents = "auto"; // Enable pointer events for double-click
-  overlayImage.style.opacity = "0"; // Start with 0 opacity
+  overlayImage.style.pointerEvents = "auto";
+  overlayImage.style.opacity = "0";
   overlayImage.style.zIndex = "700";
 
-  // Handle double-click on overlay image to toggle fullscreen
-  overlayImage.addEventListener("dblclick", (event) => {
-    window.electronAPI.log("debug","[Carabiner] Double-click detected on overlay image");
-    window.electronAPI.send("toggle-fullscreen-window");
+  // Prevent browser-native HTML5 drag of <img>/<video> elements
+  document.addEventListener("dragstart", (e) => e.preventDefault());
+
+  // Detect double-click via mousedown timing. dblclick events are not reliable on
+  // -webkit-app-region:drag elements, but mousedown fires before drag detection runs.
+  // The position check prevents triggering during a drag-then-click sequence.
+  let lastMouseDownTime = 0;
+  let lastMouseDownX = 0;
+  let lastMouseDownY = 0;
+  document.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return;
+    if (settingsButton.contains(event.target)) return;
+    const now = Date.now();
+    const dx = event.clientX - lastMouseDownX;
+    const dy = event.clientY - lastMouseDownY;
+    if (now - lastMouseDownTime < 400 && Math.abs(dx) <= 8 && Math.abs(dy) <= 8) {
+      window.electronAPI.send("toggle-fullscreen-window");
+      lastMouseDownTime = 0;
+    } else {
+      lastMouseDownTime = now;
+      lastMouseDownX = event.clientX;
+      lastMouseDownY = event.clientY;
+    }
   });
 
   // Configure the ellipsis button
@@ -1073,6 +1121,27 @@ window.addEventListener("DOMContentLoaded", function () {
   document.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     window.electronAPI.showContextMenu();
+  });
+
+  // Handle fullscreen state changes
+  window.electronAPI.onMessageReceived("enter-full-screen", () => {
+    isFullScreen = true;
+    savedBorderStyle = {
+      width: videoPlayer.style.borderWidth,
+      style: videoPlayer.style.borderStyle,
+    };
+    videoPlayer.style.borderWidth = "0px";
+    videoPlayer.style.borderStyle = "none";
+    handleSetResolution({ width: `${window.innerWidth}px`, height: `${window.innerHeight}px` });
+  });
+
+  window.electronAPI.onMessageReceived("leave-full-screen", () => {
+    isFullScreen = false;
+    videoPlayer.style.borderWidth = savedBorderStyle.width || "0.1px";
+    videoPlayer.style.borderStyle = savedBorderStyle.style || "solid";
+    const w = window.innerWidth - widthOff;
+    const h = window.innerHeight - heightOff;
+    handleSetResolution({ width: `${w}px`, height: `${h}px` });
   });
 
   // Handle Recording Requests
