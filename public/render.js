@@ -1381,7 +1381,7 @@ async function playScript(steps, scriptControlType) {
     showToast("Script has no steps.", 2000, true);
     return;
   }
-  if (!isValidIP(controlIp)) {
+  if (!controlIp) {
     showToast("No device connected for script playback!", 3000, true);
     return;
   }
@@ -1418,7 +1418,7 @@ function sendKey(key, mod) {
       type: "send-adb-key",
       payload: key,
     });
-  } else if (isValidIP(controlIp) && controlType === "atv" && mod === 0) {
+  } else if (controlIp && controlType === "atv" && mod === 0) {
     window.electronAPI.sendSync("shared-window-channel", {
       type: "send-atv-key",
       payload: key,
