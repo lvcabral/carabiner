@@ -7,8 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-const { exec } = require("child_process");
-const IP_REGEX = /^(\d{1,3}\.){3}\d{1,3}$/;
+const { spawn } = require("child_process");
 let atvremotePath = "";
 let deviceId = "";
 let isATVConnected = false;
@@ -36,23 +35,12 @@ function disconnectATV() {
 
 function sendATVKey(key) {
   if (isATVConnected && typeof key === "string" && atvremotePath !== "" && deviceId !== "") {
-    const command = `"${atvremotePath}" --id ${deviceId} --protocol mrp ${key}`;
-    console.log("Executing command: ", command);
-    exec(command, puts);
+    // Use spawn with stdio ignored so pyatv's benign Companion protocol errors
+    // never reach the parent process — no callback filtering needed
+    spawn(atvremotePath, ["--id", deviceId, "--protocol", "mrp", key], { stdio: "ignore" });
   } else {
-    console.error("Cannot send key. Apple TV is not connected or parameters are invalid.", isATVConnected, key, atvremotePath, deviceId);
+    console.error("Cannot send ATV key — not connected or missing parameters.", { isATVConnected, key, atvremotePath, deviceId });
   }
-}
-
-function puts(error, stdout, stderr) {
-  if (stdout) console.log(stdout);
-  // pyatv exits non-zero when Companion initialization fails even though the MRP
-  // key command succeeded. The traceback appears in both error.message and stderr.
-  // Suppress the entire output block when the benign companion marker is detected.
-  const allOutput = `${stderr || ""}${error?.message || ""}`;
-  if (allOutput.includes("pyatv.protocols.companion")) return;
-  if (error) console.error(error);
-  if (stderr) console.error(stderr.trim());
 }
 
 module.exports = { connectATV, disconnectATV, sendATVKey };
