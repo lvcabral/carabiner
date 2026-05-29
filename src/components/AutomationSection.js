@@ -282,7 +282,17 @@ function AutomationSection() {
                 <Badge bg="secondary" style={{ fontSize: "0.7rem" }}>
                   {script.steps?.length ?? 0} steps
                 </Badge>
-                <Badge bg={script.controlType === "ecp" ? "info" : "warning"} text="dark" style={{ fontSize: "0.7rem" }}>
+                <Badge
+                  bg=""
+                  style={{
+                    fontSize: "0.7rem",
+                    backgroundColor:
+                      script.controlType === "ecp" ? "#662D91" :
+                      script.controlType === "adb" ? "#3DDC84" :
+                      script.controlType === "atv" ? "#495057" : "#6c757d",
+                    color: script.controlType === "adb" ? "#000" : "#fff",
+                  }}
+                >
                   {script.controlType?.toUpperCase() || "?"}
                 </Badge>
 
