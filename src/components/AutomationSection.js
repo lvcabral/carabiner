@@ -289,7 +289,7 @@ function AutomationSection() {
                     backgroundColor:
                       script.controlType === "ecp" ? "#662D91" :
                       script.controlType === "adb" ? "#3DDC84" :
-                      script.controlType === "atv" ? "#495057" : "#6c757d",
+                      script.controlType === "atv" ? "#1c1c1e" : "#6c757d",
                     color: script.controlType === "adb" ? "#000" : "#fff",
                   }}
                 >
