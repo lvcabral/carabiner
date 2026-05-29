@@ -47,6 +47,14 @@ function sendATVKey(key) {
 function puts(error, stdout, stderr) {
   if (error) console.error(error);
   if (stdout) console.log(stdout);
+  if (stderr) {
+    // Companion protocol state-check errors are benign when using MRP — suppress them
+    const filtered = stderr.split("\n")
+      .filter((line) => !line.includes("pyatv.protocols.companion"))
+      .join("\n")
+      .trim();
+    if (filtered) console.error(filtered);
+  }
 }
 
 module.exports = { connectATV, disconnectATV, sendATVKey };
