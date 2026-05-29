@@ -9,7 +9,15 @@
 
 # Carabiner
 
-**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku and Android-based streaming devices (Fire TV, Google TV, Android TV) through an intuitive floating window interface.
+**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku, Android-based streaming devices (Fire TV, Google TV, Android TV), and Apple TV through an intuitive floating window interface.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Roku-662D91?style=for-the-badge&logo=roku&logoColor=white" alt="Roku" height="28px" />
+  <img src="https://img.shields.io/badge/Fire%20TV-FF9900?style=for-the-badge&logo=amazonfireTV&logoColor=white" alt="Fire TV" height="28px" />
+  <img src="https://img.shields.io/badge/Google%20TV-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google TV" height="28px" />
+  <img src="https://img.shields.io/badge/Android%20TV-3DDC84?style=for-the-badge&logo=android&logoColor=black" alt="Android TV" height="28px" />
+  <img src="https://img.shields.io/badge/Apple%20TV-1c1c1e?style=for-the-badge&logo=apple&logoColor=white" alt="Apple TV" height="28px" />
+</p>
 
 ## Why Carabiner?
 
