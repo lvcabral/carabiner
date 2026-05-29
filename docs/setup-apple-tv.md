@@ -55,7 +55,7 @@ atvremote scan
 
 Find your Apple TV in the list and note the supported protocols (e.g. `mrp`, `AirPlay`) and one of the identifiers.
 
-If `mrp` is supported, pair using the identifier and protocol:
+If `mrp` is listed in the supported protocols, pair using the identifier and protocol:
 ```bash
 atvremote --id <apple-tv-identifier> --protocol mrp pair
 ```
@@ -65,7 +65,7 @@ Otherwise use the identifier and the AirPlay protocol:
 atvremote --id <apple-tv-identifier> --protocol airplay pair
 ```
 
-A **PIN code** will appear on your Apple TV screen. Type it in the terminal when prompted. Credentials are saved automatically to `~/.pyatv/` and reused for all future sessions — no re-pairing needed.
+A **PIN code** will appear on your Apple TV screen. Type it in the terminal when prompted. Credentials are saved automatically to `~/.pyatv.conf` and reused for all future sessions — no re-pairing needed.
 
 ### Optional: Pair Companion Protocol (required for text input)
 
@@ -77,33 +77,20 @@ atvremote --id <apple-tv-identifier> --protocol companion pair
 
 A PIN will appear on screen — enter it in the terminal. Once paired, Carabiner can send text to any focused text field on the Apple TV.
 
-To find your Apple TV's IP address:  
-**Settings → Network → Wi-Fi → IP Address**
-
 ---
 
 ## 3. Configure Carabiner
 
 1. Open the **Control** tab in Carabiner settings.
-2. Click **…** next to **atvremote Tool Path** and select your `atvremote` binary.
-3. Enter the Apple TV's IP address and select **Apple TV**.
+2. Type the path for the `atvremote` binary or click **…** next to **atvremote Tool Path** to select it.
+3. Select **Apple TV** and enter the Apple TV's Identifier and an alias.
 4. Click **+** to add the device.
 
 ---
 
 ## Key Mappings
 
-| Key | Apple TV Action |
-|-----|-----------------|
-| Arrow keys | Navigate |
-| Enter | Select |
-| Escape / Delete | Back / Menu |
-| Home | Home screen |
-| End | Play / Pause |
-| Page Up | Volume Up |
-| Page Down | Volume Down |
-| Insert | Top Menu |
-| Cmd/Ctrl + ← / → | Previous / Next |
+See the [Control Keyboard Mappings](./key-mappings.md) page for a complete reference of how Carabiner maps keyboard inputs to Apple TV commands.
 
 ---
 
@@ -122,7 +109,7 @@ To find your Apple TV's IP address:
 
 ## Optional: Patch pyatv to Fix First-Command Delay with Companion Protocol
 
-When sending a key, `atvremote` initialises all available protocols, if Companion is paired, the handshake (`FetchAttentionState`) times out after ~5 seconds, causing the first key press in each session to be noticeably slow. The patch below caps that timeout at 0.5 s and silences the resulting ERROR log.
+The pyatv 0.17.0 update has an issue with tvOS 26 that causes a ~5 second delay on the first command sent in each session when Companion protocol is paired. This is due to a timeout in the `fetch_attention_state` method that runs on every command. So if Companion is paired, the handshake (`FetchAttentionState`) times out after ~5 seconds, causing the first key press in each session to be noticeably slow. The patch below caps that timeout at 0.5 s and silences the resulting ERROR log. This should be temporary until pyatv releases an official fix.
 
 ### Find the file
 
