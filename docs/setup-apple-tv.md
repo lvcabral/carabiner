@@ -90,10 +90,60 @@ To find your Apple TV's IP address:
 |---------|-----|
 | `error: externally-managed-environment` | Use `pipx install pyatv` instead of `pip install` — see Step 1 above |
 | `PairError` during pairing | Make sure the Apple TV is awake and on the same network |
-| Commands are slow (~1–2 s) | Normal — each key press starts a new connection; this is a limitation of the `atvremote` CLI approach |
+| First key press is slow (~5 s) | Apply the Companion protocol patch below |
 | `AuthenticationError` | Re-pair: `atvremote --address <ip> --protocol mrp pair` |
 | `ConnectionRefused` | Confirm your Apple TV and Mac are on the same subnet |
 | Keys not responding | Check the `atvremote` path is set correctly and the device is selected in the tray |
+
+---
+
+## Optional: Patch pyatv to Fix First-Command Delay
+
+When sending a key, `atvremote` initialises all available protocols including Companion. The Companion handshake (`FetchAttentionState`) times out after ~5 seconds, causing the first key press in each session to be noticeably slow. The patch below caps that timeout at 0.5 s and silences the resulting ERROR log.
+
+### Find the file
+
+```bash
+find ~/.local/pipx/venvs/pyatv -name "__init__.py" -path "*/companion/*"
+```
+
+The path is typically:  
+`~/.local/pipx/venvs/pyatv/lib/python3.X/site-packages/pyatv/protocols/companion/__init__.py`
+
+### Apply the patch
+
+Open the file and locate the `initialize` method inside the `CompanionPower` class (search for `fetch_attention_state`). Make these two changes:
+
+**Before:**
+```python
+        try:
+            system_status = await self.api.fetch_attention_state()
+            ...
+        except Exception as ex:
+            _LOGGER.exception(
+                "Could not fetch SystemStatus, power_state will not work (%s)", ex
+            )
+```
+
+**After:**
+```python
+        try:
+            system_status = await asyncio.wait_for(
+                self.api.fetch_attention_state(), timeout=0.5
+            )
+            ...
+        except Exception as ex:
+            _LOGGER.debug(
+                "Could not fetch SystemStatus, power_state will not work (%s)", ex
+            )
+```
+
+- `asyncio.wait_for(..., timeout=0.5)` — fails fast instead of waiting the full 5 s default.
+- `_LOGGER.debug` — suppresses the ERROR log and traceback; only visible with `atvremote -d`.
+
+The change takes effect immediately on the next `atvremote` invocation — no reinstall needed.
+
+> **Note:** This patch modifies a file inside your pipx virtual environment. It will be overwritten if you upgrade pyatv with `pipx upgrade pyatv`.
 
 ---
 
