@@ -749,7 +749,7 @@ window.addEventListener("DOMContentLoaded", function () {
         if (showKeystrokes) displayKeyIndicator(formatDeviceKeyLabel(key, "atv"));
         recordScriptStep(key, mod);
         sendKey(key, mod);
-      } else if (!["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key) && mod === 0) {
+      } else if (event.key.length === 1 && mod === 0) {
         if (showKeystrokes) displayKeyIndicator(event.key.toUpperCase());
         const litKey = `lit_${encodeURIComponent(event.key)}`;
         recordScriptStep(litKey, -1);
