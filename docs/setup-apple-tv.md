@@ -67,6 +67,16 @@ atvremote --id <apple-tv-identifier> --protocol airplay pair
 
 A **PIN code** will appear on your Apple TV screen. Type it in the terminal when prompted. Credentials are saved automatically to `~/.pyatv/` and reused for all future sessions — no re-pairing needed.
 
+### Optional: Pair Companion Protocol (required for text input)
+
+Remote navigation keys work with MRP alone. However, **typing text** (literal key presses and clipboard paste) uses the Companion protocol, which requires a separate one-time pairing:
+
+```bash
+atvremote --id <apple-tv-identifier> --protocol companion pair
+```
+
+A PIN will appear on screen — enter it in the terminal. Once paired, Carabiner can send text to any focused text field on the Apple TV.
+
 To find your Apple TV's IP address:  
 **Settings → Network → Wi-Fi → IP Address**
 

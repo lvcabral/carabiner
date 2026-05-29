@@ -749,6 +749,11 @@ window.addEventListener("DOMContentLoaded", function () {
         if (showKeystrokes) displayKeyIndicator(formatDeviceKeyLabel(key, "atv"));
         recordScriptStep(key, mod);
         sendKey(key, mod);
+      } else if (!["Alt", "Control", "Meta", "Shift", "Tab", "Dead"].includes(event.key) && mod === 0) {
+        if (showKeystrokes) displayKeyIndicator(event.key.toUpperCase());
+        const litKey = `lit_${encodeURIComponent(event.key)}`;
+        recordScriptStep(litKey, -1);
+        sendKey(litKey, -1);
       }
     }
   }
@@ -1354,6 +1359,12 @@ async function typeText(text) {
       type: "send-adb-text",
       payload: cleanText,
     });
+  } else if (controlType === "atv") {
+    // For ATV, send the entire text at once via text_append (requires Companion protocol)
+    window.electronAPI.sendSync("shared-window-channel", {
+      type: "send-atv-text",
+      payload: cleanText,
+    });
   } else if (controlType === "ecp") {
     // For ECP, send character by character
     for (let i = 0; i < cleanText.length; i++) {
@@ -1418,11 +1429,18 @@ function sendKey(key, mod) {
       type: "send-adb-key",
       payload: key,
     });
-  } else if (controlIp && controlType === "atv" && mod === 0) {
-    window.electronAPI.sendSync("shared-window-channel", {
-      type: "send-atv-key",
-      payload: key,
-    });
+  } else if (controlIp && controlType === "atv") {
+    if (key.startsWith("lit_") && mod === -1) {
+      window.electronAPI.sendSync("shared-window-channel", {
+        type: "send-atv-text",
+        payload: decodeURIComponent(key.slice(4)),
+      });
+    } else if (mod === 0) {
+      window.electronAPI.sendSync("shared-window-channel", {
+        type: "send-atv-key",
+        payload: key,
+      });
+    }
   }
 }
 

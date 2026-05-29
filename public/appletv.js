@@ -43,4 +43,11 @@ function sendATVKey(key) {
   }
 }
 
-module.exports = { connectATV, disconnectATV, sendATVKey };
+function sendATVText(text) {
+  if (isATVConnected && typeof text === "string" && text.length > 0 && atvremotePath !== "" && deviceId !== "") {
+    // text_append uses the Companion protocol — do not specify --protocol mrp
+    spawn(atvremotePath, ["--id", deviceId, "text_append", text], { stdio: "ignore" });
+  }
+}
+
+module.exports = { connectATV, disconnectATV, sendATVKey, sendATVText };

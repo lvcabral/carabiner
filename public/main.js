@@ -25,7 +25,7 @@ const fs = require("fs");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
-const { connectATV, disconnectATV, sendATVKey } = require("./appletv");
+const { connectATV, disconnectATV, sendATVKey, sendATVText } = require("./appletv");
 const {
   createMacOSMenu,
   updateAlwaysOnTopMenuItem,
@@ -704,6 +704,8 @@ app.whenReady().then(async () => {
       sendADBText(arg.payload);
     } else if (arg.type && arg.type === "send-atv-key") {
       sendATVKey(arg.payload);
+    } else if (arg.type && arg.type === "send-atv-text") {
+      sendATVText(arg.payload);
     } else if (arg.type && arg.type === "set-adb-path") {
       settings.control.adbPath = arg.payload;
       saveFlag = true;
