@@ -195,7 +195,7 @@ For Apple TV devices, install **pyatv** and pair once before adding the device:
 3. Enter the Apple TV's **Device ID** (UUID or MAC address) and select **Apple TV**
 4. Click **+** to add the device
 
-> **Tip:** Find the device UUID by running `atvremote scan` in a terminal. Pairing is done once with `atvremote --address <ip> --protocol mrp pair`.
+See the [Apple TV setup guide](./setup-apple-tv.md) for detailed instructions on installing `pyatv` and pairing your Apple TV.
 
 ## Getting Help
 

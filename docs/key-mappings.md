@@ -39,6 +39,7 @@ This document provides an overview of the key mappings defined in `ecpKeysMap`, 
 | Control+Digit8 (Win)     | info          | 1            | N/A          | Info/Menu Button         |
 
 **Notes:**
-- ECP also handles literal keyboard characters (letters, numbers, printable chars) sent as `lit_<char>` — ADB and ATV do not.
+
+- ECP and ADB also handles literal keyboard characters (letters, numbers, printable chars) — ATV does not.
 - ² The Device Control action differs by protocol: the first label applies to ECP/ADB, the second to ATV.
 - N/A means the key has no mapping for that protocol and will be ignored.

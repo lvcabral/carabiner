@@ -54,7 +54,7 @@ For detailed setup and usage instructions, see our comprehensive guides:
 - **🔧 [Building from Source](./docs/building-from-source.md)** - Developer setup and contribution guide
 - **⌨️ [Keyboard Mappings](./docs/key-mappings.md)** - Complete keyboard control reference
 - **📸 [Screenshots](./docs/screenshots.md)** - Visual showcase of the application interface
-- **🔥 [Android / Fire TV Setup](./docs/setup-android-firetv.md)** - ADB setup for Fire TV and Google TV
+- **🤖 [Android / Fire TV Setup](./docs/setup-android-firetv.md)** - ADB setup for Fire TV and Google TV
 - **🍎 [Apple TV Setup](./docs/setup-apple-tv.md)** - pyatv setup and pairing for Apple TV
 
 ## Contributing
@@ -104,6 +104,6 @@ This application was built with inspiration and code from several excellent open
 
 ## License
 
-Copyright © 2024-2025 Marcelo Lv Cabral. All rights reserved.
+Copyright © 2024-2026 Marcelo Lv Cabral. All rights reserved.
 
 Licensed under the [MIT License](LICENSE).
