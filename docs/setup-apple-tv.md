@@ -48,8 +48,21 @@ The binary is typically at `/Users/<you>/.local/bin/atvremote`.
 
 ## 2. Pair with Your Apple TV (one-time)
 
+Scan for devices to check available protocols and confirm connectivity:
+```
+atvremote scan
+```
+
+Find your Apple TV in the list and note the supported protocols (e.g. `mrp`, `AirPlay`) and one of the identifiers.
+
+If `mrp` is supported, pair using the identifier and protocol:
 ```bash
-atvremote --address <apple-tv-ip> --protocol mrp pair
+atvremote --id <apple-tv-identifier> --protocol mrp pair
+```
+
+Otherwise use the identifier and the AirPlay protocol:
+```bash
+atvremote --id <apple-tv-identifier> --protocol airplay pair
 ```
 
 A **PIN code** will appear on your Apple TV screen. Type it in the terminal when prompted. Credentials are saved automatically to `~/.pyatv/` and reused for all future sessions — no re-pairing needed.
@@ -97,9 +110,9 @@ To find your Apple TV's IP address:
 
 ---
 
-## Optional: Patch pyatv to Fix First-Command Delay
+## Optional: Patch pyatv to Fix First-Command Delay with Companion Protocol
 
-When sending a key, `atvremote` initialises all available protocols including Companion. The Companion handshake (`FetchAttentionState`) times out after ~5 seconds, causing the first key press in each session to be noticeably slow. The patch below caps that timeout at 0.5 s and silences the resulting ERROR log.
+When sending a key, `atvremote` initialises all available protocols, if Companion is paired, the handshake (`FetchAttentionState`) times out after ~5 seconds, causing the first key press in each session to be noticeably slow. The patch below caps that timeout at 0.5 s and silences the resulting ERROR log.
 
 ### Find the file
 
@@ -107,7 +120,7 @@ When sending a key, `atvremote` initialises all available protocols including Co
 find ~/.local/pipx/venvs/pyatv -name "__init__.py" -path "*/companion/*"
 ```
 
-The path is typically:  
+The path is typically:
 `~/.local/pipx/venvs/pyatv/lib/python3.X/site-packages/pyatv/protocols/companion/__init__.py`
 
 ### Apply the patch

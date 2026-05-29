@@ -19,10 +19,10 @@ After installing Carabiner, launch the application to access the settings window
 
 1. Navigate to the **Control** tab
 2. Enter the device details:
-   - **IP Address**: Your device's network IP
+   - **IP Address / Device ID**: IP for Roku, Fire TV, and Google TV; UUID or MAC address for Apple TV
    - **Alias**: A friendly name for the device
-   - **Type**: Select Roku, Fire TV or Google TV
-3. Click "Add Device" to register a new streaming device
+   - **Type**: Select Roku, Fire TV, Google TV, or Apple TV
+3. Click **+** to register the device
 
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
 >
@@ -177,12 +177,25 @@ The **Files** tab in settings allows you to configure default save locations for
 
 ### Android Device Configuration
 
-For Android devices, configure the ADB path in settings:
+For Android-based devices (Fire TV, Google TV), configure the ADB path in settings:
 
-1. Open **Control** tab
-2. Set the path to your ADB executable
-3. Ensure ADB debugging is enabled on your device
-4. Accept authorization prompts when connecting
+1. Open the **Control** tab
+2. Set the path to your **ADB** executable under *ADB Tool Path*
+3. Ensure ADB / Wi-Fi debugging is enabled on your device
+4. Accept the authorization prompt on the device when connecting for the first time
+
+See the [Android / Fire TV setup guide](./setup-android-firetv.md) for detailed instructions.
+
+### Apple TV Configuration
+
+For Apple TV devices, install **pyatv** and pair once before adding the device:
+
+1. Install `atvremote` via pipx — see the [Apple TV setup guide](./setup-apple-tv.md)
+2. Open the **Control** tab and set the **atvremote Tool Path**
+3. Enter the Apple TV's **Device ID** (UUID or MAC address) and select **Apple TV**
+4. Click **+** to add the device
+
+> **Tip:** Find the device UUID by running `atvremote scan` in a terminal. Pairing is done once with `atvremote --address <ip> --protocol mrp pair`.
 
 ## Getting Help
 

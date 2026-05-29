@@ -19,7 +19,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 
 ### Core Functionality
 
-- **Multi-Device Support**: Control Roku and Android-based devices (Fire TV, Google TV, Android TV)
+- **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV) and Apple TV
 - **Real-time Video Capture**: View your streaming device output directly on your computer
 - **Video Recording**: Record streaming device sessions in MP4/WebM format for documentation and testing
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
@@ -54,6 +54,8 @@ For detailed setup and usage instructions, see our comprehensive guides:
 - **🔧 [Building from Source](./docs/building-from-source.md)** - Developer setup and contribution guide
 - **⌨️ [Keyboard Mappings](./docs/key-mappings.md)** - Complete keyboard control reference
 - **📸 [Screenshots](./docs/screenshots.md)** - Visual showcase of the application interface
+- **🔥 [Android / Fire TV Setup](./docs/setup-android-firetv.md)** - ADB setup for Fire TV and Google TV
+- **🍎 [Apple TV Setup](./docs/setup-apple-tv.md)** - pyatv setup and pairing for Apple TV
 
 ## Contributing
 
@@ -81,6 +83,7 @@ We welcome contributions to make Carabiner better! Here's how you can help:
 - **[React](https://react.dev/)**: User interface library for the settings panel
 - **[Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)**: Roku device communication
 - **[Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)**: Android device communication
+- **[pyatv](https://pyatv.dev/)**: Apple TV device communication via Media Remote Protocol (MRP)
 
 ## Acknowledgments
 
