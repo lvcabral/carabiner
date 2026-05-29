@@ -35,8 +35,6 @@ function disconnectATV() {
 
 function sendATVKey(key) {
   if (isATVConnected && typeof key === "string" && atvremotePath !== "" && deviceId !== "") {
-    // Use spawn with stdio ignored so pyatv's benign Companion protocol errors
-    // never reach the parent process — no callback filtering needed
     spawn(atvremotePath, ["--id", deviceId, "--protocol", "mrp", key], { stdio: "ignore" });
   } else {
     console.error("Cannot send ATV key — not connected or missing parameters.", { isATVConnected, key, atvremotePath, deviceId });
@@ -45,7 +43,6 @@ function sendATVKey(key) {
 
 function sendATVText(text) {
   if (isATVConnected && typeof text === "string" && text.length > 0 && atvremotePath !== "" && deviceId !== "") {
-    // text_append uses the Companion protocol — do not specify --protocol mrp
     spawn(atvremotePath, ["--id", deviceId, `text_append=${text}`], { stdio: "ignore" });
   }
 }

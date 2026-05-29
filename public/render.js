@@ -827,7 +827,7 @@ window.addEventListener("DOMContentLoaded", function () {
   async function handlePaste() {
     try {
       // Check if we have a valid control connection
-      if (!isValidIP(controlIp)) {
+      if (!controlIp) {
         showToast("No streaming device connected for paste operation!", 3000, true);
         return;
       }
