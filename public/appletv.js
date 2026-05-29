@@ -36,8 +36,11 @@ function disconnectATV() {
 
 function sendATVKey(key) {
   if (isATVConnected && typeof key === "string" && atvremotePath !== "" && deviceId !== "") {
-    const addrFlag = IP_REGEX.test(deviceId) ? `--address ${deviceId}` : `--id ${deviceId}`;
-    exec(`"${atvremotePath}" ${addrFlag} --protocol mrp ${key}`, puts);
+    const command = `"${atvremotePath}" --id ${deviceId} --protocol mrp ${key}`;
+    console.log("Executing command: ", command);
+    exec(command, puts);
+  } else {
+    console.error("Cannot send key. Apple TV is not connected or parameters are invalid.", isATVConnected, key, atvremotePath, deviceId);
   }
 }
 
