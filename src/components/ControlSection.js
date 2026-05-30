@@ -3,7 +3,7 @@
  *
  *  Repository: https://github.com/lvcabral/carabiner
  *
- *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
+ *  Copyright (c) 2024-2026 Marcelo Lv Cabral. All Rights Reserved.
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -23,15 +23,22 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [deviceType, setDeviceType] = useState("roku");
   const [selectedDevice, setSelectedDevice] = useState("");
   const [adbPath, setAdbPath] = useState("");
+  const [atvremotePath, setAtvremotePath] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const ipAddressRef = useRef(null);
 
   useEffect(() => {
-    // Load settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.adbPath) {
         setAdbPath(settings.control.adbPath);
       }
+      if (settings.control && settings.control.atvremotePath) {
+        setAtvremotePath(settings.control.atvremotePath);
+      }
+    });
+    electronAPI.getPackageInfo().then((info) => {
+      if (info?.repository?.url) setRepoUrl(info.repository.url);
     });
   }, []);
 
@@ -41,21 +48,33 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     return regex.test(ip);
   };
 
+  const isValidAtvDeviceId = (id) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const macRegex = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
+    return uuidRegex.test(id) || macRegex.test(id) || isValidIpAddress(id);
+  };
+
   const handleAddDevice = () => {
-    if (!isValidIpAddress(ipAddress)) {
-      setErrorMessage("Invalid IP address format.");
+    const isAppleTV = deviceType === "appletv";
+    if (isAppleTV ? !isValidAtvDeviceId(ipAddress) : !isValidIpAddress(ipAddress)) {
+      setErrorMessage(isAppleTV ? "Invalid device ID (use UUID, MAC address, or IP)." : "Invalid IP address format.");
       setTimeout(() => setErrorMessage(""), 3000);
       return;
     }
 
     if (streamingDevices.some((device) => device.ipAddress === ipAddress)) {
-      setErrorMessage("IP address already exists.");
+      setErrorMessage(isAppleTV ? "Device ID already exists." : "IP address already exists.");
       setTimeout(() => setErrorMessage(""), 3000);
       return;
     }
 
     if (ipAddress && deviceType) {
-      const protocol = deviceType === "roku" ? "ecp" : "adb";
+      let protocol = "ecp";
+      if (deviceType === "firetv" || deviceType === "googletv") {
+        protocol = "adb";
+      } else if (deviceType === "appletv") {
+        protocol = "atv";
+      }
       let type = "";
       if (deviceType === "roku") {
         type = "Roku";
@@ -63,6 +82,8 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         type = "Fire TV";
       } else if (deviceType === "googletv") {
         type = "Google TV";
+      } else if (deviceType === "appletv") {
+        type = "Apple TV";
       }
       const newDevice = {
         id: `${ipAddress}|${protocol}`,
@@ -93,10 +114,17 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   };
 
   const handleSelectAdbPath = async () => {
-    const path = await electronAPI.invoke("select-adb-path");
+    const path = await electronAPI.invoke("select-adb-path", adbPath);
     if (path) {
       setAdbPath(path);
       notifyControlChange("set-adb-path", path);
+    }
+  };
+
+  const handleSelectAtvPath = async () => {
+    const path = await electronAPI.invoke("select-atv-path", atvremotePath);
+    if (path) {
+      setAtvremotePath(path);
     }
   };
 
@@ -111,7 +139,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                   <Form.Control
                     size="sm"
                     type="text"
-                    placeholder="Enter IP address"
+                    placeholder={deviceType === "appletv" ? "Enter Device ID (UUID or MAC)" : "Enter IP address"}
                     value={ipAddress}
                     onChange={(e) => setIpAddress(e.target.value)}
                     ref={ipAddressRef}
@@ -167,6 +195,17 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                     disabled={!adbPath}
                   />
                 </Col>
+                <Col xs="auto" className="d-flex align-items-center">
+                  <Form.Check
+                    type="radio"
+                    label="Apple TV"
+                    name="deviceType"
+                    value="appletv"
+                    checked={deviceType === "appletv"}
+                    onChange={(e) => setDeviceType(e.target.value)}
+                    disabled={!atvremotePath}
+                  />
+                </Col>
               </Row>
             </Form.Group>
             <Form.Group controlId="formDeviceList" className="form-group-spacing">
@@ -209,13 +248,56 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               </Row>
             </Form.Group>
             <Form.Group controlId="formAdbPath" className="form-group-spacing">
-              <Form.Label>ADB Tool Path</Form.Label>
+              <Form.Label className="d-flex justify-content-between align-items-center w-100">
+                ADB Tool Path (Android based devices like Fire TV and Google TV)
+                <a
+                  href="#adb-setup"
+                  style={{ fontSize: "0.75rem" }}
+                  onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-android-firetv.md`); }}
+                >
+                  Setup Guide ↗
+                </a>
+              </Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
-                  <Form.Control size="sm" type="text" readOnly value={adbPath} />
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    value={adbPath}
+                    onChange={(e) => { setAdbPath(e.target.value); notifyControlChange("set-adb-path", e.target.value); }}
+                    placeholder="Paste or select path to adb binary"
+                  />
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
                   <Button size="sm" title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
+                    &#x2026;
+                  </Button>
+                </Col>
+              </Row>
+            </Form.Group>
+            <Form.Group controlId="formAtvremotePath" className="form-group-spacing">
+              <Form.Label className="d-flex justify-content-between align-items-center w-100">
+                atvremote Tool Path (Apple TV devices)
+                <a
+                  href="#atv-setup"
+                  style={{ fontSize: "0.75rem" }}
+                  onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-apple-tv.md`); }}
+                >
+                  Setup Guide ↗
+                </a>
+              </Form.Label>
+              <Row>
+                <Col className="d-flex align-items-center flex-grow-1">
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    value={atvremotePath}
+                    onChange={(e) => { setAtvremotePath(e.target.value); notifyControlChange("set-atv-path", e.target.value); }}
+                    placeholder="Paste or select path to atvremote binary"
+                  />
+                </Col>
+                <Col xs="auto" className="d-flex align-items-center">
+                  <Button size="sm" title="Select atvremote Path" variant="primary" onClick={handleSelectAtvPath}>
                     &#x2026;
                   </Button>
                 </Col>
@@ -225,7 +307,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         </Card.Body>
       </Card>
 
-      <Alert variant="warning" className="mt-2 mb-0 p-2" style={{ fontSize: "0.78rem" }}>
+      <Alert variant="warning" className="mt-2 mb-0 p-1" style={{ fontSize: "0.72rem" }}>
         <strong>Roku users:</strong> To enable ECP (External Control Protocol), follow these steps on your device:
         <ol className="mb-0 mt-1 ps-3">
           <li>Go to <strong>Settings &gt; System &gt; Advanced system settings</strong>.</li>
@@ -233,6 +315,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
           <li>Set to <strong>Enabled</strong> or <strong>Permissive</strong>.</li>
         </ol>
       </Alert>
+
     </div>
   );
 }

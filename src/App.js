@@ -3,7 +3,7 @@
  *
  *  Repository: https://github.com/lvcabral/carabiner
  *
- *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
+ *  Copyright (c) 2024-2026 Marcelo Lv Cabral. All Rights Reserved.
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -73,12 +73,10 @@ function App() {
   return (
     <div className="p-3 custom-container">
       <div className="p-3 bg-light rounded-3">
-        <h1 className="header" style={{ textAlign: "center" }}>
-          <img src={logo} alt="Carabiner Logo" height="65px" width="65px" />
-        </h1>
-        <h1 className="header" style={{ textAlign: "center" }}>
-          Carabiner
-        </h1>
+        <div className="d-flex align-items-center justify-content-center mb-2">
+          <img src={logo} alt="Carabiner Logo" height="50px" width="50px" />
+          <h1 className="header ms-2 mb-0">Carabiner</h1>
+        </div>
         <Tabs defaultActiveKey="display" id="settings-tabs" className="custom-tabs">
           <Tab eventKey="display" title="General">
             <div className="tab-content-container">

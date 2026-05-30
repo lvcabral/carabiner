@@ -3,7 +3,7 @@
  *
  *  Repository: https://github.com/lvcabral/carabiner
  *
- *  Copyright (c) 2024-2025 Marcelo Lv Cabral. All Rights Reserved.
+ *  Copyright (c) 2024-2026 Marcelo Lv Cabral. All Rights Reserved.
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -246,7 +246,7 @@ function AutomationSection() {
           No scripts recorded yet. Press <strong>Start Recording</strong>, perform actions on your device, then press <strong>Stop Recording</strong>.
         </p>
       ) : (
-        <div style={{ maxHeight: "calc(100vh - 265px)", overflowY: "scroll" }}>
+        <div className="script-list-scroll" style={{ maxHeight: "calc(100vh - 230px)", overflowY: "scroll" }}>
           {scripts.map((script) => (
             <div key={script.id} className="mb-2 border rounded" style={{ overflow: "hidden" }}>
               {/* Script header row */}
@@ -282,7 +282,17 @@ function AutomationSection() {
                 <Badge bg="secondary" style={{ fontSize: "0.7rem" }}>
                   {script.steps?.length ?? 0} steps
                 </Badge>
-                <Badge bg={script.controlType === "ecp" ? "info" : "warning"} text="dark" style={{ fontSize: "0.7rem" }}>
+                <Badge
+                  bg=""
+                  style={{
+                    fontSize: "0.7rem",
+                    backgroundColor:
+                      script.controlType === "ecp" ? "#662D91" :
+                      script.controlType === "adb" ? "#3DDC84" :
+                      script.controlType === "atv" ? "#1c1c1e" : "#6c757d",
+                    color: script.controlType === "adb" ? "#000" : "#fff",
+                  }}
+                >
                   {script.controlType?.toUpperCase() || "?"}
                 </Badge>
 

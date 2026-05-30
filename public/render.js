@@ -74,9 +74,19 @@ const ADB_DISPLAY_NAMES = {
   "1": "Menu",
 };
 
+const ATV_DISPLAY_NAMES = {
+  up: "Up", down: "Down", left: "Left", right: "Right",
+  select: "OK", menu: "Back", home: "Home",
+  play_pause: "Play/Pause", volume_up: "Vol+", volume_down: "Vol-",
+  top_menu: "Top Menu", previous: "Prev", next: "Next",
+};
+
 function formatDeviceKeyLabel(key, type) {
   if (type === "ecp") {
     return ECP_DISPLAY_NAMES[key.toLowerCase()] || key.charAt(0).toUpperCase() + key.slice(1);
+  }
+  if (type === "atv") {
+    return ATV_DISPLAY_NAMES[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
   // ADB: numeric keycodes → readable name
   if (ADB_DISPLAY_NAMES[key]) return ADB_DISPLAY_NAMES[key];
@@ -733,6 +743,18 @@ window.addEventListener("DOMContentLoaded", function () {
         recordScriptStep(key, mod);
         sendKey(key, mod);
       }
+    } else if (controlType === "atv") {
+      const key = atvKeysMap.get(keyCode);
+      if (key && mod === 0) {
+        if (showKeystrokes) displayKeyIndicator(formatDeviceKeyLabel(key, "atv"));
+        recordScriptStep(key, mod);
+        sendKey(key, mod);
+      } else if (event.key.length === 1 && mod === 0) {
+        if (showKeystrokes) displayKeyIndicator(event.key.toUpperCase());
+        const litKey = `lit_${encodeURIComponent(event.key)}`;
+        recordScriptStep(litKey, -1);
+        sendKey(litKey, -1);
+      }
     }
   }
 
@@ -805,7 +827,7 @@ window.addEventListener("DOMContentLoaded", function () {
   async function handlePaste() {
     try {
       // Check if we have a valid control connection
-      if (!isValidIP(controlIp)) {
+      if (!controlIp) {
         showToast("No streaming device connected for paste operation!", 3000, true);
         return;
       }
@@ -1296,6 +1318,32 @@ adbKeysMap.set("Shift+Digit8", "\\*");
 adbKeysMap.set("Shift+Digit9", "162");
 adbKeysMap.set("Shift+Digit0", "163");
 
+// Apple TV Keyboard Mapping (pyatv / atvremote command names)
+const atvKeysMap = new Map();
+atvKeysMap.set("ArrowUp", "up");
+atvKeysMap.set("ArrowDown", "down");
+atvKeysMap.set("ArrowLeft", "left");
+atvKeysMap.set("ArrowRight", "right");
+atvKeysMap.set("Enter", "select");
+atvKeysMap.set("Escape", "menu");
+atvKeysMap.set("Delete", "menu");
+atvKeysMap.set("Home", "home");
+atvKeysMap.set("Shift+Escape", "home");
+atvKeysMap.set("Control+Escape", "home");
+atvKeysMap.set("End", "play_pause");
+atvKeysMap.set("PageUp", "volume_up");
+atvKeysMap.set("PageDown", "volume_down");
+atvKeysMap.set("Insert", "top_menu");
+if (isMacOS) {
+  atvKeysMap.set("Command+Enter", "play_pause");
+  atvKeysMap.set("Command+ArrowLeft", "previous");
+  atvKeysMap.set("Command+ArrowRight", "next");
+} else {
+  atvKeysMap.set("Control+Enter", "play_pause");
+  atvKeysMap.set("Control+ArrowLeft", "previous");
+  atvKeysMap.set("Control+ArrowRight", "next");
+}
+
 // Type text character by character with proper timing
 async function typeText(text) {
   // Clean the text by replacing special characters with spaces
@@ -1309,6 +1357,12 @@ async function typeText(text) {
     // For ADB, send the entire text at once to avoid character ordering issues
     window.electronAPI.sendSync("shared-window-channel", {
       type: "send-adb-text",
+      payload: cleanText,
+    });
+  } else if (controlType === "atv") {
+    // For ATV, send the entire text at once via text_append (requires Companion protocol)
+    window.electronAPI.sendSync("shared-window-channel", {
+      type: "send-atv-text",
       payload: cleanText,
     });
   } else if (controlType === "ecp") {
@@ -1338,7 +1392,7 @@ async function playScript(steps, scriptControlType) {
     showToast("Script has no steps.", 2000, true);
     return;
   }
-  if (!isValidIP(controlIp)) {
+  if (!controlIp) {
     showToast("No device connected for script playback!", 3000, true);
     return;
   }
@@ -1375,6 +1429,18 @@ function sendKey(key, mod) {
       type: "send-adb-key",
       payload: key,
     });
+  } else if (controlIp && controlType === "atv") {
+    if (key.startsWith("lit_") && mod === -1) {
+      window.electronAPI.sendSync("shared-window-channel", {
+        type: "send-atv-text",
+        payload: decodeURIComponent(key.slice(4)),
+      });
+    } else if (mod === 0) {
+      window.electronAPI.sendSync("shared-window-channel", {
+        type: "send-atv-key",
+        payload: key,
+      });
+    }
   }
 }
 
