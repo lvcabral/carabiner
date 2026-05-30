@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This App Does
 
-Carabiner is an Electron desktop app for streaming device development and QA. It shows live video from a capture card (HDMI capture device) in a floating overlay window, while letting users control Roku devices via ECP (HTTP) or Android/Fire TV/Google TV devices via ADB. Primary users are developers testing streaming apps without a physical TV.
+Carabiner is an Electron desktop app for streaming device development and QA. It shows live video from a capture card (HDMI capture device) in a floating overlay window, while letting users control Roku devices via ECP (HTTP), Android/Fire TV/Google TV devices via ADB, or Apple TV via `atvremote` (pyatv). Primary users are developers testing streaming apps without a physical TV.
 
 ## Workflow
 
@@ -61,9 +61,10 @@ React 17 app using React Bootstrap tabs. `App.js` is the root; each tab is a com
 |-----------|-----------|---------|
 | General | `GeneralSection` | Capture device picker + link to streaming device |
 | Display | `DisplaySection` | Border, transparency, window options |
-| Control | `ControlSection` | Add/remove Roku and Android streaming devices |
+| Control | `ControlSection` | Add/remove Roku, Android, and Apple TV streaming devices |
 | Overlay | `OverlaySection` | Load reference image for UI comparison |
 | Files | `FilesSection` | Default save paths for screenshots/recordings |
+| Automation | `AutomationSection` | Script recording, playback management, and step editing |
 | About | `AboutSection` | Version, links |
 
 The React app communicates with the main process via `window.electronAPI` (exposed by `preload.js` via `contextBridge`).
@@ -75,7 +76,8 @@ The React app communicates with the main process via `window.electronAPI` (expos
 | `preload.js` | `contextBridge` — exposes `electronAPI` (send, invoke, onMessageReceived, etc.) to both renderers |
 | `settings.js` | Load/save `settings.json` from `app.getPath("userData")` |
 | `adb.js` | Wraps `adb connect/disconnect/shell input keyevent` via `child_process.exec` |
-| `menu.js` | macOS menu bar, system tray (Win/macOS), right-click context menu on display window |
+| `appletv.js` | Wraps `atvremote` CLI (pyatv) for Apple TV key sending and text input via `child_process.spawn` |
+| `menu.js` | macOS menu bar, system tray (Win/macOS), right-click context menu; includes Control Device quick-switch submenu and Automation scripts submenu |
 | `updater.js` | Polls GitHub Releases API; shows dialog if newer version found |
 
 ### IPC Message Types (`shared-window-channel`)
@@ -83,13 +85,35 @@ The React app communicates with the main process via `window.electronAPI` (expos
 Key message types handled in `main.js`:
 - `set-capture-devices` — updates tray menu with available capture cards
 - `set-video-stream` — starts capture stream on display window (forwarded only if display is visible)
-- `set-transparency`, `set-resolution`, `set-border-*` — visual settings
-- `set-control-list` / `set-control-selected` — streaming device CRUD + ADB connect/disconnect
+- `set-transparency`, `set-resolution`, `set-border-*`, `set-display-size` — visual settings
+- `set-control-list` / `set-control-selected` — streaming device CRUD + ADB/ATV connect/disconnect
 - `send-adb-key` / `send-adb-text` — forwarded to `adb.js`
+- `send-atv-key` / `send-atv-text` — forwarded to `appletv.js`
+- `set-adb-path` / `set-atv-path` — update paths to the `adb` and `atvremote` binaries
+- `set-audio-enabled` — toggles audio in the display window
+- `set-show-keystrokes` — toggles the on-screen key indicator overlay
+
+Separate `ipcMain.on`/`ipcMain.handle` channels (outside `shared-window-channel`) handle:
+- Script recording lifecycle: `start-script-recording`, `stop-script-recording`, `save-script`, `run-script`, `stop-script`, `script-playback-done`
+- Script management: `get-scripts`, `update-script-name`, `update-script-steps`, `delete-script`
+- File dialogs: `save-screenshot-dialog`, `save-video-dialog`, `select-adb-path`, `select-atv-path`, `load-image`, `load-image-by-path`
+- Settings persistence: `save-shortcut`, `save-launch-app-at-login`, `save-always-on-top`, `save-dark-mode`, etc.
 
 ### Device Control Protocols
 
 - **Roku (ECP)**: HTTP POST to `http://<ip>:8060/keypress|keydown|keyup/<key>`. Sent directly from the display window renderer via `fetch`.
 - **Android/Fire TV/Google TV (ADB)**: `adb shell input keyevent <code>` or `adb shell input text <text>`. Routed through main process → `adb.js`.
+- **Apple TV (ATV)**: `atvremote --id <deviceId> --protocol mrp <key>` or `atvremote --id <deviceId> text_append=<text>`. Routed through main process → `appletv.js`. Requires `atvremote` binary from the [pyatv](https://pyatv.dev/) package.
 
-The device ID string format that encodes both is `"<ip>|ecp"` or `"<ip>|adb"`.
+The device ID string format encodes protocol: `"<ip>|ecp"`, `"<ip>|adb"`, or `"<uuid-or-mac>|atv"`.
+
+### Automation / Script System
+
+- **Recording**: `render.js` intercepts key events during recording and logs steps (key, delay, device type). When stopped, sends the step array to main via `save-script`.
+- **Playback**: main forwards a `play-script` message with `{id, steps}` to `render.js`; `playScript()` replays each step with its recorded delay. Cancellable via `stop-script`.
+- **Storage**: scripts are saved in `settings.scripts[]` (persisted to `settings.json`). CRUD is handled by dedicated `ipcMain` channels (`get-scripts`, `update-script-name`, `update-script-steps`, `delete-script`).
+- **Menu integration**: `menu.js` builds an Automation submenu in both tray and context menus listing all saved scripts for quick launch.
+
+### Show Keystrokes Overlay
+
+When `showKeystrokes` is enabled (`set-show-keystrokes` IPC message or `display.showKeystrokes` setting), `render.js` calls `displayKeyIndicator()` to show a brief on-screen label for each key press — useful during live presentations or screen recordings.
