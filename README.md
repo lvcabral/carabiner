@@ -1,7 +1,7 @@
 <p align="center">
   <img src="images/carabiner-icon.png" height="125px" alt="Carabiner logo" />
   <br><br>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/1.3.2"><img src="https://img.shields.io/badge/Version-1.3.2-blue.svg" alt="Version 1.3.2" /></a>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/2.0.0"><img src="https://img.shields.io/badge/Version-2.0.0-blue.svg" alt="Version 2.0.0" /></a>
   <img src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
@@ -9,7 +9,7 @@
 
 # Carabiner
 
-**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku, Android-based streaming devices (Fire TV, Google TV, Android TV), and Apple TV through an intuitive floating window interface.
+**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku, Android-based streaming devices (Fire TV, Google TV, Android TV), and Apple TV through an intuitive floating and resizable window interface.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Roku-662D91?style=for-the-badge&logo=roku&logoColor=white" alt="Roku" height="42px" />
@@ -34,6 +34,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 - **Text Pasting**: Paste clipboard content directly to streaming devices
 - **Screenshot Capture**: Save or copy screenshots with one click
 - **Automation Scripts**: Record key sequences with precise timing and replay them on demand
+- **Control Demo Mode**: Show the pressed control keys on the screen for demos and presentations
 
 ### Additional Features
 

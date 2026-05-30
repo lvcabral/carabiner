@@ -24,6 +24,7 @@ After installing Carabiner, launch the application to access the settings window
    - **Type**: Select Roku, Fire TV, Google TV, or Apple TV
 3. Click **+** to register the device
 
+> [!NOTE]
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
 >
 > 1. Press the **Home** button on your Roku remote.

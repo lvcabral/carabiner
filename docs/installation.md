@@ -10,7 +10,7 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 
 - **Operating System**: macOS 10.14+, Windows 10+, or Linux (Ubuntu 18.04+)
 - **Capture Devices**: Video capture device (USB capture card, webcam, etc.)
-- **Streaming Devices**: Roku or Android-based devices (Fire TV, Google TV, Android TV)
+- **Streaming Devices**: Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV
 
 ## Setup Prerequisites
 
@@ -23,15 +23,30 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 
 1. **Developer Mode**: Enable Developer Mode on your Roku device
    - See the [official Roku guide](https://developer.roku.com/docs/developer-program/getting-started/developer-setup.md)
+2. **Enable ECP**: The External Control Protocol (ECP) is used to control Roku devices, and
+   recent OS versions requires enabling ECP in settings, these are steps to enable ECP:
+   - Press the **Home** button on your Roku remote.
+   - Go to **Settings > System > Advanced system settings**.
+   - Select **Control by mobile apps**.
+   - Set it to **Enabled** or **Permissive**.
 
 ### For Android Devices (Fire TV, Google TV, Android TV)
 
 1. **ADB Debugging**: Enable ADB debugging on your device
    - See the [Android debugging guide](https://developer.android.com/studio/command-line/adb)
 2. **ADB Tools**: Install Android Platform Tools
-   - Download from [Android Developer site](https://developer.android.com/studio/releases/platform-tools.html)
+   - Follow the instructions in the [Android setup guide](./setup-android-firetv.md) to install ADB and connect your device
    - Configure the ADB path in Carabiner settings
 3. **Device Authorization**: Accept the connection prompt when first connecting
+
+### For Apple TV
+
+1. **pyatv Setup**: Install `pyatv` for Apple TV control
+   - Follow the Setup instructions in the [Apple TV guide](./setup-apple-tv.md) to install `pyatv` and pair with your Apple TV device
+   - Configure the `pyatv` path in Carabiner settings
+2. **Allow AirPlay Access**: Ensure AirPlay is enabled on your Apple TV for control to work properly:
+   - Go to `Settings` > `AirPlay & Apple Home`
+   - Expand `Allow Access` and pick `Anyone on the Same Network`
 
 ## Installation Steps
 
@@ -62,7 +77,7 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 ## Important Security Notes
 
 - **⚠️ Platform Security**: On Windows and Linux, you may need to approve the app in your security settings. Only macOS builds are currently code-signed.
-- **🔒 macOS Network Access**: Allow Local Network access in `System Settings > Privacy & Security > Local Network` for device control to work properly.
+- **🔒 macOS Network Access**: Allow Local Network access, when prompted, or configure it in `System Settings > Privacy & Security > Local Network` for device control to work properly.
 
 ## Getting Help
 

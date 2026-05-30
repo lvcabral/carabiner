@@ -2,7 +2,7 @@
   "name": "carabiner",
   "productName": "Carabiner",
   "description": "Screen Capture and Remote Control for Streaming Devices",
-  "version": "1.3.2",
+  "version": "2.0.0",
   "main": "public/main.js",
   "license": "MIT",
   "author": {
@@ -10,7 +10,7 @@
     "email": "marcelo@lvcabral.com",
     "url": "https://lvcabral.com/"
   },
-  "copyright": "© 2024-2025, Marcelo Lv Cabral",
+  "copyright": "© 2024-2026, Marcelo Lv Cabral",
   "bugs": {
     "url": "https://github.com/lvcabral/carabiner/issues"
   },
