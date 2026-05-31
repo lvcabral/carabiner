@@ -1,0 +1,35 @@
+name: Update Cask
+
+on:
+  repository_dispatch:
+    types: [new-release]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          VERSION="${{ github.event.client_payload.version }}"
+          URL="https://github.com/lvcabral/carabiner/releases/download/v${VERSION}/Carabiner-${VERSION}-universal.dmg"
+          SHA=$(curl -sL "$URL" | shasum -a 256 | awk '{print $1}')
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Update carabiner.rb
+        run: |
+          VERSION="${{ steps.sha.outputs.version }}"
+          SHA="${{ steps.sha.outputs.sha }}"
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/carabiner.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA}\"/" Casks/carabiner.rb
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/carabiner.rb
+          git commit -m "Update carabiner to ${{ steps.sha.outputs.version }}"
+          git push

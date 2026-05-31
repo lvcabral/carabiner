@@ -1,0 +1,17 @@
+name: Notify Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger tap update
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.TAP_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/lvcabral/homebrew-carabiner/dispatches \
+            -d "{\"event_type\":\"new-release\",\"client_payload\":{\"version\":\"${GITHUB_REF_NAME#v}\"}}"

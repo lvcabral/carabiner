@@ -50,8 +50,13 @@ Perfect for developers and QA engineers who need to test streaming applications 
 
 ## Quick Start
 
-1. **Download** the latest installer from the [releases page](https://github.com/lvcabral/carabiner/releases)
-2. **Install** and launch Carabiner (see our [Installation Guide](./docs/installation.md))
+1. **Install** Carabiner — via Homebrew (macOS) or download from the [releases page](https://github.com/lvcabral/carabiner/releases):
+   ```bash
+   brew tap lvcabral/carabiner
+   brew install --cask carabiner
+   ```
+   See the [Installation Guide](./docs/installation.md) for all platforms and options.
+2. **Launch** Carabiner
 3. **Configure** your capture device in the **General** tab
 4. **Add** your streaming device in the **Control** tab
 5. **Link** your devices in the **General** tab and start controlling!

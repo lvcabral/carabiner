@@ -52,6 +52,23 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 
 ### macOS
 
+#### Homebrew (recommended)
+
+If you have [Homebrew](https://brew.sh) installed, you can install Carabiner with:
+
+```bash
+brew tap lvcabral/carabiner
+brew install --cask carabiner
+```
+
+To upgrade to a newer version later:
+
+```bash
+brew upgrade --cask carabiner
+```
+
+#### Manual install
+
 1. Download the `.dmg` file from the releases page
 2. Open the downloaded file
 3. Drag Carabiner to your Applications folder
