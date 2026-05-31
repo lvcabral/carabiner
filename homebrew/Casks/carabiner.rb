@@ -7,7 +7,7 @@ cask "carabiner" do
   desc "Live video overlay for streaming device development and QA"
   homepage "https://github.com/lvcabral/carabiner"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: ">= :monterey"
 
   app "Carabiner.app"
 
