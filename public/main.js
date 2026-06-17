@@ -466,7 +466,7 @@ app.whenReady().then(async () => {
     updateShowDisplayMenuItem(false);
     if (isScriptRecording) {
       isScriptRecording = false;
-      updateScriptRecordingMenuItems(false, false);
+      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
     }
   });
 
@@ -475,7 +475,7 @@ app.whenReady().then(async () => {
     updateShowDisplayMenuItem(false);
     if (isScriptRecording) {
       isScriptRecording = false;
-      updateScriptRecordingMenuItems(false, false);
+      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
     }
   });
 
@@ -1098,7 +1098,7 @@ app.whenReady().then(async () => {
     if (!isScriptRecording) {
       if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
       isScriptRecording = true;
-      updateScriptRecordingMenuItems(true, true);
+      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
       mainWindow?.webContents.send("script-recording-state-changed", true);
       displayWindow?.webContents.send("start-script-recording");
     }
@@ -1112,7 +1112,7 @@ app.whenReady().then(async () => {
 
   ipcMain.on("script-recording-state-changed", (event, recording) => {
     isScriptRecording = recording;
-    updateScriptRecordingMenuItems(recording, recording);
+    updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
     mainWindow?.webContents.send("script-recording-state-changed", recording);
   });
 
@@ -1122,7 +1122,7 @@ app.whenReady().then(async () => {
     settings.scripts.push(script);
     saveSettings(settings);
     isScriptRecording = false;
-    updateScriptRecordingMenuItems(false, false);
+    updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
     mainWindow?.webContents.send("script-recording-state-changed", false);
     mainWindow?.webContents.send("shared-window-channel", {
       type: "scripts-updated",
@@ -1136,11 +1136,14 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("run-script", (event, scriptId) => {
+    if (isScriptRecording || isScriptPlaying) return;
     const script = settings.scripts?.find((s) => s.id === scriptId);
     if (script) {
       if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
       isScriptPlaying = true;
-      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording);
+      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
+      // Notify the settings window so the Automation tab reflects the running script
+      mainWindow?.webContents.send("script-playback-started", script.id);
       displayWindow?.webContents.send("play-script", {
         id: script.id,
         steps: script.steps,
@@ -1155,7 +1158,7 @@ app.whenReady().then(async () => {
 
   ipcMain.on("script-playback-done", (event, scriptId) => {
     isScriptPlaying = false;
-    updateScriptRecordingMenuItems(isScriptRecording, isScriptRecording);
+    updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
     mainWindow?.webContents.send("script-playback-done", scriptId);
   });
 
