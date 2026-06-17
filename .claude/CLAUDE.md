@@ -94,7 +94,7 @@ Key message types handled in `main.js`:
 - `set-show-keystrokes` — toggles the on-screen key indicator overlay
 
 Separate `ipcMain.on`/`ipcMain.handle` channels (outside `shared-window-channel`) handle:
-- Script recording lifecycle: `start-script-recording`, `stop-script-recording`, `save-script`, `run-script`, `stop-script`, `script-playback-done`
+- Script recording lifecycle: `start-script-recording`, `stop-script-recording`, `save-script`, `run-script`, `stop-script`, `script-playback-started`, `script-playback-done`
 - Script management: `get-scripts`, `update-script-name`, `update-script-steps`, `delete-script`
 - File dialogs: `save-screenshot-dialog`, `save-video-dialog`, `select-adb-path`, `select-atv-path`, `load-image`, `load-image-by-path`
 - Settings persistence: `save-shortcut`, `save-launch-app-at-login`, `save-always-on-top`, `save-dark-mode`, etc.
@@ -110,9 +110,10 @@ The device ID string format encodes protocol: `"<ip>|ecp"`, `"<ip>|adb"`, or `"<
 ### Automation / Script System
 
 - **Recording**: `render.js` intercepts key events during recording and logs steps (key, delay, device type). When stopped, sends the step array to main via `save-script`.
-- **Playback**: main forwards a `play-script` message with `{id, steps}` to `render.js`; `playScript()` replays each step with its recorded delay. Cancellable via `stop-script`.
+- **Playback**: all playback is routed through main's `run-script` handler (including menu/tray quick-launch), which tracks `isScriptPlaying`, sends `script-playback-started` to `mainWindow` (so the Automation tab flips ▶ to ■), and forwards `play-script` with `{id, steps, controlType}` to `render.js`; `playScript()` replays each step with its recorded delay. Cancellable via `stop-script`; completion is reported via `script-playback-done`.
 - **Storage**: scripts are saved in `settings.scripts[]` (persisted to `settings.json`). CRUD is handled by dedicated `ipcMain` channels (`get-scripts`, `update-script-name`, `update-script-steps`, `delete-script`).
-- **Menu integration**: `menu.js` builds an Automation submenu in both tray and context menus listing all saved scripts for quick launch.
+- **Menu integration**: `menu.js` builds a "Run Script" submenu and a "Stop Script" item in the app/tray/context menus. `updateScriptRecordingMenuItems(disableStart, isRecording, isPlaying)` keeps them in sync: "Run Script" is disabled while recording or playing, and "Stop Script" is enabled only while playing.
+- **Status indicators**: the display window shows top-left overlay indicators that share one anchor and reflow horizontally in activation order — red (video recording), blue (script recording), green ▶ (script playback). Managed by `toggleIndicator()` in `render.js`.
 
 ### Show Keystrokes Overlay
 

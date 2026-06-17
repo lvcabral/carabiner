@@ -105,14 +105,17 @@ The **Automation** tab lets you record key sequences (with the exact timing betw
 
 1. Open the **Automation** tab in settings.
 2. Click **Start Recording** (or press `Cmd+Shift+A` on macOS / `Ctrl+Shift+A` on Windows/Linux).
-3. Switch focus to the display window and press the keys you want to record. Each keypress is captured along with the delay since the previous key.
+3. Switch focus to the display window and press the keys you want to record. Each keypress is captured along with the delay since the previous key. A **pulsing blue dot** appears in the top-left of the display window while recording is in progress.
 4. Press **Stop Recording** (or `Cmd+Shift+Z` / `Ctrl+Shift+Z`) when done. The script is saved automatically.
 
 **Playing back a script:**
 
 - Click the **▶** button next to any script in the list, or
 - Use the **File → Run Script** submenu (also available in the tray and right-click context menu).
-- Click the **■** button to interrupt playback.
+- While a script runs, a **pulsing green ▶** appears in the top-left of the display window, and the **Run Script** menu is disabled so you can't start a second script over a running one.
+- Stop playback by clicking the **■** button in the Automation tab, or by choosing **Stop Script** from the File menu, tray, or right-click context menu. The tab's **▶** button automatically switches to **■** whenever a script is running — even when it was started from a menu.
+
+> **💡 Tip**: The top-left indicators share a single anchor and line up side by side — for example, recording a video (red dot) while running a script (green ▶) shows both at once.
 
 **Editing a script:**
 
