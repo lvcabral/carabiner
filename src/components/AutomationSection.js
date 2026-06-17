@@ -99,6 +99,11 @@ function AutomationSection() {
     };
     electronAPI.onMessageReceived("script-recording-state-changed", handleRecordingState);
 
+    const handlePlaybackStarted = (_, scriptId) => {
+      setPlayingId(scriptId);
+    };
+    electronAPI.onMessageReceived("script-playback-started", handlePlaybackStarted);
+
     const handlePlaybackDone = (_, scriptId) => {
       setPlayingId((prev) => (prev === scriptId ? null : prev));
     };

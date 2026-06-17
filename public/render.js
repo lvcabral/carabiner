@@ -13,7 +13,37 @@ const reconnectingOverlay = document.getElementById("reconnecting-overlay");
 const settingsButton = document.getElementById("settings-button");
 const deviceLabel = document.getElementById("device-label");
 const recordingIndicator = document.getElementById("recording-indicator");
+const scriptRecordingIndicator = document.getElementById("script-recording-indicator");
+const scriptPlaybackIndicator = document.getElementById("script-playback-indicator");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+
+// Indicators share a single anchor (top-left) and reflow left-to-right in the
+// order they were activated, so whichever turned on first sits at the anchor and
+// later ones appear to its right. When an earlier one ends, the rest shift back.
+let indicatorOrderSeq = 0;
+
+function toggleIndicator(el, animClass, on) {
+  if (on) {
+    el.style.order = String(++indicatorOrderSeq);
+    el.classList.add(animClass);
+    el.style.display = "block";
+  } else {
+    el.style.display = "none";
+    el.classList.remove(animClass);
+  }
+}
+
+function setVideoRecordingIndicator(on) {
+  toggleIndicator(recordingIndicator, "recording-active", on);
+}
+
+function setScriptRecordingIndicator(on) {
+  toggleIndicator(scriptRecordingIndicator, "recording-active", on);
+}
+
+function setScriptPlaybackIndicator(on) {
+  toggleIndicator(scriptPlaybackIndicator, "playback-active", on);
+}
 
 function showReconnectingOverlay() {
   reconnectingOverlay.style.display = "flex";
@@ -467,6 +497,7 @@ window.addEventListener("DOMContentLoaded", function () {
     }
     if (isScriptRecording) {
       isScriptRecording = false;
+      setScriptRecordingIndicator(false);
       currentScriptSteps = [];
       currentScriptId = null;
       window.electronAPI.send("script-recording-state-changed", false);
@@ -481,6 +512,7 @@ window.addEventListener("DOMContentLoaded", function () {
     }
     if (isScriptRecording) {
       isScriptRecording = false;
+      setScriptRecordingIndicator(false);
       currentScriptSteps = [];
       currentScriptId = null;
       window.electronAPI.send("script-recording-state-changed", false);
@@ -549,6 +581,7 @@ window.addEventListener("DOMContentLoaded", function () {
     currentScriptControlType = controlType;
     currentScriptId = Date.now().toString(36) + Math.random().toString(36).slice(2);
     lastKeyTimestamp = Date.now();
+    setScriptRecordingIndicator(true);
     window.electronAPI.send("script-recording-state-changed", true);
     showToast("Script recording started...");
   });
@@ -556,6 +589,7 @@ window.addEventListener("DOMContentLoaded", function () {
   window.electronAPI.onMessageReceived("stop-script-recording", () => {
     if (!isScriptRecording) return;
     isScriptRecording = false;
+    setScriptRecordingIndicator(false);
     if (currentScriptSteps.length === 0) {
       showToast("Script has no steps. Recording discarded.", 3000, true);
       currentScriptId = null;
@@ -585,6 +619,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
   window.electronAPI.onMessageReceived("discard-script-recording", () => {
     isScriptRecording = false;
+    setScriptRecordingIndicator(false);
     currentScriptSteps = [];
     currentScriptId = null;
     window.electronAPI.send("script-recording-state-changed", false);
@@ -903,23 +938,20 @@ window.addEventListener("DOMContentLoaded", function () {
         console.error("[Carabiner] MediaRecorder error:", event.error);
         showToast("Recording error occurred!", 5000, true);
         isRecording = false;
-        recordingIndicator.style.opacity = "0"; // Hide recording indicator on error
-        recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation on error
+        setVideoRecordingIndicator(false); // Hide recording indicator on error
         window.electronAPI.send("recording-state-changed", isRecording);
       };
 
       mediaRecorder.start();
       isRecording = true;
-      recordingIndicator.style.opacity = "1"; // Show recording indicator
-      recordingIndicator.classList.add("recording-active"); // Start pulsing animation
+      setVideoRecordingIndicator(true); // Show recording indicator
       window.electronAPI.send("recording-state-changed", isRecording);
       showToast("Recording started...");
     } catch (error) {
       console.error("[Carabiner] Error starting recording:", error);
       showToast("Failed to start recording!", 5000, true);
       isRecording = false;
-      recordingIndicator.style.opacity = "0"; // Hide recording indicator on error
-      recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation on error
+      setVideoRecordingIndicator(false); // Hide recording indicator on error
       window.electronAPI.send("recording-state-changed", isRecording);
     }
   }
@@ -933,15 +965,13 @@ window.addEventListener("DOMContentLoaded", function () {
     try {
       mediaRecorder.stop();
       isRecording = false;
-      recordingIndicator.style.opacity = "0"; // Hide recording indicator
-      recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation
+      setVideoRecordingIndicator(false); // Hide recording indicator
       window.electronAPI.send("recording-state-changed", isRecording);
     } catch (error) {
       console.error("[Carabiner] Error stopping recording:", error);
       showToast("Error stopping recording!", 5000, true);
       isRecording = false;
-      recordingIndicator.style.opacity = "0"; // Hide recording indicator on error
-      recordingIndicator.classList.remove("recording-active"); // Stop pulsing animation on error
+      setVideoRecordingIndicator(false); // Hide recording indicator on error
       window.electronAPI.send("recording-state-changed", isRecording);
     }
   }
@@ -1409,16 +1439,21 @@ async function playScript(steps, scriptControlType) {
   }
   isPlayingScript = true;
   scriptPlaybackCancelled = false;
-  for (let i = 0; i < steps.length; i++) {
-    if (scriptPlaybackCancelled) break;
-    if (i > 0 && steps[i].delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, Math.min(steps[i].delay, 5000)));
+  setScriptPlaybackIndicator(true);
+  try {
+    for (let i = 0; i < steps.length; i++) {
+      if (scriptPlaybackCancelled) break;
+      if (i > 0 && steps[i].delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(steps[i].delay, 5000)));
+      }
+      if (scriptPlaybackCancelled) break;
+      sendKey(steps[i].key, steps[i].mod);
     }
-    if (scriptPlaybackCancelled) break;
-    sendKey(steps[i].key, steps[i].mod);
+  } finally {
+    isPlayingScript = false;
+    scriptPlaybackCancelled = false;
+    setScriptPlaybackIndicator(false);
   }
-  isPlayingScript = false;
-  scriptPlaybackCancelled = false;
 }
 
 function sendKey(key, mod) {

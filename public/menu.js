@@ -21,6 +21,10 @@ let enableAudioMenuItem;
 // Script recording menu item references
 let startScriptRecordingMenuItem = null;
 let stopScriptRecordingMenuItem = null;
+let scriptsSubmenuItem = null;
+let trayScriptsSubmenuItem = null;
+let stopScriptMenuItem = null;
+let trayStopScriptItem = null;
 
 // Tray-related variables
 let tray = null;
@@ -212,21 +216,30 @@ const MenuItems = {
     },
   }),
 
-  scriptsSubmenu: (scripts, displayWindow) => ({
+  scriptsSubmenu: (scripts, displayWindow, enabled = true) => ({
     label: "Run Script",
-    enabled: scripts && scripts.length > 0,
+    enabled: !!(enabled && scripts && scripts.length > 0),
     submenu:
       scripts && scripts.length > 0
         ? scripts.map((s) => ({
             label: s.name,
-            click: () =>
-              displayWindow?.webContents.send("play-script", {
-                id: s.id,
-                steps: s.steps,
-                controlType: s.controlType,
-              }),
+            click: () => {
+              // Route through main's run-script handler so playback state is tracked
+              const { ipcMain } = require("electron");
+              ipcMain.emit("run-script", null, s.id);
+            },
           }))
         : [{ label: "No scripts saved", enabled: false }],
+  }),
+
+  stopScript: (enabled = false) => ({
+    id: "stop-script",
+    label: "Stop Script",
+    enabled,
+    click: () => {
+      const { ipcMain } = require("electron");
+      ipcMain.emit("stop-script");
+    },
   }),
 };
 
@@ -315,7 +328,8 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
         MenuItems.startScriptRecording(mainWindow, true),
         MenuItems.stopScriptRecording(mainWindow, false),
         MenuItems.separator(),
-        MenuItems.scriptsSubmenu(scripts, displayWindow),
+        { ...MenuItems.scriptsSubmenu(scripts, displayWindow), id: "scripts-submenu" },
+        { ...MenuItems.stopScript(false), id: "stop-script" },
         MenuItems.separator(),
         AppMenuItems.closeWindow(settings),
       ],
@@ -373,6 +387,8 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
   enableAudioMenuItem = menu.getMenuItemById("enable-audio");
   startScriptRecordingMenuItem = menu.getMenuItemById("start-script-recording");
   stopScriptRecordingMenuItem = menu.getMenuItemById("stop-script-recording");
+  scriptsSubmenuItem = menu.getMenuItemById("scripts-submenu");
+  stopScriptMenuItem = menu.getMenuItemById("stop-script");
 }
 
 function updateAlwaysOnTopMenuItem(value) {
@@ -423,11 +439,18 @@ function updateShowDisplayMenuItem(isVisible) {
   }
 }
 
-function updateScriptRecordingMenuItems(disableStart, isRecording) {
+function updateScriptRecordingMenuItems(disableStart, isRecording, isPlaying = false) {
   if (startScriptRecordingMenuItem) startScriptRecordingMenuItem.enabled = !disableStart;
   if (stopScriptRecordingMenuItem) stopScriptRecordingMenuItem.enabled = !!isRecording;
   if (trayStartScriptRecordingItem) trayStartScriptRecordingItem.enabled = !disableStart;
   if (trayStopScriptRecordingItem) trayStopScriptRecordingItem.enabled = !!isRecording;
+  // Disable "Run Script" while recording OR playing (only re-enable if scripts exist)
+  const hasScripts = !!(_storedSettings && _storedSettings.scripts && _storedSettings.scripts.length > 0);
+  if (scriptsSubmenuItem) scriptsSubmenuItem.enabled = !disableStart && hasScripts;
+  if (trayScriptsSubmenuItem) trayScriptsSubmenuItem.enabled = !disableStart && hasScripts;
+  // Enable "Stop Script" only while a script is playing
+  if (stopScriptMenuItem) stopScriptMenuItem.enabled = !!isPlaying;
+  if (trayStopScriptItem) trayStopScriptItem.enabled = !!isPlaying;
 }
 
 function updateScriptsSubmenu(scripts, mainWindow, displayWindow, packageInfo, settings) {
@@ -489,6 +512,7 @@ function createTrayMenu(
   onDeviceSelected = null
 ) {
   if (onDeviceSelected) _onDeviceSelected = onDeviceSelected;
+  if (settings) _storedSettings = settings;
   const menuItems = [
     MenuItems.showCarabiner(displayWindow),
     MenuItems.separator(),
@@ -511,6 +535,7 @@ function createTrayMenu(
     },
     MenuItems.separator(),
     { ...MenuItems.scriptsSubmenu(settings?.scripts || [], displayWindow), id: "tray-scripts-submenu" },
+    { ...MenuItems.stopScript(false), id: "tray-stop-script" },
     MenuItems.separator(),
     {
       ...MenuItems.alwaysOnTop(displayWindow, mainWindow),
@@ -557,6 +582,8 @@ function createTrayMenu(
   trayEnableAudioItem = trayContextMenu.getMenuItemById("tray-enable-audio");
   trayStartScriptRecordingItem = trayContextMenu.getMenuItemById("tray-start-script-recording");
   trayStopScriptRecordingItem = trayContextMenu.getMenuItemById("tray-stop-script-recording");
+  trayScriptsSubmenuItem = trayContextMenu.getMenuItemById("tray-scripts-submenu");
+  trayStopScriptItem = trayContextMenu.getMenuItemById("tray-stop-script");
   updateTrayRecordingMenuItems(isCurrentlyRecording);
 
   // Set the context menu for the tray
@@ -687,7 +714,8 @@ function createContextMenu(
     { ...MenuItems.startScriptRecording(mainWindow, !(isScriptRecording || isScriptPlaying)), id: "ctx-start-script-recording" },
     { ...MenuItems.stopScriptRecording(mainWindow, isScriptRecording), id: "ctx-stop-script-recording" },
     MenuItems.separator(),
-    MenuItems.scriptsSubmenu(settings?.scripts || [], displayWindow),
+    MenuItems.scriptsSubmenu(settings?.scripts || [], displayWindow, !(isScriptRecording || isScriptPlaying)),
+    { ...MenuItems.stopScript(isScriptPlaying), id: "ctx-stop-script" },
     MenuItems.separator(),
     MenuItems.pasteText(displayWindow),
     MenuItems.separator(),
