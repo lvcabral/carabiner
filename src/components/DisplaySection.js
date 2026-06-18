@@ -51,6 +51,7 @@ const getPredefinedSizes = (maxWidth, maxHeight) => {
 };
 
 function DisplaySection() {
+  const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const [borderWidth, setBorderWidth] = useState("0.1px");
   const [borderStyle, setBorderStyle] = useState("solid");
   const [borderColor, setBorderColor] = useState("#662D91");
@@ -59,6 +60,7 @@ function DisplaySection() {
   const [transparency, setTransparency] = useState(0);
   const [alwaysOnTop, setAlwaysOnTop] = useState(true);
   const [showKeystrokes, setShowKeystrokes] = useState(false);
+  const [allowSleep, setAllowSleep] = useState(true);
   const [mainDisplaySize, setMainDisplaySize] = useState({
     width: 1920,
     height: 1080,
@@ -103,6 +105,9 @@ function DisplaySection() {
         }
         if (settings.display && settings.display.showKeystrokes !== undefined) {
           setShowKeystrokes(settings.display.showKeystrokes);
+        }
+        if (settings.display && settings.display.allowSleep !== undefined) {
+          setAllowSleep(settings.display.allowSleep);
         }
 
         // Set display size based on current window size and filtered predefined options
@@ -187,6 +192,14 @@ function DisplaySection() {
     setShowKeystrokes(e.target.checked);
     electronAPI.sendSync("shared-window-channel", {
       type: "set-show-keystrokes",
+      payload: e.target.checked,
+    });
+  };
+
+  const handleAllowSleepChange = (e) => {
+    setAllowSleep(e.target.checked);
+    electronAPI.sendSync("shared-window-channel", {
+      type: "set-allow-sleep",
       payload: e.target.checked,
     });
   };
@@ -291,6 +304,15 @@ function DisplaySection() {
                     onChange={handleShowKeystrokesChange}
                     className="text-nowrap mt-2"
                   />
+                  {isMacOS && (
+                    <Form.Check
+                      type="checkbox"
+                      label="Allow Mac to Sleep"
+                      checked={allowSleep}
+                      onChange={handleAllowSleepChange}
+                      className="text-nowrap mt-2"
+                    />
+                  )}
                 </div>
               </div>
             </Col>
