@@ -70,6 +70,7 @@ For detailed setup and usage instructions, see our comprehensive guides:
 - **📸 [Screenshots](./docs/screenshots.md)** - Visual showcase of the application interface
 - **🤖 [Android / Fire TV Setup](./docs/setup-android-firetv.md)** - ADB setup for Fire TV and Google TV
 - **🍎 [Apple TV Setup](./docs/setup-apple-tv.md)** - pyatv setup and pairing for Apple TV
+- **🧠 [MCP Server](./docs/mcp-server.md)** - AI-driven device control and test automation via the Model Context Protocol
 
 ## Contributing
 

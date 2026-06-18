@@ -65,6 +65,7 @@ React 17 app using React Bootstrap tabs. `App.js` is the root; each tab is a com
 | Overlay | `OverlaySection` | Load reference image for UI comparison |
 | Files | `FilesSection` | Default save paths for screenshots/recordings |
 | Automation | `AutomationSection` | Script recording, playback management, and step editing |
+| MCP | `MCPSection` | Enable/configure the embedded MCP server (port, auth token) + usage instructions |
 | About | `AboutSection` | Version, links |
 
 The React app communicates with the main process via `window.electronAPI` (exposed by `preload.js` via `contextBridge`).
@@ -79,6 +80,8 @@ The React app communicates with the main process via `window.electronAPI` (expos
 | `appletv.js` | Wraps `atvremote` CLI (pyatv) for Apple TV key sending and text input via `child_process.spawn` |
 | `menu.js` | macOS menu bar, system tray (Win/macOS), right-click context menu; includes Control Device quick-switch submenu and Automation scripts submenu |
 | `updater.js` | Polls GitHub Releases API; shows dialog if newer version found |
+| `mcp-server.js` | Embedded MCP server (localhost `127.0.0.1` only). Exposes `startMcpServer(ctx)`/`stopMcpServer()`; serves Streamable HTTP at `/mcp` and legacy SSE at `/sse` via Node's built-in `http`. Optional Bearer-token auth. The `@modelcontextprotocol/sdk` ships a CJS build, so it is `require`d directly. |
+| `mcp-tools.js` | MCP tool/resource/prompt registration (`registerAll(server, ctx)`) — thin wrappers over `ctx`. Holds the semantic→native key map used by `send_key`. |
 
 ### IPC Message Types (`shared-window-channel`)
 
@@ -98,6 +101,11 @@ Separate `ipcMain.on`/`ipcMain.handle` channels (outside `shared-window-channel`
 - Script management: `get-scripts`, `update-script-name`, `update-script-steps`, `delete-script`
 - File dialogs: `save-screenshot-dialog`, `save-video-dialog`, `select-adb-path`, `select-atv-path`, `load-image`, `load-image-by-path`
 - Settings persistence: `save-shortcut`, `save-launch-app-at-login`, `save-always-on-top`, `save-dark-mode`, etc.
+- MCP server: `save-mcp-config` / `get-mcp-status` (start/stop the server live, persist `settings.mcp`), `save-video-direct` (non-dialog recording save used by MCP). The main↔display renderer RPC for MCP uses `mcp-rpc-request` (main → display: `{requestId, action, params}`) and `mcp-rpc-response` (display → main: `{requestId, result|error}`); `action` is one of `capture-screenshot`, `send-key`, `send-text`, `start-recording`, `stop-recording`.
+
+### MCP Server
+
+`settings.mcp = { enabled, port, token }`. When enabled (toggle in the MCP tab → `MCPSection.js`), `main.js` starts `mcp-server.js` after the windows are created and stops it on `before-quit`. Tool handlers never import main directly — they call a `ctx` object built in `main.js` that reuses the existing internals (`switchControlDevice`, `startScriptPlayback`, ADB/ATV send fns, `settings`, menu refreshers) and the `callDisplay()` RPC helper for renderer-side work (canvas screenshot, `MediaRecorder`, key/text sending). `run_script` blocks by storing a resolver keyed by script id and settling it in the existing `script-playback-done` handler. See `docs/mcp-server.md` for the full tool/resource/prompt reference and agent usage.
 
 ### Device Control Protocols
 

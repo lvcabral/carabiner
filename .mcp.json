@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "carabiner": {
+      "type": "http",
+      "url": "http://localhost:7734/mcp"
+    }
+  }
+}
