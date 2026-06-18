@@ -34,6 +34,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 - **Text Pasting**: Paste clipboard content directly to streaming devices
 - **Screenshot Capture**: Save or copy screenshots with one click
 - **Automation Scripts**: Record key sequences with precise timing and replay them on demand
+- **MCP Server**: Let AI assistants control devices, run scripts, and capture screenshots via the Model Context Protocol for AI-driven QA automation
 - **Control Demo Mode**: Show the pressed control keys on the screen for demos and presentations
 
 ### Additional Features
