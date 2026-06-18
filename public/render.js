@@ -479,6 +479,28 @@ window.addEventListener("DOMContentLoaded", function () {
   // Ensure the display window gets focus when it loads
   window.focus();
 
+  // Auto-pause capture so the Mac can sleep (issue #91). Main triggers these on
+  // screen lock / user idle, and resume on unlock / activity. Kept separate from
+  // window-hide/show so it doesn't disturb script recording or window state.
+  window.electronAPI.onMessageReceived("auto-suspend", () => {
+    if (videoState !== "stopped") {
+      stopVideoStream();
+    }
+  });
+
+  window.electronAPI.onMessageReceived("auto-resume", () => {
+    if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
+      const hasSpecificDevice =
+        currentConstraints.video !== true &&
+        typeof currentConstraints.video === "object" &&
+        currentConstraints.video.deviceId;
+
+      if (hasSpecificDevice) {
+        renderDisplay(currentConstraints);
+      }
+    }
+  });
+
   // Handle window visibility changes via Electron IPC events
   window.electronAPI.onMessageReceived("window-show", () => {
     // Window is now visible - restart video stream if we have constraints and it's stopped

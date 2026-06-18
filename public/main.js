@@ -18,6 +18,7 @@ const {
   Notification,
   systemPreferences,
   globalShortcut,
+  powerMonitor,
   screen,
   shell,
 } = require("electron");
@@ -340,7 +341,64 @@ app.whenReady().then(async () => {
   const mainWindow = createMainWindow();
   const displayWindow = createDisplayWindow();
   setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
+
+  // --- Allow Mac to sleep (issue #91) ---------------------------------------
+  // Live audio I/O (and the playing <video>) cause macOS to hold
+  // PreventUserIdleSystemSleep / "Video Wake Lock" assertions, which keep the
+  // machine awake. The app can't suppress those assertions directly, so when
+  // the user locks the screen or goes idle we pause the capture stream (which
+  // releases them) and resume it on unlock / activity. Controlled by
+  // settings.display.allowSleep (default on).
+  const IDLE_SLEEP_SECONDS = 300; // pause capture after 5 minutes idle
+  const IDLE_POLL_MS = 30000; // check idle time every 30 seconds
+  let sleepWatcherInterval = null;
+  let autoSuspended = false;
+
+  function suspendCapture() {
+    if (autoSuspended || !displayWindow || displayWindow.isDestroyed()) return;
+    autoSuspended = true;
+    displayWindow.webContents.send("auto-suspend");
+  }
+
+  function resumeCapture() {
+    if (!autoSuspended) return;
+    autoSuspended = false;
+    if (displayWindow && !displayWindow.isDestroyed() && displayWindow.isVisible()) {
+      displayWindow.webContents.send("auto-resume");
+    }
+  }
+
+  function pollSystemIdle() {
+    if (powerMonitor.getSystemIdleTime() >= IDLE_SLEEP_SECONDS) {
+      suspendCapture();
+    } else if (autoSuspended) {
+      resumeCapture();
+    }
+  }
+
+  function startSleepWatcher() {
+    if (sleepWatcherInterval) return;
+    powerMonitor.on("lock-screen", suspendCapture);
+    powerMonitor.on("unlock-screen", resumeCapture);
+    sleepWatcherInterval = setInterval(pollSystemIdle, IDLE_POLL_MS);
+  }
+
+  function stopSleepWatcher() {
+    if (sleepWatcherInterval) {
+      clearInterval(sleepWatcherInterval);
+      sleepWatcherInterval = null;
+    }
+    powerMonitor.removeListener("lock-screen", suspendCapture);
+    powerMonitor.removeListener("unlock-screen", resumeCapture);
+    if (autoSuspended) resumeCapture();
+  }
+
   if (isMacOS) {
+    // macOS only: this works around the macOS audio/video sleep assertions and the
+    // toggle is hidden on other platforms (see DisplaySection.js).
+    if (settings.display?.allowSleep !== false) {
+      startSleepWatcher();
+    }
     createMacOSMenu(mainWindow, displayWindow, packageInfo, settings);
     // Ensure menu reflects the correct always on top state from settings
     updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
@@ -719,6 +777,14 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-show-keystrokes") {
       settings.display.showKeystrokes = arg.payload;
       saveFlag = true;
+    } else if (arg.type && arg.type === "set-allow-sleep") {
+      settings.display.allowSleep = arg.payload;
+      saveFlag = true;
+      if (arg.payload) {
+        startSleepWatcher();
+      } else {
+        stopSleepWatcher();
+      }
     } else if (arg.type && arg.type === "clear-overlay-image") {
       saveFlag = false;
       // Clear the overlay image by sending a specific clear message
@@ -1421,6 +1487,7 @@ app.whenReady().then(async () => {
   });
   app.on("before-quit", () => {
     isQuitting = true;
+    stopSleepWatcher();
     if (isMcpRunning()) {
       stopMcpServer();
     }

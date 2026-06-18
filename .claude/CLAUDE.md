@@ -95,6 +95,7 @@ Key message types handled in `main.js`:
 - `set-adb-path` / `set-atv-path` — update paths to the `adb` and `atvremote` binaries
 - `set-audio-enabled` — toggles audio in the display window
 - `set-show-keystrokes` — toggles the on-screen key indicator overlay
+- `set-allow-sleep` — toggles the `powerMonitor`-based auto-pause that lets the machine sleep (see Allow Mac to Sleep)
 
 Separate `ipcMain.on`/`ipcMain.handle` channels (outside `shared-window-channel`) handle:
 - Script recording lifecycle: `start-script-recording`, `stop-script-recording`, `save-script`, `run-script`, `stop-script`, `script-playback-started`, `script-playback-done`
@@ -126,3 +127,7 @@ The device ID string format encodes protocol: `"<ip>|ecp"`, `"<ip>|adb"`, or `"<
 ### Show Keystrokes Overlay
 
 When `showKeystrokes` is enabled (`set-show-keystrokes` IPC message or `display.showKeystrokes` setting), `render.js` calls `displayKeyIndicator()` to show a brief on-screen label for each key press — useful during live presentations or screen recordings.
+
+### Allow Mac to Sleep
+
+Live audio capture/playback (and the playing `<video>`) make macOS hold `PreventUserIdleSystemSleep` (via `coreaudiod`) and a Chromium "Video Wake Lock" (`NoDisplaySleepAssertion`), which keep the machine awake while Carabiner streams. The app can't suppress those assertions directly — the only way to release them is to stop capturing. This is macOS-only: the toggle is hidden on Windows/Linux (`DisplaySection.js`) and the watcher only starts when `isMacOS`. When `display.allowSleep` is enabled (default; toggle in the Display tab → `set-allow-sleep`), `main.js` registers a `powerMonitor` watcher: it pauses capture on `lock-screen` or after `IDLE_SLEEP_SECONDS` (5 min, via polling `getSystemIdleTime()`), and resumes on `unlock-screen` / activity. Pause/resume reuse the display window's existing `stopVideoStream()`/`renderDisplay()` via the dedicated `auto-suspend`/`auto-resume` IPC messages (kept separate from `window-hide`/`window-show`). The watcher is started/stopped live when the toggle changes and torn down on `before-quit`.
