@@ -94,7 +94,10 @@ carabiner/
 │   ├── render.js                # Display window renderer — video, keyboard, recording, scripts
 │   ├── menu.js                  # macOS menu bar, system tray, and right-click context menu
 │   ├── settings.js              # Load/save settings.json from userData
-│   ├── adb.js                   # Android Debug Bridge integration
+│   ├── adb.js                   # Android/Fire TV/Google TV control via ADB
+│   ├── appletv.js               # Apple TV control via atvremote (pyatv)
+│   ├── mcp-server.js            # Embedded MCP server (localhost) — HTTP/SSE transports
+│   ├── mcp-tools.js             # MCP tool/resource/prompt registration
 │   └── updater.js               # GitHub Releases version check
 ├── src/                         # React frontend source (settings panel)
 │   ├── App.js                   # Root component — tab layout
@@ -102,12 +105,14 @@ carabiner/
 │   └── components/              # One component per settings tab
 │       ├── GeneralSection.js    # Capture device picker and device link
 │       ├── DisplaySection.js    # Border, transparency, window options
-│       ├── ControlSection.js    # Add/remove streaming devices, ADB path
+│       ├── ControlSection.js    # Add/remove Roku, Android, and Apple TV devices
 │       ├── AutomationSection.js # Script recording, playback, and step editing
 │       ├── OverlaySection.js    # Reference image overlay with opacity control
 │       ├── FilesSection.js      # Default save paths for screenshots/recordings
-│       └── AboutSection.js      # Version info and links
-├── docs/                        # Documentation
+│       ├── MCPSection.js        # Enable/configure the embedded MCP server
+│       ├── AboutSection.js      # Version info and links
+│       └── select/              # Reusable form controls (capture, resolution, border, shortcut)
+├── docs/                        # Documentation (build, usage, setup, MCP, key mappings)
 ├── images/                      # Application icons and images
 ├── build/                       # Built React application (generated)
 ├── out/                         # Built Electron application and installers (generated)
@@ -151,7 +156,9 @@ carabiner/
 ### Platform APIs
 
 - **[Roku ECP API](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)**: For Roku device control
-- **[Android ADB](https://developer.android.com/tools/adb)**: For Android device control
+- **[Android ADB](https://developer.android.com/tools/adb)**: For Android/Fire TV/Google TV device control
+- **[pyatv (atvremote)](https://pyatv.dev/)**: For Apple TV device control
+- **[Model Context Protocol](https://modelcontextprotocol.io/)**: Protocol behind the embedded MCP server
 
 ## Next Steps
 
@@ -159,6 +166,8 @@ After setting up your development environment:
 
 - Review the [usage guide](./usage-guide.md) to understand the application
 - Check the [keyboard mappings](./key-mappings.md) for control reference
+- Set up [Android/Fire TV](./setup-android-firetv.md) and [Apple TV](./setup-apple-tv.md) devices
+- Explore the [MCP server](./mcp-server.md) for AI-driven device control and test automation
 - View the [screenshots](./screenshots.md) to see the application interface
 - Explore the codebase to understand the architecture
 - Consider contributing improvements or new features

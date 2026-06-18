@@ -16,6 +16,7 @@ The main settings interface provides comprehensive configuration options across 
 - **Device Configuration**: Video capture device selection and streaming device management
 - **Display Controls**: Resolution settings, transparency slider, and window behavior options
 - **Automation**: Record and manage control scripts with precise timing
+- **MCP Server**: Enable and configure the embedded Model Context Protocol server for AI-driven automation
 - **Overlay Management**: Image overlay functionality with recent files list
 - **Default Save Locations**: Files tab for configuring custom screenshot and recording save paths
 
