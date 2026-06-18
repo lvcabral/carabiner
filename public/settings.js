@@ -33,6 +33,11 @@ function loadSettings() {
       recordingPath: "", // Empty string means use default (Movies on macOS, Videos elsewhere)
     },
     scripts: [],
+    mcp: {
+      enabled: false, // MCP server disabled by default
+      port: 7734, // Localhost port the MCP server listens on
+      token: "", // Optional Bearer token; empty means no authentication
+    },
   };
   try {
     return Object.assign(defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath)));

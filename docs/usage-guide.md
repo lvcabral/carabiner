@@ -129,6 +129,14 @@ The **Automation** tab lets you record key sequences (with the exact timing betw
 
 > **Note:** Scripts are tied to the protocol of the device that was active when they were recorded (ECP for Roku, ADB for Android). Playing a script on a device with a different protocol will show a warning toast, but playback will still proceed.
 
+### AI Automation (MCP Server)
+
+Carabiner can expose its device control, automation, and capture features to AI assistants through
+an embedded **MCP server** (enable it in the **Settings → MCP** tab). An agent such as
+Claude Code can then navigate your app, run scripts, capture screenshots, and validate UI state —
+and you can schedule recurring QA runs externally. See the **[MCP Server guide](./mcp-server.md)**
+for setup and examples.
+
 ### Overlay Images
 
 Load reference images for design comparison:

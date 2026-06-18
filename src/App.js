@@ -21,6 +21,7 @@ import OverlaySection from "./components/OverlaySection";
 import FilesSection from "./components/FilesSection";
 import AboutSection from "./components/AboutSection";
 import AutomationSection from "./components/AutomationSection";
+import MCPSection from "./components/MCPSection";
 
 const { electronAPI } = window;
 
@@ -104,6 +105,11 @@ function App() {
           <Tab eventKey="automation" title="Automation">
             <div className="tab-content-container">
               <AutomationSection />
+            </div>
+          </Tab>
+          <Tab eventKey="mcp" title="MCP">
+            <div className="tab-content-container">
+              <MCPSection />
             </div>
           </Tab>
           <Tab eventKey="overlay" title="Overlay">

@@ -70,6 +70,11 @@ overlayImage.style.display = "none";
 let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
+// When recording is driven by the MCP server, save without a dialog and report the path back.
+let mcpRecording = false;
+let mcpRecordingPrefix = "";
+let mcpStopRecordingResolve = null;
+let mcpStopRecordingReject = null;
 
 // Device monitoring variables
 let currentDeviceList = [];
@@ -976,9 +981,24 @@ window.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  function settleMcpRecording(error, filePath) {
+    const resolve = mcpStopRecordingResolve;
+    const reject = mcpStopRecordingReject;
+    mcpStopRecordingResolve = null;
+    mcpStopRecordingReject = null;
+    mcpRecording = false;
+    mcpRecordingPrefix = "";
+    if (error) {
+      reject?.(error instanceof Error ? error : new Error(String(error)));
+    } else {
+      resolve?.({ filePath });
+    }
+  }
+
   async function saveRecording() {
     if (recordedChunks.length === 0) {
       showToast("No recording data to save!", 5000, true);
+      if (mcpRecording) settleMcpRecording(new Error("No recording data to save."));
       return;
     }
 
@@ -995,7 +1015,8 @@ window.addEventListener("DOMContentLoaded", function () {
         extension = "webm";
       }
 
-      const filename = `carabiner-recording-${datePart}-${timePart}.${extension}`;
+      const prefix = mcpRecording && mcpRecordingPrefix ? mcpRecordingPrefix : "carabiner-recording";
+      const filename = `${prefix}-${datePart}-${timePart}.${extension}`;
 
       // Convert blob to buffer for saving
       const arrayBuffer = await blob.arrayBuffer();
@@ -1003,6 +1024,22 @@ window.addEventListener("DOMContentLoaded", function () {
 
       // Convert to regular array for IPC serialization
       const bufferData = Array.from(uint8Array);
+
+      // MCP-driven recording: save without a dialog and report the path back to the caller.
+      if (mcpRecording) {
+        const directResult = await window.electronAPI.invoke("save-video-direct", filename, bufferData);
+        recordedChunks = [];
+        if (directResult.success) {
+          showToast(`Recording saved as ${filename}.`, 5000, false, () => {
+            window.electronAPI.invoke("open-containing-folder", directResult.filePath);
+          });
+          settleMcpRecording(null, directResult.filePath);
+        } else {
+          showToast("Failed to save recording!", 5000, true);
+          settleMcpRecording(new Error(directResult.error || "Failed to save recording."));
+        }
+        return;
+      }
 
       // Show save dialog and save file
       const result = await window.electronAPI.invoke("save-video-dialog", filename, bufferData);
@@ -1030,12 +1067,68 @@ window.addEventListener("DOMContentLoaded", function () {
       console.error("[Carabiner] Error saving recording:", error);
       showToast("Failed to save recording!", 5000, true);
       recordedChunks = [];
+      if (mcpRecording) settleMcpRecording(error);
     }
   }
 
   // Handle copy and save screenshot requests
   window.electronAPI.onMessageReceived("copy-screenshot", handleCopyScreenshot);
   window.electronAPI.onMessageReceived("save-screenshot", handleSaveScreenshot);
+
+  // Handle MCP server requests routed through the main process (request/response RPC).
+  window.electronAPI.onMessageReceived("mcp-rpc-request", async (_, { requestId, action, params }) => {
+    try {
+      let result;
+      switch (action) {
+        case "capture-screenshot": {
+          if (!videoPlayer || !videoPlayer.videoWidth) {
+            throw new Error("No active video stream to capture.");
+          }
+          result = getScreenshotCanvas().toDataURL("image/png");
+          break;
+        }
+        case "send-key":
+          sendKey(params.key, params.mod ?? 0);
+          result = { sent: params.key };
+          break;
+        case "send-text":
+          await typeText(params.text);
+          result = { sent: params.text };
+          break;
+        case "start-recording": {
+          if (isRecording) throw new Error("Already recording.");
+          if (!videoPlayer || !videoPlayer.srcObject) {
+            throw new Error("No active video stream to record.");
+          }
+          mcpRecording = true;
+          mcpRecordingPrefix = params?.filenamePrefix || "";
+          handleStartRecording();
+          if (!isRecording) {
+            mcpRecording = false;
+            mcpRecordingPrefix = "";
+            throw new Error("Failed to start recording.");
+          }
+          result = { recording: true };
+          break;
+        }
+        case "stop-recording": {
+          if (!isRecording) throw new Error("Not currently recording.");
+          const done = new Promise((resolve, reject) => {
+            mcpStopRecordingResolve = resolve;
+            mcpStopRecordingReject = reject;
+          });
+          handleStopRecording();
+          result = await done; // { filePath }
+          break;
+        }
+        default:
+          throw new Error(`Unknown MCP action: ${action}`);
+      }
+      window.electronAPI.send("mcp-rpc-response", { requestId, result });
+    } catch (error) {
+      window.electronAPI.send("mcp-rpc-response", { requestId, error: error.message });
+    }
+  });
 
   // Listen for the image-loaded event
   window.electronAPI.onMessageReceived("image-loaded", (event, imageData) => {

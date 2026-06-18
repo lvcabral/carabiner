@@ -47,6 +47,7 @@ const {
   hideWindowSafely,
 } = require("./menu");
 const { checkForUpdates } = require("./updater");
+const { startMcpServer, stopMcpServer, isRunning: isMcpRunning, getPort: getMcpPort } = require("./mcp-server");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
 if (require("electron-squirrel-startup") === true) app.quit();
@@ -1116,6 +1117,264 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send("script-recording-state-changed", recording);
   });
 
+  // ----------------------------- MCP server integration -----------------------------
+  // Request/response RPC to the display window (renderer) for operations that must run there
+  // (canvas screenshot, MediaRecorder, key/text sending). Reuses render.js internals.
+  const mcpPendingRpc = new Map();
+  let mcpRpcSeq = 0;
+  function callDisplay(action, params = {}) {
+    return new Promise((resolve, reject) => {
+      if (!displayWindow || displayWindow.isDestroyed()) {
+        reject(new Error("Display window is not available."));
+        return;
+      }
+      const requestId = `rpc_${++mcpRpcSeq}`;
+      const timeout = setTimeout(() => {
+        if (mcpPendingRpc.has(requestId)) {
+          mcpPendingRpc.delete(requestId);
+          reject(new Error(`Display did not respond to "${action}" in time.`));
+        }
+      }, 20000);
+      mcpPendingRpc.set(requestId, { resolve, reject, timeout });
+      displayWindow.webContents.send("mcp-rpc-request", { requestId, action, params });
+    });
+  }
+  ipcMain.on("mcp-rpc-response", (event, { requestId, result, error }) => {
+    const pending = mcpPendingRpc.get(requestId);
+    if (!pending) return;
+    clearTimeout(pending.timeout);
+    mcpPendingRpc.delete(requestId);
+    if (error) pending.reject(new Error(error));
+    else pending.resolve(result);
+  });
+
+  // Shared script playback used by both the run-script IPC and the MCP run_script tool.
+  const mcpPendingScripts = new Map();
+  function startScriptPlayback(scriptId) {
+    if (isScriptRecording || isScriptPlaying) return false;
+    const script = settings.scripts?.find((s) => s.id === scriptId);
+    if (!script) return false;
+    if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
+    isScriptPlaying = true;
+    updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
+    mainWindow?.webContents.send("script-playback-started", script.id);
+    displayWindow?.webContents.send("play-script", {
+      id: script.id,
+      steps: script.steps,
+      controlType: script.controlType,
+    });
+    return true;
+  }
+
+  function mcpTimestamp() {
+    const now = new Date();
+    const datePart = now.toLocaleDateString("en-CA");
+    const timePart = now.toLocaleTimeString("en-CA", { hour12: false }).replace(/:/g, "");
+    return `${datePart}-${timePart}`;
+  }
+
+  // Non-interactive video save (no dialog) used when recording is driven via MCP.
+  ipcMain.handle("save-video-direct", async (event, filename, bufferData) => {
+    try {
+      const dir = settings.files?.recordingPath || path.join(os.homedir(), isMacOS ? "Movies" : "Videos");
+      const filePath = path.join(dir, filename);
+      await fs.promises.writeFile(filePath, Buffer.from(bufferData));
+      return { success: true, filePath };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Context object handed to the MCP tool handlers — the only bridge into main state.
+  const mcpCtx = {
+    getSettings: () => settings,
+    getAuthToken: () => settings.mcp?.token || "",
+    getSettingsSnapshot: () => {
+      const snap = JSON.parse(JSON.stringify(settings));
+      if (snap.mcp && snap.mcp.token) snap.mcp.token = "***";
+      return snap;
+    },
+    getAppInfo: () => ({
+      name: packageInfo.name,
+      version: packageInfo.version,
+      platform: process.platform,
+      arch: process.arch,
+      electron: process.versions.electron,
+      mcp: { running: isMcpRunning(), port: getMcpPort() },
+    }),
+    // Device control
+    getCurrentDevice: () => {
+      const id = settings.control.deviceId || "";
+      const [ip = "", type = ""] = id ? id.split("|") : [];
+      let connected = false;
+      if (type === "adb") connected = isADBConnected;
+      else if (type === "atv") connected = isATVConnected;
+      else if (type === "ecp") connected = !!ip;
+      return { id, ip, type, connected };
+    },
+    listDevices: () =>
+      (settings.control.deviceList || []).map((d) => ({
+        id: d.id,
+        name: d.alias || "",
+        deviceType: d.type || "",
+        ipAddress: d.ipAddress || (d.id ? d.id.split("|")[0] : ""),
+        protocol: d.id ? d.id.split("|")[1] : "",
+        selected: d.id === settings.control.deviceId,
+      })),
+    selectDevice: (deviceId) => {
+      const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
+      if (!device) throw new Error(`Unknown device id: ${deviceId}`);
+      const newIp = deviceId.split("|")[0];
+      // switchControlDevice handles ADB but not ATV; reconcile ATV connection here.
+      if (isATVConnected && controlIp !== newIp) isATVConnected = disconnectATV();
+      switchControlDevice(deviceId);
+      if (controlType === "atv" && !isATVConnected) {
+        isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
+      }
+      return mcpCtx.getCurrentDevice();
+    },
+    sendKey: async (nativeKey, mod) => {
+      if (!settings.control.deviceId) {
+        throw new Error("No control device selected. Use select_device first.");
+      }
+      await callDisplay("send-key", { key: nativeKey, mod });
+      return { sent: nativeKey };
+    },
+    sendText: async (text) => {
+      if (!settings.control.deviceId) {
+        throw new Error("No control device selected. Use select_device first.");
+      }
+      await callDisplay("send-text", { text });
+      return { sent: text };
+    },
+    // Capture & recording
+    listCaptureDevices: () =>
+      (captureDevices || []).map((d) => ({ deviceId: d.deviceId, label: d.label })),
+    selectCaptureDevice: (deviceId) => {
+      const found = (captureDevices || []).find((d) => d.deviceId === deviceId);
+      if (!found) throw new Error(`Unknown capture device id: ${deviceId}`);
+      mainWindow?.webContents?.send("update-capture-device", deviceId);
+      return { deviceId: found.deviceId, label: found.label };
+    },
+    takeScreenshot: async ({ save = true } = {}) => {
+      const dataUrl = await callDisplay("capture-screenshot");
+      if (!dataUrl || typeof dataUrl !== "string") {
+        throw new Error("No video frame available to capture.");
+      }
+      const base64 = dataUrl.replace(/^data:image\/[a-z]+;base64,/, "");
+      let filePath = null;
+      if (save) {
+        const dir = settings.files?.screenshotPath || path.join(os.homedir(), "Pictures");
+        filePath = path.join(dir, `carabiner-${mcpTimestamp()}.png`);
+        await fs.promises.writeFile(filePath, Buffer.from(base64, "base64"));
+      }
+      return { base64, mimeType: "image/png", filePath };
+    },
+    startRecording: async ({ filenamePrefix } = {}) => {
+      await callDisplay("start-recording", { filenamePrefix });
+      return { recording: true };
+    },
+    stopRecording: async () => callDisplay("stop-recording"),
+    // Scripts
+    listScripts: () =>
+      (settings.scripts || []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        controlType: s.controlType,
+        stepCount: s.steps?.length || 0,
+      })),
+    getScripts: () => settings.scripts || [],
+    runScript: (scriptId) =>
+      new Promise((resolve, reject) => {
+        if (isScriptRecording || isScriptPlaying) {
+          reject(new Error("Busy: a script is already recording or playing."));
+          return;
+        }
+        const script = settings.scripts?.find((s) => s.id === scriptId);
+        if (!script) {
+          reject(new Error(`Unknown script id: ${scriptId}`));
+          return;
+        }
+        mcpPendingScripts.set(scriptId, resolve);
+        if (!startScriptPlayback(scriptId)) {
+          mcpPendingScripts.delete(scriptId);
+          reject(new Error("Failed to start script playback."));
+        }
+      }),
+    stopScript: () => {
+      displayWindow?.webContents.send("stop-script");
+      return { stopped: true };
+    },
+    createScript: ({ name, controlType, steps }) => {
+      if (!settings.scripts) settings.scripts = [];
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      const script = {
+        id,
+        name: (name && name.trim()) || `Script ${settings.scripts.length + 1}`,
+        controlType,
+        steps: (steps || []).map((s) => ({ key: s.key, mod: s.mod ?? 0, delay: s.delay ?? 0 })),
+      };
+      settings.scripts.push(script);
+      saveSettings(settings);
+      mainWindow?.webContents.send("shared-window-channel", { type: "scripts-updated", payload: settings.scripts });
+      updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+      return { id: script.id, name: script.name, controlType: script.controlType, stepCount: script.steps.length };
+    },
+    deleteScript: (scriptId) => {
+      const before = settings.scripts?.length || 0;
+      settings.scripts = (settings.scripts || []).filter((s) => s.id !== scriptId);
+      saveSettings(settings);
+      mainWindow?.webContents.send("shared-window-channel", { type: "scripts-updated", payload: settings.scripts });
+      updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+      return { deleted: before !== settings.scripts.length };
+    },
+    // Display window
+    showDisplay: () => {
+      if (!displayWindow.isVisible()) displayWindow.show();
+      return { visible: true };
+    },
+    hideDisplay: () => {
+      if (displayWindow.isVisible()) displayWindow.hide();
+      return { visible: false };
+    },
+    toggleFullscreen: () => {
+      toggleFullScreen(displayWindow);
+      return { fullscreen: displayWindow.isFullScreen() };
+    },
+    toggleOnTop: () => {
+      const newVal = !(settings.display.alwaysOnTop ?? true);
+      settings.display.alwaysOnTop = newVal;
+      saveSettings(settings);
+      if (!displayWindow.isVisible()) displayWindow.show();
+      setAlwaysOnTop(newVal, displayWindow);
+      updateAlwaysOnTopMenuItem(newVal);
+      mainWindow?.webContents?.send("update-always-on-top", newVal);
+      return { onTop: newVal };
+    },
+  };
+
+  ipcMain.handle("save-mcp-config", async (event, config) => {
+    settings.mcp = {
+      enabled: !!config.enabled,
+      port: Number(config.port) || 7734,
+      token: typeof config.token === "string" ? config.token : "",
+    };
+    saveSettings(settings);
+    await stopMcpServer();
+    if (settings.mcp.enabled) {
+      return startMcpServer(mcpCtx);
+    }
+    return { running: false, port: settings.mcp.port };
+  });
+
+  ipcMain.handle("get-mcp-status", async () => ({ running: isMcpRunning(), port: getMcpPort() }));
+
+  if (settings.mcp?.enabled) {
+    startMcpServer(mcpCtx).then((status) => {
+      if (status.error) log.error("[MCP] Failed to start MCP server:", status.error);
+    });
+  }
+
   ipcMain.on("save-script", (event, script) => {
     if (!settings.scripts) settings.scripts = [];
     script.name = `Script ${settings.scripts.length + 1}`;
@@ -1136,20 +1395,7 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("run-script", (event, scriptId) => {
-    if (isScriptRecording || isScriptPlaying) return;
-    const script = settings.scripts?.find((s) => s.id === scriptId);
-    if (script) {
-      if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
-      isScriptPlaying = true;
-      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
-      // Notify the settings window so the Automation tab reflects the running script
-      mainWindow?.webContents.send("script-playback-started", script.id);
-      displayWindow?.webContents.send("play-script", {
-        id: script.id,
-        steps: script.steps,
-        controlType: script.controlType,
-      });
-    }
+    startScriptPlayback(scriptId);
   });
 
   ipcMain.on("stop-script", () => {
@@ -1160,6 +1406,12 @@ app.whenReady().then(async () => {
     isScriptPlaying = false;
     updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
     mainWindow?.webContents.send("script-playback-done", scriptId);
+    // Resolve any pending MCP run_script promise waiting on this script.
+    const pending = mcpPendingScripts.get(scriptId);
+    if (pending) {
+      mcpPendingScripts.delete(scriptId);
+      pending({ id: scriptId, completed: true });
+    }
   });
 
   app.on("activate", () => {
@@ -1169,6 +1421,9 @@ app.whenReady().then(async () => {
   });
   app.on("before-quit", () => {
     isQuitting = true;
+    if (isMcpRunning()) {
+      stopMcpServer();
+    }
     if (isADBConnected) {
       disconnectADB();
     }
