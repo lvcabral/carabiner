@@ -69,7 +69,11 @@ function discoverRokuDevices(timeoutMs = 3000) {
     const found = new Map(); // ipAddress -> true (dedupe by IP)
     let client;
     try {
-      client = new SsdpClient();
+      // explicitSocketBind binds each socket to its interface IP instead of
+      // 0.0.0.0, so multicast search/replies use the correct adapter. Without
+      // it, Windows hosts with multiple adapters (VPN/Hyper-V/WSL/etc.) only
+      // discover devices on the default-route interface.
+      client = new SsdpClient({ explicitSocketBind: true });
     } catch (err) {
       console.warn(`SSDP client init failed: ${err.message}`);
       resolve([]);
