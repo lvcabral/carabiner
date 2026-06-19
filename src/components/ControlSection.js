@@ -62,23 +62,36 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     return Number.isInteger(n) && n > 0 && n <= 65535;
   };
 
+  const showError = (msg) => {
+    setErrorMessage(msg);
+    setTimeout(() => setErrorMessage(""), 3000);
+  };
+
   const handleAddDevice = () => {
-    const isAppleTV = deviceType === "appletv";
+    const isAppleTVLocal = deviceType === "appletv";
     const isRDK = deviceType === "xumo";
-    if (isAppleTV) {
+    const isAdb = deviceType === "firetv" || deviceType === "googletv";
+
+    if (isAdb && !adbPath) {
+      showError("Set the ADB tool path below before adding this device.");
+      return;
+    }
+    if (isAppleTVLocal && !atvremotePath) {
+      showError("Set the atvremote tool path below before adding this device.");
+      return;
+    }
+
+    if (isAppleTVLocal) {
       if (!isValidAtvDeviceId(ipAddress)) {
-        setErrorMessage("Invalid device ID (use UUID, MAC address, or IP).");
-        setTimeout(() => setErrorMessage(""), 3000);
+        showError("Invalid device ID (use UUID, MAC address, or IP).");
         return;
       }
     } else if (!isValidIpAddress(ipAddress)) {
-      setErrorMessage("Invalid IP address format.");
-      setTimeout(() => setErrorMessage(""), 3000);
+      showError("Invalid IP address format.");
       return;
     }
     if (isRDK && !isValidPort(rdkPort)) {
-      setErrorMessage("Invalid RDK port (must be 1–65535).");
-      setTimeout(() => setErrorMessage(""), 3000);
+      showError("Invalid RDK port (must be 1–65535).");
       return;
     }
 
@@ -87,8 +100,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
       ? streamingDevices.some((device) => device.id === proposedId)
       : streamingDevices.some((device) => device.ipAddress === ipAddress);
     if (dupCheck) {
-      setErrorMessage(isAppleTV ? "Device ID already exists." : "Device already exists.");
-      setTimeout(() => setErrorMessage(""), 3000);
+      showError(isAppleTVLocal ? "Device ID already exists." : "Device already exists.");
       return;
     }
 
@@ -184,18 +196,40 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     }
   };
 
+  const isAdbType = deviceType === "firetv" || deviceType === "googletv";
+  const isAppleTV = deviceType === "appletv";
+  const isXumo = deviceType === "xumo";
+
   return (
     <div className="p-2" style={{ position: "relative", fontSize: "0.85rem" }}>
       <Card>
         <Card.Body className="p-2">
           <Form>
+            <Form.Group controlId="formDeviceType" className="form-group-spacing">
+              <Form.Label>Select Device Type:</Form.Label>
+              <Form.Control
+                size="sm"
+                as="select"
+                value={deviceType}
+                onChange={(e) => {
+                  setDeviceType(e.target.value);
+                  setRdkTestStatus("");
+                }}
+              >
+                <option value="roku">Roku (ECP)</option>
+                <option value="firetv">Fire TV (ADB)</option>
+                <option value="googletv">Google TV (ADB)</option>
+                <option value="appletv">Apple TV (atvremote)</option>
+                <option value="xumo">Xumo (RDK)</option>
+              </Form.Control>
+            </Form.Group>
             <Form.Group controlId="formIpAddress" className="form-group-spacing">
               <Row className="align-items-center">
                 <Col>
                   <Form.Control
                     size="sm"
                     type="text"
-                    placeholder={deviceType === "appletv" ? "Enter Device ID (UUID or MAC)" : "Enter IP address"}
+                    placeholder={isAppleTV ? "Enter Device ID (UUID or MAC)" : "Enter IP address"}
                     value={ipAddress}
                     onChange={(e) => setIpAddress(e.target.value)}
                     ref={ipAddressRef}
@@ -217,65 +251,69 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 </Col>
               </Row>
             </Form.Group>
-            <Form.Group controlId="formDeviceType" className="form-group-spacing">
-              <Row>
-                <Col xs="auto" className="d-flex align-items-center">
-                  <Form.Check
-                    type="radio"
-                    label="Roku"
-                    name="deviceType"
-                    value="roku"
-                    checked={deviceType === "roku"}
-                    onChange={(e) => setDeviceType(e.target.value)}
-                  />
-                </Col>
-                <Col xs="auto" className="d-flex align-items-center">
-                  <Form.Check
-                    type="radio"
-                    label="Fire TV"
-                    name="deviceType"
-                    value="firetv"
-                    checked={deviceType === "firetv"}
-                    onChange={(e) => setDeviceType(e.target.value)}
-                    disabled={!adbPath}
-                  />
-                </Col>
-                <Col xs="auto" className="d-flex align-items-center">
-                  <Form.Check
-                    type="radio"
-                    label="Google TV"
-                    name="deviceType"
-                    value="googletv"
-                    checked={deviceType === "googletv"}
-                    onChange={(e) => setDeviceType(e.target.value)}
-                    disabled={!adbPath}
-                  />
-                </Col>
-                <Col xs="auto" className="d-flex align-items-center">
-                  <Form.Check
-                    type="radio"
-                    label="Apple TV"
-                    name="deviceType"
-                    value="appletv"
-                    checked={deviceType === "appletv"}
-                    onChange={(e) => setDeviceType(e.target.value)}
-                    disabled={!atvremotePath}
-                  />
-                </Col>
-                <Col xs="auto" className="d-flex align-items-center">
-                  <Form.Check
-                    type="radio"
-                    label="Xumo (RDK)"
-                    name="deviceType"
-                    value="xumo"
-                    checked={deviceType === "xumo"}
-                    onChange={(e) => setDeviceType(e.target.value)}
-                  />
-                </Col>
-              </Row>
-            </Form.Group>
-            {deviceType === "xumo" && (
+            {errorMessage && (
+              <Alert
+                variant="danger"
+                className="custom-alert"
+                style={{
+                  position: "absolute",
+                  top: "10px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 1050,
+                  minWidth: "300px",
+                  maxWidth: "90%",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                }}
+              >
+                {errorMessage}
+              </Alert>
+            )}
+            {isAdbType && (
+              <Form.Group controlId="formAdbPath" className="form-group-spacing">
+                <Form.Label>ADB Tool Path (Android based devices like Fire TV and Google TV)</Form.Label>
+                <Row>
+                  <Col className="d-flex align-items-center flex-grow-1">
+                    <Form.Control
+                      size="sm"
+                      type="text"
+                      value={adbPath}
+                      onChange={(e) => { setAdbPath(e.target.value); notifyControlChange("set-adb-path", e.target.value); }}
+                      placeholder="Paste or select path to adb binary"
+                    />
+                  </Col>
+                  <Col xs="auto" className="d-flex align-items-center">
+                    <Button size="sm" title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
+                      &#x2026;
+                    </Button>
+                  </Col>
+                </Row>
+              </Form.Group>
+            )}
+            {isAppleTV && (
+              <Form.Group controlId="formAtvremotePath" className="form-group-spacing">
+                <Form.Label>atvremote Tool Path (Apple TV devices)</Form.Label>
+                <Row>
+                  <Col className="d-flex align-items-center flex-grow-1">
+                    <Form.Control
+                      size="sm"
+                      type="text"
+                      value={atvremotePath}
+                      onChange={(e) => { setAtvremotePath(e.target.value); notifyControlChange("set-atv-path", e.target.value); }}
+                      placeholder="Paste or select path to atvremote binary"
+                    />
+                  </Col>
+                  <Col xs="auto" className="d-flex align-items-center">
+                    <Button size="sm" title="Select atvremote Path" variant="primary" onClick={handleSelectAtvPath}>
+                      &#x2026;
+                    </Button>
+                  </Col>
+                </Row>
+              </Form.Group>
+            )}
+            {isXumo && (
               <Form.Group controlId="formRdkConfig" className="form-group-spacing">
+                <Form.Label>RDK JSON-RPC Endpoint</Form.Label>
                 <Row className="align-items-center">
                   <Col xs={3}>
                     <Form.Control
@@ -309,24 +347,6 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               </Form.Group>
             )}
             <Form.Group controlId="formDeviceList" className="form-group-spacing">
-              {errorMessage && (
-                <Alert
-                  variant="danger"
-                  className="custom-alert"
-                  style={{
-                    position: "absolute",
-                    top: "10px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    zIndex: 1050,
-                    minWidth: "300px",
-                    maxWidth: "90%",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  }}
-                >
-                  {errorMessage}
-                </Alert>
-              )}
               <Form.Label>Streaming Device List</Form.Label>
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
@@ -348,71 +368,11 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 </Col>
               </Row>
             </Form.Group>
-            {deviceType !== "xumo" && (
-              <Form.Group controlId="formAdbPath" className="form-group-spacing">
-                <Form.Label className="d-flex justify-content-between align-items-center w-100">
-                  ADB Tool Path (Android based devices like Fire TV and Google TV)
-                  <a
-                    href="#adb-setup"
-                    style={{ fontSize: "0.75rem" }}
-                    onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-android-firetv.md`); }}
-                  >
-                    Setup Guide ↗
-                  </a>
-                </Form.Label>
-                <Row>
-                  <Col className="d-flex align-items-center flex-grow-1">
-                    <Form.Control
-                      size="sm"
-                      type="text"
-                      value={adbPath}
-                      onChange={(e) => { setAdbPath(e.target.value); notifyControlChange("set-adb-path", e.target.value); }}
-                      placeholder="Paste or select path to adb binary"
-                    />
-                  </Col>
-                  <Col xs="auto" className="d-flex align-items-center">
-                    <Button size="sm" title="Select ADB Path" variant="primary" onClick={handleSelectAdbPath}>
-                      &#x2026;
-                    </Button>
-                  </Col>
-                </Row>
-              </Form.Group>
-            )}
-            {deviceType !== "xumo" && (
-              <Form.Group controlId="formAtvremotePath" className="form-group-spacing">
-                <Form.Label className="d-flex justify-content-between align-items-center w-100">
-                  atvremote Tool Path (Apple TV devices)
-                  <a
-                    href="#atv-setup"
-                    style={{ fontSize: "0.75rem" }}
-                    onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-apple-tv.md`); }}
-                  >
-                    Setup Guide ↗
-                  </a>
-                </Form.Label>
-                <Row>
-                  <Col className="d-flex align-items-center flex-grow-1">
-                    <Form.Control
-                      size="sm"
-                      type="text"
-                      value={atvremotePath}
-                      onChange={(e) => { setAtvremotePath(e.target.value); notifyControlChange("set-atv-path", e.target.value); }}
-                      placeholder="Paste or select path to atvremote binary"
-                    />
-                  </Col>
-                  <Col xs="auto" className="d-flex align-items-center">
-                    <Button size="sm" title="Select atvremote Path" variant="primary" onClick={handleSelectAtvPath}>
-                      &#x2026;
-                    </Button>
-                  </Col>
-                </Row>
-              </Form.Group>
-            )}
           </Form>
         </Card.Body>
       </Card>
 
-      {deviceType !== "xumo" && (
+      {deviceType === "roku" && (
         <Alert variant="warning" className="mt-2 mb-0 p-1" style={{ fontSize: "0.72rem" }}>
           <strong>Roku users:</strong> To enable ECP (External Control Protocol), follow these steps on your device:
           <ol className="mb-0 mt-1 ps-3">
@@ -420,6 +380,49 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
             <li>Select <strong>Control by mobile apps</strong>.</li>
             <li>Set to <strong>Enabled</strong> or <strong>Permissive</strong>.</li>
           </ol>
+        </Alert>
+      )}
+
+      {isAdbType && (
+        <Alert variant="warning" className="mt-2 mb-0 p-1" style={{ fontSize: "0.72rem" }}>
+          <strong>Fire TV / Google TV users:</strong> Enable Developer options and ADB debugging on the device:
+          <ol className="mb-0 mt-1 ps-3">
+            <li>Go to <strong>Settings &gt; My Fire TV / About</strong> (or the device's About screen).</li>
+            <li>Tap the build number 7 times to unlock <strong>Developer options</strong>.</li>
+            <li>Enable <strong>ADB debugging</strong> and <strong>Apps from Unknown Sources</strong>.</li>
+            <li>Install the <code>adb</code> binary on this machine and set its path above.</li>
+          </ol>
+          <a
+            href="#adb-setup"
+            onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-android-firetv.md`); }}
+          >
+            Setup Guide ↗
+          </a>
+        </Alert>
+      )}
+
+      {isAppleTV && (
+        <Alert variant="warning" className="mt-2 mb-0 p-1" style={{ fontSize: "0.72rem" }}>
+          <strong>Apple TV users:</strong> Requirements for `atvremote` (pyatv) control:
+          <ol className="mb-0 mt-1 ps-3">
+            <li>Install Python 3 and the <code>pyatv</code> package (provides the <code>atvremote</code> CLI).</li>
+            <li>Pair with the Apple TV using <code>atvremote pair --protocol companion</code> and save the credentials.</li>
+            <li>Enter the device's UUID, MAC address, or IP above and set the <code>atvremote</code> path.</li>
+          </ol>
+          <a
+            href="#atv-setup"
+            onClick={(e) => { e.preventDefault(); electronAPI.openExternal(`${repoUrl}/blob/main/docs/setup-apple-tv.md`); }}
+          >
+            Setup Guide ↗
+          </a>
+        </Alert>
+      )}
+
+      {isXumo && (
+        <Alert variant="warning" className="mt-2 mb-0 p-1" style={{ fontSize: "0.72rem" }}>
+          <strong>Xumo (Beta):</strong> RDK control is experimental. Retail Stream Boxes do not expose
+          the Thunder JSON-RPC port on the LAN — you need a developer-enabled device with port 9998
+          reachable from this machine. Reach out to Comcast/Xumo partner support for access.
         </Alert>
       )}
 
