@@ -28,6 +28,14 @@ const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
 const { connectATV, disconnectATV, sendATVKey, sendATVText } = require("./appletv");
 const {
+  connectRDK,
+  disconnectRDK,
+  sendRDKKey,
+  sendRDKText,
+  launchRDKApp,
+  testRDKConnection,
+} = require("./rdk");
+const {
   createMacOSMenu,
   updateAlwaysOnTopMenuItem,
   updateEnableAudioMenuItem,
@@ -62,6 +70,7 @@ let controlIp = "";
 let controlType = "";
 let isADBConnected = false;
 let isATVConnected = false;
+let isRDKConnected = false;
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
@@ -445,6 +454,19 @@ app.whenReady().then(async () => {
     }
   }
 
+  if (
+    typeof settings?.control?.deviceId === "string" &&
+    settings.control.deviceId.includes("|rdk")
+  ) {
+    [controlIp, controlType] = settings.control.deviceId.split("|");
+    if (!isRDKConnected) {
+      const cfg = findRDKDeviceConfig(settings.control.deviceId);
+      if (cfg) {
+        isRDKConnected = connectRDK(cfg.host, cfg.port, cfg.token);
+      }
+    }
+  }
+
   if (settings.display?.shortcut) {
     registerShortcut(settings.display.shortcut, displayWindow);
   }
@@ -540,6 +562,19 @@ app.whenReady().then(async () => {
     updateShowDisplayMenuItem(true);
   });
 
+  function findRDKDeviceConfig(deviceId) {
+    if (typeof deviceId !== "string" || !deviceId.endsWith("|rdk")) return null;
+    const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
+    if (!device) {
+      const [hostPort] = deviceId.split("|");
+      const [host, portStr] = hostPort.split(":");
+      const port = parseInt(portStr, 10);
+      if (!host || Number.isNaN(port)) return null;
+      return { host, port, token: "" };
+    }
+    return { host: device.ipAddress, port: device.port, token: device.token || "" };
+  }
+
   function switchControlDevice(deviceId) {
     if (!deviceId) return;
     settings.control.deviceId = deviceId;
@@ -561,8 +596,17 @@ app.whenReady().then(async () => {
     if (isADBConnected && oldControlIp !== controlIp) {
       isADBConnected = disconnectADB();
     }
+    if (isRDKConnected && oldControlIp !== controlIp) {
+      isRDKConnected = disconnectRDK();
+    }
     if (!isADBConnected && controlType === "adb") {
       isADBConnected = connectADB(controlIp, settings.control?.adbPath);
+    }
+    if (!isRDKConnected && controlType === "rdk") {
+      const cfg = findRDKDeviceConfig(deviceId);
+      if (cfg) {
+        isRDKConnected = connectRDK(cfg.host, cfg.port, cfg.token);
+      }
     }
     displayWindow?.webContents?.send("shared-window-channel", {
       type: "set-control-selected",
@@ -732,6 +776,9 @@ app.whenReady().then(async () => {
         if (isATVConnected) {
           isATVConnected = disconnectATV();
         }
+        if (isRDKConnected) {
+          isRDKConnected = disconnectRDK();
+        }
       }
       settings.control.deviceList = arg.payload;
       // If current device was removed and display window is hidden, show it
@@ -748,11 +795,20 @@ app.whenReady().then(async () => {
       if (isATVConnected && oldControlIp !== controlIp) {
         isATVConnected = disconnectATV();
       }
+      if (isRDKConnected && oldControlIp !== controlIp) {
+        isRDKConnected = disconnectRDK();
+      }
       if (!isADBConnected && controlType === "adb") {
         isADBConnected = connectADB(controlIp, settings.control?.adbPath);
       }
       if (!isATVConnected && controlType === "atv") {
         isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
+      }
+      if (!isRDKConnected && controlType === "rdk") {
+        const cfg = findRDKDeviceConfig(arg.payload);
+        if (cfg) {
+          isRDKConnected = connectRDK(cfg.host, cfg.port, cfg.token);
+        }
       }
     } else if (arg.type && arg.type === "send-adb-key") {
       sendADBKey(arg.payload);
@@ -762,6 +818,10 @@ app.whenReady().then(async () => {
       sendATVKey(arg.payload);
     } else if (arg.type && arg.type === "send-atv-text") {
       sendATVText(arg.payload);
+    } else if (arg.type && arg.type === "send-rdk-key") {
+      sendRDKKey(arg.payload);
+    } else if (arg.type && arg.type === "send-rdk-text") {
+      sendRDKText(arg.payload);
     } else if (arg.type && arg.type === "set-adb-path") {
       settings.control.adbPath = arg.payload;
       saveFlag = true;
@@ -966,6 +1026,19 @@ app.whenReady().then(async () => {
       const adbPath = result.filePaths[0];
       settings.control.adbPath = adbPath;
       return adbPath;
+    }
+  });
+
+  ipcMain.handle("test-rdk-connection", async (event, { host, port, token } = {}) => {
+    return testRDKConnection({ host, port, token });
+  });
+
+  ipcMain.handle("launch-rdk-app", async (event, { client, uri } = {}) => {
+    try {
+      const result = await launchRDKApp(client, uri);
+      return { success: true, result };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   });
 
@@ -1280,6 +1353,7 @@ app.whenReady().then(async () => {
       let connected = false;
       if (type === "adb") connected = isADBConnected;
       else if (type === "atv") connected = isATVConnected;
+      else if (type === "rdk") connected = isRDKConnected;
       else if (type === "ecp") connected = !!ip;
       return { id, ip, type, connected };
     },
@@ -1303,6 +1377,16 @@ app.whenReady().then(async () => {
         isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
       }
       return mcpCtx.getCurrentDevice();
+    },
+    launchApp: async ({ client, uri } = {}) => {
+      if (controlType !== "rdk") {
+        throw new Error("launch_app is only supported on RDK (Xumo) devices.");
+      }
+      if (!client) {
+        throw new Error("client is required.");
+      }
+      const result = await launchRDKApp(client, uri);
+      return { launched: client, uri: uri || null, result };
     },
     sendKey: async (nativeKey, mod) => {
       if (!settings.control.deviceId) {
@@ -1498,6 +1582,12 @@ app.whenReady().then(async () => {
     }
     if (isADBConnected) {
       disconnectADB();
+    }
+    if (isATVConnected) {
+      disconnectATV();
+    }
+    if (isRDKConnected) {
+      disconnectRDK();
     }
     if (isScriptRecording) {
       displayWindow?.webContents.send("discard-script-recording");

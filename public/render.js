@@ -116,12 +116,25 @@ const ATV_DISPLAY_NAMES = {
   top_menu: "Top Menu", previous: "Prev", next: "Next",
 };
 
+// RDK keycodes are Linux input event codes (numeric).
+const RDK_DISPLAY_NAMES = {
+  "103": "Up", "108": "Down", "105": "Left", "106": "Right",
+  "28": "OK", "158": "Back", "102": "Home",
+  "164": "Play/Pause", "119": "Pause", "168": "Rev", "208": "Fwd",
+  "115": "Vol+", "114": "Vol-", "113": "Mute",
+  "139": "Menu", "14": "⌫",
+};
+
 function formatDeviceKeyLabel(key, type) {
   if (type === "ecp") {
     return ECP_DISPLAY_NAMES[key.toLowerCase()] || key.charAt(0).toUpperCase() + key.slice(1);
   }
   if (type === "atv") {
     return ATV_DISPLAY_NAMES[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  if (type === "rdk") {
+    if (RDK_DISPLAY_NAMES[key]) return RDK_DISPLAY_NAMES[key];
+    return String(key);
   }
   // ADB: numeric keycodes → readable name
   if (ADB_DISPLAY_NAMES[key]) return ADB_DISPLAY_NAMES[key];
@@ -817,6 +830,18 @@ window.addEventListener("DOMContentLoaded", function () {
         recordScriptStep(litKey, -1);
         sendKey(litKey, -1);
       }
+    } else if (controlType === "rdk") {
+      const key = rdkKeysMap.get(keyCode);
+      if (key && mod === 0) {
+        if (showKeystrokes) displayKeyIndicator(formatDeviceKeyLabel(key, "rdk"));
+        recordScriptStep(key, mod);
+        sendKey(key, mod);
+      } else if (event.key.length === 1 && mod === 0) {
+        if (showKeystrokes) displayKeyIndicator(event.key.toUpperCase());
+        const litKey = `lit_${encodeURIComponent(event.key)}`;
+        recordScriptStep(litKey, -1);
+        sendKey(litKey, -1);
+      }
     }
   }
 
@@ -1489,6 +1514,37 @@ if (isMacOS) {
   atvKeysMap.set("Control+ArrowRight", "next");
 }
 
+// RDK / Xumo Keyboard Mapping (Linux input event codes; sent via RDKShell.injectKey)
+const rdkKeysMap = new Map();
+rdkKeysMap.set("ArrowUp", "103");
+rdkKeysMap.set("ArrowDown", "108");
+rdkKeysMap.set("ArrowLeft", "105");
+rdkKeysMap.set("ArrowRight", "106");
+rdkKeysMap.set("Enter", "28");
+rdkKeysMap.set("Escape", "158");
+rdkKeysMap.set("Delete", "158");
+rdkKeysMap.set("Home", "102");
+rdkKeysMap.set("Shift+Escape", "102");
+rdkKeysMap.set("Control+Escape", "102");
+rdkKeysMap.set("Backspace", "14");
+rdkKeysMap.set("End", "164");
+rdkKeysMap.set("PageUp", "168");
+rdkKeysMap.set("PageDown", "208");
+rdkKeysMap.set("Insert", "139");
+rdkKeysMap.set("F10", "113");
+if (isMacOS) {
+  rdkKeysMap.set("Command+Enter", "164");
+  rdkKeysMap.set("Command+ArrowLeft", "168");
+  rdkKeysMap.set("Command+ArrowRight", "208");
+} else {
+  rdkKeysMap.set("Control+Enter", "164");
+  rdkKeysMap.set("Control+ArrowLeft", "168");
+  rdkKeysMap.set("Control+ArrowRight", "208");
+}
+for (let i = 0; i <= 9; i++) {
+  rdkKeysMap.set(`Digit${i}`, i === 0 ? "11" : String(1 + i));
+}
+
 // Type text character by character with proper timing
 async function typeText(text) {
   // Clean the text by replacing special characters with spaces
@@ -1522,6 +1578,12 @@ async function typeText(text) {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
     }
+  } else if (controlType === "rdk") {
+    // For RDK, the main process types char-by-char via RDKShell.injectKey.
+    window.electronAPI.sendSync("shared-window-channel", {
+      type: "send-rdk-text",
+      payload: cleanText,
+    });
   }
 }
 
@@ -1588,6 +1650,18 @@ function sendKey(key, mod) {
     } else if (mod === 0) {
       window.electronAPI.sendSync("shared-window-channel", {
         type: "send-atv-key",
+        payload: key,
+      });
+    }
+  } else if (controlIp && controlType === "rdk") {
+    if (key.startsWith("lit_") && mod === -1) {
+      window.electronAPI.sendSync("shared-window-channel", {
+        type: "send-rdk-text",
+        payload: decodeURIComponent(key.slice(4)),
+      });
+    } else if (mod === 0) {
+      window.electronAPI.sendSync("shared-window-channel", {
+        type: "send-rdk-key",
         payload: key,
       });
     }
