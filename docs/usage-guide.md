@@ -23,8 +23,12 @@ After installing Carabiner, launch the application to access the settings window
 3. Enter the device details:
    - **IP Address / Device ID**: IP for Roku, Fire TV, Google TV, and Xumo; UUID or MAC address for Apple TV
    - **Alias**: A friendly name for the device
+   - For **Roku (ECP)** you can click the **🔍 search** button next to the IP field to discover devices automatically (see below)
    - For **Xumo (RDK)** also set the **RDK JSON-RPC** port (default `9998`) and an optional auth **token**; use the **Test** button to verify the connection
 4. Click **+** to register the device
+
+> [!TIP]
+> **Find Roku devices automatically:** With **Roku (ECP)** selected, click the **🔍 search** button beside the IP field. Carabiner scans the local network using SSDP and lists every Roku it finds in a dialog. Pick one and its **IP address** and **Alias** are filled in for you (the word "Roku" is stripped from the detected device name). Then click **+** to register it. Make sure the device and your computer are on the same network and that ECP is enabled (see note below).
 
 > [!NOTE]
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:

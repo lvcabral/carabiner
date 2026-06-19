@@ -28,6 +28,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 ### Core Functionality
 
 - **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Xumo Stream Box (RDK, experimental)
+- **Roku Network Discovery**: Find Roku devices on your local network automatically via SSDP — no need to look up IP addresses manually
 - **Real-time Video Capture**: View your streaming device output directly on your computer
 - **Video Recording**: Record streaming device sessions in MP4/WebM format for documentation and testing
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
