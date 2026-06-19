@@ -23,7 +23,6 @@ const {
   shell,
 } = require("electron");
 const fs = require("fs");
-const { execSync } = require("child_process");
 const AutoLaunch = require("auto-launch");
 const { saveSettings, loadSettings } = require("./settings");
 const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
@@ -348,128 +347,44 @@ app.whenReady().then(async () => {
   // Live audio I/O (and the playing <video>) cause macOS to hold
   // PreventUserIdleSystemSleep / "Video Wake Lock" assertions, which keep the
   // machine awake. The app can't suppress those assertions directly, so when
-  // the user locks the screen or goes idle we pause the capture stream (which
-  // releases them) and resume it on unlock / activity. Controlled by
-  // settings.display.allowSleep (default on).
+  // the user locks the screen we pause the capture stream (releasing them) and
+  // resume it on unlock. Controlled by settings.display.allowSleep (default on).
   //
-  // The idle threshold mirrors the user's own macOS "turn display off"
-  // (displaysleep) and screen-saver settings rather than a fixed timeout, so
-  // capture stays up while they're actively watching and only pauses when the
-  // screen saver / display sleep would have kicked in. (Chromium's Video Wake
-  // Lock actually blocks the real screen saver from firing, so we proxy it by
-  // matching its delay.) If both are "Never", we don't auto-pause on idle at
-  // all — only on screen lock.
-  const IDLE_POLL_MS = 30000; // check idle time every 30 seconds
-  const IDLE_THRESHOLD_TTL_MS = 5 * 60 * 1000; // re-read OS settings every 5 min
-  let sleepWatcherInterval = null;
+  // We deliberately only act on screen lock/unlock — a deterministic
+  // "user walked away / came back" signal — rather than an idle timeout, so
+  // passively watching the stream never pauses it. The trade-off is that the
+  // Mac only sleeps once the screen is locked, not on plain inactivity.
+  let sleepWatcherStarted = false;
   let autoSuspended = false;
-  let suspendedByIdle = false;
-  let idleThresholdSeconds = 0;
-  let idleThresholdReadAt = 0;
 
-  // Runs a shell command and returns its stdout, or null on failure. stderr is
-  // silenced so expected "domain/default pair does not exist" noise from a
-  // missing screen-saver key never reaches the console.
-  function readCommand(cmd) {
-    try {
-      return execSync(cmd, {
-        encoding: "utf8",
-        timeout: 3000,
-        stdio: ["ignore", "pipe", "ignore"],
-      });
-    } catch (error) {
-      return null;
-    }
-  }
-
-  // Returns the soonest of the macOS display-sleep / screen-saver delays in
-  // seconds, or 0 when both are disabled ("Never"). Read live so it tracks
-  // power-source changes (e.g. laptop on AC vs battery). `pmset displaysleep`
-  // is the authoritative value; the screen-saver key is absent on modern macOS
-  // and only used as a (shorter) refinement when present.
-  function readIdleThresholdSeconds() {
-    let seconds = 0;
-    const pmset = readCommand("pmset -g");
-    if (pmset) {
-      const match = pmset.match(/^\s*displaysleep\s+(\d+)/m);
-      const minutes = match ? parseInt(match[1], 10) : 0;
-      if (minutes > 0) seconds = minutes * 60;
-    }
-    const screensaver = readCommand("defaults -currentHost read com.apple.screensaver idleTime");
-    if (screensaver) {
-      const ssSeconds = parseInt(screensaver.trim(), 10);
-      if (ssSeconds > 0 && (seconds === 0 || ssSeconds < seconds)) seconds = ssSeconds;
-    }
-    return seconds;
-  }
-
-  function refreshIdleThreshold(force) {
-    const now = Date.now();
-    if (!force && now - idleThresholdReadAt < IDLE_THRESHOLD_TTL_MS) return;
-    idleThresholdReadAt = now;
-    idleThresholdSeconds = readIdleThresholdSeconds();
-  }
-
-  function suspendCapture(byIdle) {
-    if (byIdle) suspendedByIdle = true;
+  function suspendCapture() {
     if (autoSuspended || !displayWindow || displayWindow.isDestroyed()) return;
     autoSuspended = true;
+    if (isDev) log.info("[allow-sleep] screen locked — pausing capture");
     displayWindow.webContents.send("auto-suspend");
   }
 
   function resumeCapture() {
     if (!autoSuspended) return;
     autoSuspended = false;
-    suspendedByIdle = false;
     if (displayWindow && !displayWindow.isDestroyed() && displayWindow.isVisible()) {
+      if (isDev) log.info("[allow-sleep] screen unlocked — resuming capture");
       displayWindow.webContents.send("auto-resume");
     }
   }
 
-  function pollSystemIdle() {
-    refreshIdleThreshold(false);
-    const idleSeconds = powerMonitor.getSystemIdleTime();
-    if (isDev) {
-      log.info(
-        `[allow-sleep] idle ${idleSeconds}s / threshold ${idleThresholdSeconds || "never"}s` +
-          ` (suspended: ${autoSuspended})`
-      );
-    }
-    // 0 means the user disabled display sleep / screen saver: never idle-pause.
-    if (idleThresholdSeconds <= 0) return;
-    if (idleSeconds >= idleThresholdSeconds) {
-      suspendCapture(true);
-    } else if (suspendedByIdle) {
-      // Only auto-resume idle-triggered pauses here; lock pauses wait for unlock.
-      resumeCapture();
-    }
-  }
-
-  const onLockScreen = () => suspendCapture(false);
-  const onUnlockScreen = () => resumeCapture();
-
   function startSleepWatcher() {
-    if (sleepWatcherInterval) return;
-    refreshIdleThreshold(true);
-    if (isDev) {
-      log.info(
-        `[allow-sleep] watcher started — idle threshold ${idleThresholdSeconds || "never"}s,` +
-          ` polling every ${IDLE_POLL_MS / 1000}s`
-      );
-    }
-    powerMonitor.on("lock-screen", onLockScreen);
-    powerMonitor.on("unlock-screen", onUnlockScreen);
-    sleepWatcherInterval = setInterval(pollSystemIdle, IDLE_POLL_MS);
-    pollSystemIdle(); // log/evaluate immediately instead of waiting one interval
+    if (sleepWatcherStarted) return;
+    sleepWatcherStarted = true;
+    if (isDev) log.info("[allow-sleep] watcher started — pausing capture on screen lock");
+    powerMonitor.on("lock-screen", suspendCapture);
+    powerMonitor.on("unlock-screen", resumeCapture);
   }
 
   function stopSleepWatcher() {
-    if (sleepWatcherInterval) {
-      clearInterval(sleepWatcherInterval);
-      sleepWatcherInterval = null;
-    }
-    powerMonitor.removeListener("lock-screen", onLockScreen);
-    powerMonitor.removeListener("unlock-screen", onUnlockScreen);
+    sleepWatcherStarted = false;
+    powerMonitor.removeListener("lock-screen", suspendCapture);
+    powerMonitor.removeListener("unlock-screen", resumeCapture);
     if (autoSuspended) resumeCapture();
   }
 
