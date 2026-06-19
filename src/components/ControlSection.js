@@ -14,6 +14,9 @@ import Button from "react-bootstrap/Button";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Alert from "react-bootstrap/Alert";
+import Modal from "react-bootstrap/Modal";
+import ListGroup from "react-bootstrap/ListGroup";
+import Spinner from "react-bootstrap/Spinner";
 
 const { electronAPI } = window;
 
@@ -29,6 +32,11 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [rdkTestStatus, setRdkTestStatus] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [showDiscoverModal, setShowDiscoverModal] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveredDevices, setDiscoveredDevices] = useState([]);
+  const [discoverError, setDiscoverError] = useState("");
+  const [theme, setTheme] = useState("light");
   const ipAddressRef = useRef(null);
 
   useEffect(() => {
@@ -170,6 +178,29 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     }
   };
 
+  const handleDiscoverDevices = async () => {
+    setTheme(document.body.getAttribute("data-bs-theme") || "light");
+    setShowDiscoverModal(true);
+    setDiscovering(true);
+    setDiscoveredDevices([]);
+    setDiscoverError("");
+    const result = await electronAPI.invoke("discover-roku-devices", 3000);
+    if (result?.success) {
+      setDiscoveredDevices(result.devices || []);
+    } else {
+      setDiscoverError(result?.error || "Discovery failed.");
+    }
+    setDiscovering(false);
+  };
+
+  const handleSelectDiscovered = (device) => {
+    setIpAddress(device.ipAddress);
+    setAlias(device.alias || "");
+    setShowDiscoverModal(false);
+    setErrorMessage("");
+    ipAddressRef.current.focus();
+  };
+
   const handleDeviceSelect = (e) => {
     setSelectedDevice(e.target.value);
   };
@@ -244,6 +275,28 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                     onChange={(e) => setAlias(e.target.value)}
                   />
                 </Col>
+                {deviceType === "roku" && (
+                  <Col xs="auto">
+                    <Button
+                      size="sm"
+                      title="Find Roku Devices"
+                      variant="primary"
+                      onClick={handleDiscoverDevices}
+                      disabled={discovering}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="1em"
+                        height="1em"
+                        fill="currentColor"
+                        viewBox="0 0 16 16"
+                        style={{ verticalAlign: "middle" }}
+                      >
+                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
+                      </svg>
+                    </Button>
+                  </Col>
+                )}
                 <Col xs="auto">
                   <Button size="sm" title="Add Device" variant="primary" onClick={handleAddDevice}>
                     &#x271A;
@@ -426,6 +479,49 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         </Alert>
       )}
 
+      <Modal
+        show={showDiscoverModal}
+        onHide={() => setShowDiscoverModal(false)}
+        centered
+        size="sm"
+        data-bs-theme={theme}
+      >
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: "1rem" }}>Find Roku Devices</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ fontSize: "0.85rem" }}>
+          {discovering && (
+            <div className="d-flex align-items-center">
+              <Spinner animation="border" size="sm" className="me-2" />
+              Searching for Roku devices…
+            </div>
+          )}
+          {!discovering && discoverError && (
+            <Alert variant="danger" className="mb-0 p-2">
+              {discoverError}
+            </Alert>
+          )}
+          {!discovering && !discoverError && discoveredDevices.length === 0 && (
+            <div className="text-muted">No Roku devices found on the network.</div>
+          )}
+          {!discovering && discoveredDevices.length > 0 && (
+            <ListGroup>
+              {discoveredDevices.map((device) => (
+                <ListGroup.Item
+                  action
+                  key={device.ipAddress}
+                  onClick={() => handleSelectDiscovered(device)}
+                >
+                  <strong>{device.name}</strong>
+                  <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    {device.ipAddress}
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          )}
+        </Modal.Body>
+      </Modal>
     </div>
   );
 }

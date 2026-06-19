@@ -35,6 +35,7 @@ const {
   launchRDKApp,
   testRDKConnection,
 } = require("./rdk");
+const { discoverRokuDevices } = require("./ssdp");
 const {
   createMacOSMenu,
   updateAlwaysOnTopMenuItem,
@@ -1037,6 +1038,15 @@ app.whenReady().then(async () => {
     try {
       const result = await launchRDKApp(client, uri);
       return { success: true, result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle("discover-roku-devices", async (event, timeoutMs) => {
+    try {
+      const devices = await discoverRokuDevices(timeoutMs);
+      return { success: true, devices };
     } catch (err) {
       return { success: false, error: err.message };
     }

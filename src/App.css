@@ -274,6 +274,32 @@ body {
   color: #fff !important;
 }
 
+/* Modals */
+/* The full-viewport .modal container carries data-bs-theme; keep it transparent
+   so the global dark background rule doesn't hide the dimmed window behind it. */
+[data-bs-theme="dark"].modal {
+  background-color: transparent !important;
+}
+
+[data-bs-theme="dark"] .modal-content {
+  background-color: #343a40 !important;
+  border-color: #495057 !important;
+  color: #fff !important;
+}
+
+[data-bs-theme="dark"] .modal-header,
+[data-bs-theme="dark"] .modal-footer {
+  border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .modal-title {
+  color: #fff !important;
+}
+
+[data-bs-theme="dark"] .modal-header .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%) !important;
+}
+
 /* Scrollable containers */
 [data-bs-theme="dark"] div[style*="border: 1px solid #dee2e6"] {
   border-color: #6c757d !important;
