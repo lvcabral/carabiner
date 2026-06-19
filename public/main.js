@@ -56,6 +56,7 @@ if (require("electron-squirrel-startup") === true) app.quit();
 
 const isMacOS = process.platform === "darwin";
 const isWindows = process.platform === "win32";
+const isDev = process.env.ELECTRON_IS_DEV === "1";
 const settings = loadSettings();
 let lastSize = [500, 290];
 let controlIp = "";
@@ -427,9 +428,16 @@ app.whenReady().then(async () => {
 
   function pollSystemIdle() {
     refreshIdleThreshold(false);
+    const idleSeconds = powerMonitor.getSystemIdleTime();
+    if (isDev) {
+      log.info(
+        `[allow-sleep] idle ${idleSeconds}s / threshold ${idleThresholdSeconds || "never"}s` +
+          ` (suspended: ${autoSuspended})`
+      );
+    }
     // 0 means the user disabled display sleep / screen saver: never idle-pause.
     if (idleThresholdSeconds <= 0) return;
-    if (powerMonitor.getSystemIdleTime() >= idleThresholdSeconds) {
+    if (idleSeconds >= idleThresholdSeconds) {
       suspendCapture(true);
     } else if (suspendedByIdle) {
       // Only auto-resume idle-triggered pauses here; lock pauses wait for unlock.
