@@ -1,7 +1,7 @@
 <p align="center">
   <img src="images/carabiner-icon.png" height="125px" alt="Carabiner logo" />
   <br><br>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/2.1.2"><img src="https://img.shields.io/badge/Version-2.1.2-blue.svg" alt="Version 2.1.2" /></a>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/2.2.0"><img src="https://img.shields.io/badge/Version-2.2.0-blue.svg" alt="Version 2.2.0" /></a>
   <img src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
@@ -27,21 +27,21 @@ Perfect for developers and QA engineers who need to test streaming applications 
 
 ### Core Functionality
 
-- **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Xumo Stream Box (RDK, experimental)
-- **Roku Network Discovery**: Find Roku devices on your local network automatically via SSDP — no need to look up IP addresses manually
+- **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Comcast Xumo (experimental)
 - **Real-time Video Capture**: View your streaming device output directly on your computer
-- **Video Recording**: Record streaming device sessions in MP4/WebM format for documentation and testing
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
 - **Text Pasting**: Paste clipboard content directly to streaming devices
+- **Video Recording**: Record streaming device sessions in MP4/WebM format for documentation and testing
 - **Screenshot Capture**: Save or copy screenshots with one click
 - **Automation Scripts**: Record key sequences with precise timing and replay them on demand
 - **MCP Server**: Let AI assistants control devices, run scripts, and capture screenshots via the Model Context Protocol for AI-driven QA automation
-- **Control Demo Mode**: Show the pressed control keys on the screen for demos and presentations
+- **Roku Network Discovery**: Find Roku devices on your local network automatically via SSDP — no need to look up IP addresses manually
 
 ### Additional Features
 
 - **Overlay Images**: Load reference images for pixel-perfect UI comparison with opacity control
 - **Customizable Display**: Adjust transparency, borders, dimensions and toggle always-on-top behavior
+- **Control Demo Mode**: Show the pressed control keys on the screen for demos and presentations
 - **Global Shortcut**: Quick show/hide the display window from anywhere with a keyboard shortcut
 - **Audio Capture**: Toggle audio capture for testing audio features (TTS, Audio tracks)
 - **Auto-Launch**: Start with your system for seamless workflow
@@ -67,12 +67,12 @@ For detailed setup and usage instructions, see our comprehensive guides:
 
 - **📦 [Installation Guide](./docs/installation.md)** - Complete installation and setup instructions
 - **📖 [Usage Guide](./docs/usage-guide.md)** - Detailed feature documentation and tutorials
+- **🧠 [MCP Server](./docs/mcp-server.md)** - AI-driven device control and test automation via the Model Context Protocol
 - **🔧 [Building from Source](./docs/building-from-source.md)** - Developer setup and contribution guide
 - **⌨️ [Keyboard Mappings](./docs/key-mappings.md)** - Complete keyboard control reference
 - **📸 [Screenshots](./docs/screenshots.md)** - Visual showcase of the application interface
 - **🤖 [Android / Fire TV Setup](./docs/setup-android-firetv.md)** - ADB setup for Fire TV and Google TV
 - **🍎 [Apple TV Setup](./docs/setup-apple-tv.md)** - pyatv setup and pairing for Apple TV
-- **🧠 [MCP Server](./docs/mcp-server.md)** - AI-driven device control and test automation via the Model Context Protocol
 
 ## Contributing
 
