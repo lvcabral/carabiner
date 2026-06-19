@@ -454,7 +454,7 @@ app.whenReady().then(async () => {
     // Check for updates 30 seconds after app start
     setTimeout(async () => {
       try {
-        await checkForUpdates();
+        await checkForUpdates(settings);
       } catch (error) {
         console.error("Error checking for updates:", error);
       }
@@ -464,7 +464,7 @@ app.whenReady().then(async () => {
     setInterval(
       async () => {
         try {
-          await checkForUpdates();
+          await checkForUpdates(settings);
         } catch (error) {
           console.error("Error checking for updates:", error);
         }
@@ -866,6 +866,14 @@ app.whenReady().then(async () => {
   ipcMain.on("save-check-for-updates", (event, checkForUpdates) => {
     settings.display.autoUpdate = checkForUpdates;
     saveSettings(settings);
+  });
+
+  // Manual "Check for Updates" triggered from a menu — always runs (even in dev)
+  // and gives the user feedback when there is nothing to download.
+  ipcMain.on("check-for-updates", () => {
+    checkForUpdates(settings, true).catch((error) => {
+      console.error("Error checking for updates:", error);
+    });
   });
 
   ipcMain.on("save-show-in-dock", (event, showInDock) => {

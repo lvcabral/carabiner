@@ -270,6 +270,14 @@ const HelpMenuItems = {
     click: () => shell.openExternal(`${packageInfo.repository.url}/issues`),
   }),
 
+  checkForUpdates: () => ({
+    label: "Check for Updates...",
+    click: () => {
+      const { ipcMain } = require("electron");
+      ipcMain.emit("check-for-updates");
+    },
+  }),
+
   about: (mainWindow) => ({
     label: "About Carabiner",
     click: () => {
@@ -279,12 +287,30 @@ const HelpMenuItems = {
   }),
 };
 
+// Builds the shared "Help" submenu used by the tray and context (popup) menus.
+function buildHelpSubmenu(packageInfo, { includeReleaseNotes = false, includeCheckForUpdates = false } = {}) {
+  const items = [
+    HelpMenuItems.documentation(packageInfo),
+    HelpMenuItems.keyboardControl(packageInfo),
+    MenuItems.separator(),
+    HelpMenuItems.reportBug(packageInfo),
+  ];
+  if (includeReleaseNotes) {
+    items.push(MenuItems.separator(), HelpMenuItems.releaseNotes(packageInfo));
+  }
+  if (includeCheckForUpdates) {
+    items.push(MenuItems.separator(), HelpMenuItems.checkForUpdates());
+  }
+  return items;
+}
+
 // Platform-specific application menu items
 const AppMenuItems = {
   macOS: (mainWindow) => ({
     label: app.getName(),
     submenu: [
       HelpMenuItems.about(mainWindow),
+      HelpMenuItems.checkForUpdates(),
       MenuItems.separator(),
       MenuItems.settings(mainWindow),
       MenuItems.separator(),
@@ -562,11 +588,13 @@ function createTrayMenu(
     new MenuItem(MenuItems.separator()),
     new MenuItem(MenuItems.settings(mainWindow)),
     new MenuItem(MenuItems.separator()),
-    new MenuItem(HelpMenuItems.reportBug(packageInfo)),
-    new MenuItem(MenuItems.separator()),
-    new MenuItem(HelpMenuItems.documentation(packageInfo)),
-    new MenuItem(HelpMenuItems.keyboardControl(packageInfo)),
-    new MenuItem(HelpMenuItems.releaseNotes(packageInfo)),
+    new MenuItem({
+      label: "Help",
+      submenu: buildHelpSubmenu(packageInfo, {
+        includeReleaseNotes: true,
+        includeCheckForUpdates: true,
+      }),
+    }),
     new MenuItem(MenuItems.separator()),
     new MenuItem({ role: "quit" }),
   ];
@@ -747,10 +775,10 @@ function createContextMenu(
     new MenuItem(MenuItems.separator()),
     new MenuItem(MenuItems.settings(mainWindow)),
     new MenuItem(MenuItems.separator()),
-    new MenuItem(HelpMenuItems.reportBug(packageInfo)),
-    new MenuItem(MenuItems.separator()),
-    new MenuItem(HelpMenuItems.documentation(packageInfo)),
-    new MenuItem(HelpMenuItems.keyboardControl(packageInfo)),
+    new MenuItem({
+      label: "Help",
+      submenu: buildHelpSubmenu(packageInfo),
+    }),
     new MenuItem(MenuItems.devTools(displayWindow)),
     new MenuItem(MenuItems.separator()),
     new MenuItem({ role: "quit" }),
