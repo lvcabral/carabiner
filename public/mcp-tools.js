@@ -24,24 +24,24 @@ const { z } = require("zod");
  * Roku ECP command such as "search") which is forwarded as-is.
  */
 const SEMANTIC_KEYS = {
-  up: { ecp: "up", adb: "19", atv: "up" },
-  down: { ecp: "down", adb: "20", atv: "down" },
-  left: { ecp: "left", adb: "21", atv: "left" },
-  right: { ecp: "right", adb: "22", atv: "right" },
-  select: { ecp: "select", adb: "66", atv: "select" },
-  ok: { ecp: "select", adb: "66", atv: "select" },
-  back: { ecp: "back", adb: "4", atv: "menu" },
-  home: { ecp: "home", adb: "3", atv: "home" },
-  play: { ecp: "play", adb: "85", atv: "play_pause" },
-  pause: { ecp: "play", adb: "85", atv: "play_pause" },
-  rewind: { ecp: "rev", adb: "89", atv: "previous" },
-  forward: { ecp: "fwd", adb: "90", atv: "next" },
-  replay: { ecp: "instantreplay", adb: null, atv: null },
-  info: { ecp: "info", adb: null, atv: "top_menu" },
-  options: { ecp: "info", adb: null, atv: "top_menu" },
-  volume_mute: { ecp: "volumemute", adb: "164", atv: null },
-  volume_up: { ecp: null, adb: "24", atv: "volume_up" },
-  volume_down: { ecp: null, adb: "25", atv: "volume_down" },
+  up: { ecp: "up", adb: "19", atv: "up", rdk: "103" },
+  down: { ecp: "down", adb: "20", atv: "down", rdk: "108" },
+  left: { ecp: "left", adb: "21", atv: "left", rdk: "105" },
+  right: { ecp: "right", adb: "22", atv: "right", rdk: "106" },
+  select: { ecp: "select", adb: "66", atv: "select", rdk: "28" },
+  ok: { ecp: "select", adb: "66", atv: "select", rdk: "28" },
+  back: { ecp: "back", adb: "4", atv: "menu", rdk: "158" },
+  home: { ecp: "home", adb: "3", atv: "home", rdk: "102" },
+  play: { ecp: "play", adb: "85", atv: "play_pause", rdk: "164" },
+  pause: { ecp: "play", adb: "85", atv: "play_pause", rdk: "164" },
+  rewind: { ecp: "rev", adb: "89", atv: "previous", rdk: "168" },
+  forward: { ecp: "fwd", adb: "90", atv: "next", rdk: "208" },
+  replay: { ecp: "instantreplay", adb: null, atv: null, rdk: null },
+  info: { ecp: "info", adb: null, atv: "top_menu", rdk: "139" },
+  options: { ecp: "info", adb: null, atv: "top_menu", rdk: "139" },
+  volume_mute: { ecp: "volumemute", adb: "164", atv: null, rdk: "113" },
+  volume_up: { ecp: null, adb: "24", atv: "volume_up", rdk: "115" },
+  volume_down: { ecp: null, adb: "25", atv: "volume_down", rdk: "114" },
 };
 
 const SEMANTIC_KEY_NAMES = Object.keys(SEMANTIC_KEYS);
@@ -113,7 +113,7 @@ function registerDeviceTools(server, ctx) {
     {
       title: "List control devices",
       description:
-        "Return all configured control devices with their protocol (ecp/adb/atv) and connection status.",
+        "Return all configured control devices with their protocol (ecp/adb/atv/rdk) and connection status.",
     },
     handler(async () => textResult(ctx.listDevices()))
   );
@@ -123,7 +123,7 @@ function registerDeviceTools(server, ctx) {
     {
       title: "Select control device",
       description:
-        "Switch the active control device by its id (formats: '<ip>|ecp', '<ip>|adb', '<uuid-or-mac>|atv').",
+        "Switch the active control device by its id (formats: '<ip>|ecp', '<ip>|adb', '<uuid-or-mac>|atv', '<host:port>|rdk').",
       inputSchema: {
         deviceId: z.string().describe("Device id in '<address>|<protocol>' form."),
       },
@@ -173,6 +173,20 @@ function registerDeviceTools(server, ctx) {
       await ctx.sendText(text);
       return textResult({ sent: text });
     })
+  );
+
+  server.registerTool(
+    "launch_app",
+    {
+      title: "Launch app",
+      description:
+        "Launch an application on the current device. RDK (Xumo) only — uses RDKShell.launchApplication.",
+      inputSchema: {
+        client: z.string().describe("Application client name (e.g. 'Netflix', 'Cobalt', 'HtmlApp')."),
+        uri: z.string().optional().describe("Optional URI/deep-link payload to pass to the app."),
+      },
+    },
+    handler(async ({ client, uri }) => textResult(await ctx.launchApp({ client, uri })))
   );
 }
 
@@ -294,7 +308,7 @@ function registerScriptTools(server, ctx) {
         "(-1 keypress/keydown, 0 keypress, 100 keyup), and a delay in ms before the step.",
       inputSchema: {
         name: z.string().optional().describe("Optional script name."),
-        controlType: z.enum(["ecp", "adb", "atv"]).describe("Target protocol for the steps."),
+        controlType: z.enum(["ecp", "adb", "atv", "rdk"]).describe("Target protocol for the steps."),
         steps: z
           .array(
             z.object({
