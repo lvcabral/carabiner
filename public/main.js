@@ -366,28 +366,38 @@ app.whenReady().then(async () => {
   let idleThresholdSeconds = 0;
   let idleThresholdReadAt = 0;
 
-  // Returns the soonest of the macOS display-sleep / screen-saver delays in
-  // seconds, or 0 when both are disabled ("Never"). Read live so it tracks
-  // power-source changes (e.g. laptop on AC vs battery).
-  function readIdleThresholdSeconds() {
-    let seconds = 0;
+  // Runs a shell command and returns its stdout, or null on failure. stderr is
+  // silenced so expected "domain/default pair does not exist" noise from a
+  // missing screen-saver key never reaches the console.
+  function readCommand(cmd) {
     try {
-      const out = execSync("pmset -g", { encoding: "utf8", timeout: 3000 });
-      const match = out.match(/^\s*displaysleep\s+(\d+)/m);
-      const minutes = match ? parseInt(match[1], 10) : 0;
-      if (minutes > 0) seconds = minutes * 60;
-    } catch (error) {
-      log.warn(`Could not read pmset displaysleep: ${error.message}`);
-    }
-    try {
-      const ss = execSync("defaults -currentHost read com.apple.screensaver idleTime", {
+      return execSync(cmd, {
         encoding: "utf8",
         timeout: 3000,
+        stdio: ["ignore", "pipe", "ignore"],
       });
-      const ssSeconds = parseInt(ss.trim(), 10);
-      if (ssSeconds > 0 && (seconds === 0 || ssSeconds < seconds)) seconds = ssSeconds;
     } catch (error) {
-      // The screen-saver "idleTime" key is often absent on modern macOS; ignore.
+      return null;
+    }
+  }
+
+  // Returns the soonest of the macOS display-sleep / screen-saver delays in
+  // seconds, or 0 when both are disabled ("Never"). Read live so it tracks
+  // power-source changes (e.g. laptop on AC vs battery). `pmset displaysleep`
+  // is the authoritative value; the screen-saver key is absent on modern macOS
+  // and only used as a (shorter) refinement when present.
+  function readIdleThresholdSeconds() {
+    let seconds = 0;
+    const pmset = readCommand("pmset -g");
+    if (pmset) {
+      const match = pmset.match(/^\s*displaysleep\s+(\d+)/m);
+      const minutes = match ? parseInt(match[1], 10) : 0;
+      if (minutes > 0) seconds = minutes * 60;
+    }
+    const screensaver = readCommand("defaults -currentHost read com.apple.screensaver idleTime");
+    if (screensaver) {
+      const ssSeconds = parseInt(screensaver.trim(), 10);
+      if (ssSeconds > 0 && (seconds === 0 || ssSeconds < seconds)) seconds = ssSeconds;
     }
     return seconds;
   }
