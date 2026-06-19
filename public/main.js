@@ -451,9 +451,16 @@ app.whenReady().then(async () => {
   function startSleepWatcher() {
     if (sleepWatcherInterval) return;
     refreshIdleThreshold(true);
+    if (isDev) {
+      log.info(
+        `[allow-sleep] watcher started — idle threshold ${idleThresholdSeconds || "never"}s,` +
+          ` polling every ${IDLE_POLL_MS / 1000}s`
+      );
+    }
     powerMonitor.on("lock-screen", onLockScreen);
     powerMonitor.on("unlock-screen", onUnlockScreen);
     sleepWatcherInterval = setInterval(pollSystemIdle, IDLE_POLL_MS);
+    pollSystemIdle(); // log/evaluate immediately instead of waiting one interval
   }
 
   function stopSleepWatcher() {
@@ -471,6 +478,8 @@ app.whenReady().then(async () => {
     // toggle is hidden on other platforms (see DisplaySection.js).
     if (settings.display?.allowSleep !== false) {
       startSleepWatcher();
+    } else if (isDev) {
+      log.info("[allow-sleep] watcher not started — display.allowSleep is disabled");
     }
     createMacOSMenu(mainWindow, displayWindow, packageInfo, settings);
     // Ensure menu reflects the correct always on top state from settings
