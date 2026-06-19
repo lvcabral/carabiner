@@ -307,7 +307,7 @@ function DisplaySection() {
                   {isMacOS && (
                     <Form.Check
                       type="checkbox"
-                      label="Allow Mac to Sleep"
+                      label="Allow Sleep on Screen Lock"
                       checked={allowSleep}
                       onChange={handleAllowSleepChange}
                       className="text-nowrap mt-2"
