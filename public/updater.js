@@ -10,10 +10,43 @@
 const { dialog, BrowserWindow, shell } = require("electron");
 const https = require("https");
 const packageInfo = require("../package.json");
+const { saveSettings } = require("./settings");
 
 let updateAvailable = false;
 let latestVersion = null;
 let dialogShown = false;
+
+// Resolve the best window to parent a dialog to: the display window if visible,
+// otherwise the settings window (may be hidden, which is fine for a dialog parent).
+function getTargetWindow() {
+  const mainWindow = BrowserWindow.getAllWindows().find((win) =>
+    win.webContents.getURL().includes("index.html")
+  );
+  const displayWindow = BrowserWindow.getAllWindows().find((win) =>
+    win.webContents.getURL().includes("display.html")
+  );
+  if (displayWindow && displayWindow.isVisible()) return displayWindow;
+  return mainWindow || null;
+}
+
+// Show a message box, parented to a window when one is available.
+function showDialog(options) {
+  const targetWindow = getTargetWindow();
+  return targetWindow
+    ? dialog.showMessageBox(targetWindow, options)
+    : dialog.showMessageBox(options);
+}
+
+// Feedback shown when a manual update check could not reach GitHub.
+function showUpdateError() {
+  showDialog({
+    type: "error",
+    title: "Update Check Failed",
+    message: "Could not check for updates.",
+    detail: "Please check your internet connection and try again.",
+    buttons: ["OK"],
+  });
+}
 
 // Function to compare version strings
 function compareVersions(current, latest) {
@@ -33,8 +66,11 @@ function compareVersions(current, latest) {
   return 0; // Same version
 }
 
-// Function to check for updates via GitHub API
-function checkForUpdates() {
+// Function to check for updates via GitHub API.
+// When `interactive` is true (a manual "Check for Updates" from a menu), the dialog
+// is always shown (ignoring a previously skipped version) and the user is given
+// "up to date" / error feedback when there is nothing to download.
+function checkForUpdates(settings, interactive = false) {
   console.log("Checking for updates...");
   return new Promise((resolve, reject) => {
     // Get repository info from package.json
@@ -74,23 +110,14 @@ function checkForUpdates() {
             if (compareVersions(currentVersion, latestVersion) === 1) {
               updateAvailable = true;
 
-              // Notify user about available update (only if not already shown)
-              const mainWindow = BrowserWindow.getAllWindows().find((win) =>
-                win.webContents.getURL().includes("index.html")
-              );
-              const displayWindow = BrowserWindow.getAllWindows().find((win) =>
-                win.webContents.getURL().includes("display.html")
-              );
+              const targetWindow = getTargetWindow();
 
-              // Prioritize displayWindow if visible, otherwise use mainWindow
-              let targetWindow = null;
-              if (displayWindow && displayWindow.isVisible()) {
-                targetWindow = displayWindow;
-              } else if (mainWindow) {
-                targetWindow = mainWindow;
-              }
+              // Honor a previously skipped version - don't nag about it again.
+              // A manual (interactive) check always prompts, ignoring the skip.
+              const skippedVersion = settings && settings.display && settings.display.skipVersion;
+              const shouldPrompt = interactive || (!dialogShown && skippedVersion !== latestVersion);
 
-              if (targetWindow && !dialogShown) {
+              if (targetWindow && shouldPrompt) {
                 dialogShown = true;
                 dialog
                   .showMessageBox(targetWindow, {
@@ -99,14 +126,19 @@ function checkForUpdates() {
                     message: `A new version (${latestVersion}) is available!`,
                     detail:
                       "Click 'Download' to visit the releases page and download the latest version.",
-                    buttons: ["Download", "Later"],
+                    buttons: ["Download", "Skip This Version", "Later"],
                     defaultId: 0,
+                    cancelId: 2,
                   })
                   .then((result) => {
                     if (result.response === 0) {
                       // User chose to download - open releases page
                       const repoUrl = packageInfo.repository.url.replace(/\.git$/, "");
                       shell.openExternal(`${repoUrl}/releases/latest`);
+                    } else if (result.response === 1 && settings && settings.display) {
+                      // User chose to skip this version - persist it so we stop prompting
+                      settings.display.skipVersion = latestVersion;
+                      saveSettings(settings);
                     }
                     // Reset flag when dialog is dismissed
                     dialogShown = false;
@@ -117,14 +149,28 @@ function checkForUpdates() {
             } else {
               updateAvailable = false;
               console.log("No updates available");
+
+              // Reassure the user when they triggered the check manually
+              if (interactive) {
+                showDialog({
+                  type: "info",
+                  title: "No Updates Available",
+                  message: "You're up to date!",
+                  detail: `Carabiner ${currentVersion} is the latest version.`,
+                  buttons: ["OK"],
+                });
+              }
+
               resolve({ updateAvailable: false, version: currentVersion });
             }
           } else {
             console.error("Failed to fetch release info:", res.statusCode, data);
+            if (interactive) showUpdateError();
             reject(new Error(`HTTP ${res.statusCode}: ${data}`));
           }
         } catch (error) {
           console.error("Error parsing release data:", error);
+          if (interactive) showUpdateError();
           reject(error);
         }
       });
@@ -132,11 +178,13 @@ function checkForUpdates() {
 
     req.on("error", (error) => {
       console.error("Error checking for updates:", error);
+      if (interactive) showUpdateError();
       reject(error);
     });
 
     req.setTimeout(10000, () => {
       req.destroy();
+      if (interactive) showUpdateError();
       reject(new Error("Request timeout"));
     });
 
