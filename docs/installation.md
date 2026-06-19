@@ -10,7 +10,7 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 
 - **Operating System**: macOS 10.14+, Windows 10+, or Linux (Ubuntu 18.04+)
 - **Capture Devices**: Video capture device (USB capture card, webcam, etc.)
-- **Streaming Devices**: Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV
+- **Streaming Devices**: Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, Xumo Stream Box (RDK, experimental)
 
 ## Setup Prerequisites
 
@@ -47,6 +47,12 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 2. **Allow AirPlay Access**: Ensure AirPlay is enabled on your Apple TV for control to work properly:
    - Go to `Settings` > `AirPlay & Apple Home`
    - Expand `Allow Access` and pick `Anyone on the Same Network`
+
+### For Xumo Stream Box (RDK) — experimental
+
+1. **RDK Services**: The device must expose the `org.rdk.RDKShell` JSON-RPC endpoint (default port `9998`) reachable from your computer
+2. **Add the Device**: In the **Control** tab pick **Xumo (RDK)**, enter the device IP, port, and optional auth token, then use **Test** to verify — see the [Usage Guide](./usage-guide.md#xumo-stream-box-rdk-configuration-experimental)
+   - No external tool binary is required
 
 ## Installation Steps
 

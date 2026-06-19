@@ -3,8 +3,8 @@
 Carabiner can expose its device-control, automation, and capture features to AI assistants through
 an embedded [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server. This turns
 Carabiner into an **AI-native QA tool**: an agent (Claude Code, Claude Desktop, Cursor, etc.) can
-navigate a Roku / Fire TV / Apple TV app, capture screenshots, run automation scripts, and validate
-UI state without a human in the loop.
+navigate a Roku / Fire TV / Apple TV / Xumo Stream Box (RDK) app, capture screenshots, run
+automation scripts, and validate UI state without a human in the loop.
 
 The server runs inside Carabiner's main process and **binds only to `127.0.0.1`** — it is never
 exposed to the network.
@@ -78,10 +78,11 @@ field.
 | Tool | Description |
 |------|-------------|
 | `list_devices` | All configured control devices with protocol and connection status |
-| `select_device` | Switch the active device by id (`<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`) |
+| `select_device` | Switch the active device by id (`<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`, `<host:port>\|rdk`) |
 | `send_key` | Send one keypress (see [Keys](#keys)) |
 | `send_text` | Type a string on the current device |
 | `get_current_device` | Protocol, address, and connection state of the active device |
+| `launch_app` | Launch an application by client name (and optional URI). **RDK (Xumo) only** — uses `RDKShell.launchApplication` |
 
 ### Capture & recording
 | Tool | Description |
@@ -128,9 +129,10 @@ field.
 
 `send_key` accepts friendly, protocol-agnostic names that are translated to each device's native
 key: `up`, `down`, `left`, `right`, `select`/`ok`, `back`, `home`, `play`/`pause`, `rewind`,
-`forward`, `replay`, `info`, `volume_up`, `volume_down`, `volume_mute`. You may also pass a raw
-protocol-native key (a Roku ECP command such as `search`, an ADB keycode, or an Apple TV command)
-and it will be forwarded as-is. Keys not available on the active protocol return an error.
+`forward`, `replay`, `info`/`options`, `volume_up`, `volume_down`, `volume_mute`. You may also pass
+a raw protocol-native key (a Roku ECP command such as `search`, an ADB keycode, an Apple TV command,
+or an RDK Linux input keycode such as `28`) and it will be forwarded as-is. Keys not available on the
+active protocol return an error (e.g. `replay` is ECP-only, `volume_up`/`volume_down` are not on ECP).
 
 ## Driving QA test cases with an AI agent
 
@@ -166,7 +168,8 @@ take_screenshot()
 ```
 
 > Step `mod` values follow Carabiner's automation format: `-1` = full keypress (ECP), `0` = press
-> for ADB/ATV, `100` = key-up. `delay` is milliseconds to wait *before* the step.
+> for ADB/ATV/RDK, `100` = key-up. `create_script` accepts a `controlType` of `ecp`, `adb`, `atv`,
+> or `rdk`. `delay` is milliseconds to wait *before* the step.
 
 ## Scheduling test runs externally
 

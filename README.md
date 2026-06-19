@@ -9,7 +9,7 @@
 
 # Carabiner
 
-**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku, Android-based streaming devices (Fire TV, Google TV, Android TV), and Apple TV through an intuitive floating and resizable window interface.
+**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku, Android-based streaming devices (Fire TV, Google TV, Android TV), Apple TV, and Xumo Stream Box (RDK, experimental) through an intuitive floating and resizable window interface.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Roku-662D91?style=for-the-badge&logo=roku&logoColor=white" alt="Roku" height="42px" />
@@ -27,7 +27,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 
 ### Core Functionality
 
-- **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV) and Apple TV
+- **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Xumo Stream Box (RDK, experimental)
 - **Real-time Video Capture**: View your streaming device output directly on your computer
 - **Video Recording**: Record streaming device sessions in MP4/WebM format for documentation and testing
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
@@ -93,6 +93,7 @@ We welcome contributions to make Carabiner better! Here's how you can help:
 - **[Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)**: Roku device communication
 - **[Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)**: Android device communication
 - **[pyatv](https://pyatv.dev/)**: Apple TV device communication via Media Remote Protocol (MRP)
+- **[RDK Services](https://rdkcentral.github.io/rdkservices/)**: Xumo Stream Box / RDK device communication via the `org.rdk.RDKShell` JSON-RPC API
 
 ## Acknowledgments
 
