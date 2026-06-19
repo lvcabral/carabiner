@@ -55,6 +55,7 @@ if (require("electron-squirrel-startup") === true) app.quit();
 
 const isMacOS = process.platform === "darwin";
 const isWindows = process.platform === "win32";
+const isDev = process.env.ELECTRON_IS_DEV === "1";
 const settings = loadSettings();
 let lastSize = [500, 290];
 let controlIp = "";
@@ -346,17 +347,20 @@ app.whenReady().then(async () => {
   // Live audio I/O (and the playing <video>) cause macOS to hold
   // PreventUserIdleSystemSleep / "Video Wake Lock" assertions, which keep the
   // machine awake. The app can't suppress those assertions directly, so when
-  // the user locks the screen or goes idle we pause the capture stream (which
-  // releases them) and resume it on unlock / activity. Controlled by
-  // settings.display.allowSleep (default on).
-  const IDLE_SLEEP_SECONDS = 300; // pause capture after 5 minutes idle
-  const IDLE_POLL_MS = 30000; // check idle time every 30 seconds
-  let sleepWatcherInterval = null;
+  // the user locks the screen we pause the capture stream (releasing them) and
+  // resume it on unlock. Controlled by settings.display.allowSleep (default on).
+  //
+  // We deliberately only act on screen lock/unlock — a deterministic
+  // "user walked away / came back" signal — rather than an idle timeout, so
+  // passively watching the stream never pauses it. The trade-off is that the
+  // Mac only sleeps once the screen is locked, not on plain inactivity.
+  let sleepWatcherStarted = false;
   let autoSuspended = false;
 
   function suspendCapture() {
     if (autoSuspended || !displayWindow || displayWindow.isDestroyed()) return;
     autoSuspended = true;
+    if (isDev) log.info("[allow-sleep] screen locked — pausing capture");
     displayWindow.webContents.send("auto-suspend");
   }
 
@@ -364,30 +368,21 @@ app.whenReady().then(async () => {
     if (!autoSuspended) return;
     autoSuspended = false;
     if (displayWindow && !displayWindow.isDestroyed() && displayWindow.isVisible()) {
+      if (isDev) log.info("[allow-sleep] screen unlocked — resuming capture");
       displayWindow.webContents.send("auto-resume");
     }
   }
 
-  function pollSystemIdle() {
-    if (powerMonitor.getSystemIdleTime() >= IDLE_SLEEP_SECONDS) {
-      suspendCapture();
-    } else if (autoSuspended) {
-      resumeCapture();
-    }
-  }
-
   function startSleepWatcher() {
-    if (sleepWatcherInterval) return;
+    if (sleepWatcherStarted) return;
+    sleepWatcherStarted = true;
+    if (isDev) log.info("[allow-sleep] watcher started — pausing capture on screen lock");
     powerMonitor.on("lock-screen", suspendCapture);
     powerMonitor.on("unlock-screen", resumeCapture);
-    sleepWatcherInterval = setInterval(pollSystemIdle, IDLE_POLL_MS);
   }
 
   function stopSleepWatcher() {
-    if (sleepWatcherInterval) {
-      clearInterval(sleepWatcherInterval);
-      sleepWatcherInterval = null;
-    }
+    sleepWatcherStarted = false;
     powerMonitor.removeListener("lock-screen", suspendCapture);
     powerMonitor.removeListener("unlock-screen", resumeCapture);
     if (autoSuspended) resumeCapture();
@@ -398,6 +393,8 @@ app.whenReady().then(async () => {
     // toggle is hidden on other platforms (see DisplaySection.js).
     if (settings.display?.allowSleep !== false) {
       startSleepWatcher();
+    } else if (isDev) {
+      log.info("[allow-sleep] watcher not started — display.allowSleep is disabled");
     }
     createMacOSMenu(mainWindow, displayWindow, packageInfo, settings);
     // Ensure menu reflects the correct always on top state from settings
