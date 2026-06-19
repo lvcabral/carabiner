@@ -18,11 +18,13 @@ After installing Carabiner, launch the application to access the settings window
 ### 2. Add Streaming Devices
 
 1. Navigate to the **Control** tab
-2. Enter the device details:
-   - **IP Address / Device ID**: IP for Roku, Fire TV, and Google TV; UUID or MAC address for Apple TV
+2. Select the device **Type** from the dropdown — the fields below adapt to the type you pick:
+   - **Roku (ECP)**, **Fire TV (ADB)**, **Google TV (ADB)**, **Apple TV (atvremote)**, or **Xumo (RDK)** *(experimental)*
+3. Enter the device details:
+   - **IP Address / Device ID**: IP for Roku, Fire TV, Google TV, and Xumo; UUID or MAC address for Apple TV
    - **Alias**: A friendly name for the device
-   - **Type**: Select Roku, Fire TV, Google TV, or Apple TV
-3. Click **+** to register the device
+   - For **Xumo (RDK)** also set the **RDK JSON-RPC** port (default `9998`) and an optional auth **token**; use the **Test** button to verify the connection
+4. Click **+** to register the device
 
 > [!NOTE]
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
@@ -127,7 +129,7 @@ The **Automation** tab lets you record key sequences (with the exact timing betw
 - Click **Save Changes** to apply edits or **Cancel** to revert.
 - Click **🗑** to delete a script entirely.
 
-> **Note:** Scripts are tied to the protocol of the device that was active when they were recorded (ECP for Roku, ADB for Android). Playing a script on a device with a different protocol will show a warning toast, but playback will still proceed.
+> **Note:** Scripts are tied to the protocol of the device that was active when they were recorded (ECP for Roku, ADB for Android, atvremote for Apple TV, RDK for Xumo). Playing a script on a device with a different protocol will show a warning toast, but playback will still proceed.
 
 ### AI Automation (MCP Server)
 
@@ -208,6 +210,18 @@ For Apple TV devices, install **pyatv** and pair once before adding the device:
 4. Click **+** to add the device
 
 See the [Apple TV setup guide](./setup-apple-tv.md) for detailed instructions on installing `pyatv` and pairing your Apple TV.
+
+### Xumo Stream Box (RDK) Configuration *(experimental)*
+
+Xumo Stream Box and other RDK-based devices are controlled directly over the RDK Services JSON-RPC API (`org.rdk.RDKShell`) — no extra tool binary is required:
+
+1. Open the **Control** tab and choose **Xumo (RDK)** as the device type
+2. Enter the device's **IP address** and the **RDK JSON-RPC** port (default `9998`)
+3. If the device requires authentication, enter the Bearer **token**
+4. Click **Test** to verify the endpoint is reachable, then **+** to add the device
+
+> [!NOTE]
+> RDK support is **experimental**. The device must have the `org.rdk.RDKShell` plugin enabled and its JSON-RPC endpoint reachable from your computer. Text input is sent as individual injected keystrokes.
 
 ## Getting Help
 

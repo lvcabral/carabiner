@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This App Does
 
-Carabiner is an Electron desktop app for streaming device development and QA. It shows live video from a capture card (HDMI capture device) in a floating overlay window, while letting users control Roku devices via ECP (HTTP), Android/Fire TV/Google TV devices via ADB, or Apple TV via `atvremote` (pyatv). Primary users are developers testing streaming apps without a physical TV.
+Carabiner is an Electron desktop app for streaming device development and QA. It shows live video from a capture card (HDMI capture device) in a floating overlay window, while letting users control Roku devices via ECP (HTTP), Android/Fire TV/Google TV devices via ADB, Apple TV via `atvremote` (pyatv), or Xumo Stream Box / RDK devices via the RDK Services JSON-RPC API (`org.rdk.RDKShell`). Primary users are developers testing streaming apps without a physical TV.
 
 ## Workflow
 
@@ -47,7 +47,7 @@ IPC routing: the main process listens on `shared-window-channel` (synchronous `s
 Pure vanilla JS — no React. Manages:
 - `getUserMedia` for the capture card video stream
 - Device monitoring via `navigator.mediaDevices.addEventListener("devicechange")` with a 3-second debounce for reconnect recovery
-- Keyboard → ECP/ADB key translation (`ecpKeysMap`, `adbKeysMap`)
+- Keyboard → ECP/ADB/ATV/RDK key translation (`ecpKeysMap`, `adbKeysMap`, `atvKeysMap`, `rdkKeysMap`)
 - Screenshot capture (canvas), video recording (`MediaRecorder`)
 - Overlay image rendering
 
@@ -61,7 +61,7 @@ React 17 app using React Bootstrap tabs. `App.js` is the root; each tab is a com
 |-----------|-----------|---------|
 | General | `GeneralSection` | Capture device picker + link to streaming device |
 | Display | `DisplaySection` | Border, transparency, window options |
-| Control | `ControlSection` | Add/remove Roku, Android, and Apple TV streaming devices |
+| Control | `ControlSection` | Add/remove Roku, Android, Apple TV, and Xumo (RDK) streaming devices |
 | Overlay | `OverlaySection` | Load reference image for UI comparison |
 | Files | `FilesSection` | Default save paths for screenshots/recordings |
 | Automation | `AutomationSection` | Script recording, playback management, and step editing |
@@ -78,10 +78,11 @@ The React app communicates with the main process via `window.electronAPI` (expos
 | `settings.js` | Load/save `settings.json` from `app.getPath("userData")` |
 | `adb.js` | Wraps `adb connect/disconnect/shell input keyevent` via `child_process.exec` |
 | `appletv.js` | Wraps `atvremote` CLI (pyatv) for Apple TV key sending and text input via `child_process.spawn` |
-| `menu.js` | macOS menu bar, system tray (Win/macOS), right-click context menu; includes Control Device quick-switch submenu and Automation scripts submenu |
+| `rdk.js` | Talks JSON-RPC over HTTP to RDK Services' `org.rdk.RDKShell` plugin (`injectKey`, `launchApplication`) for Xumo Stream Box / RDK devices. Exposes `connectRDK`/`disconnectRDK`/`testRDKConnection`/`sendRDKKey`/`sendRDKText`/`launchRDKApp`. Optional Bearer token. |
+| `menu.js` | macOS menu bar, system tray (Win/macOS), right-click context menu; includes Control Device quick-switch submenu, Automation scripts submenu, and a "Check for Updates..." item |
 | `updater.js` | Polls GitHub Releases API; shows dialog if newer version found |
 | `mcp-server.js` | Embedded MCP server (localhost `127.0.0.1` only). Exposes `startMcpServer(ctx)`/`stopMcpServer()`; serves Streamable HTTP at `/mcp` and legacy SSE at `/sse` via Node's built-in `http`. Optional Bearer-token auth. The `@modelcontextprotocol/sdk` ships a CJS build, so it is `require`d directly. |
-| `mcp-tools.js` | MCP tool/resource/prompt registration (`registerAll(server, ctx)`) — thin wrappers over `ctx`. Holds the semantic→native key map used by `send_key`. |
+| `mcp-tools.js` | MCP tool/resource/prompt registration (`registerAll(server, ctx)`) — thin wrappers over `ctx`. Holds the semantic→native key map (ecp/adb/atv/rdk) used by `send_key`, and registers the RDK-only `launch_app` tool. |
 
 ### IPC Message Types (`shared-window-channel`)
 
@@ -89,9 +90,10 @@ Key message types handled in `main.js`:
 - `set-capture-devices` — updates tray menu with available capture cards
 - `set-video-stream` — starts capture stream on display window (forwarded only if display is visible)
 - `set-transparency`, `set-resolution`, `set-border-*`, `set-display-size` — visual settings
-- `set-control-list` / `set-control-selected` — streaming device CRUD + ADB/ATV connect/disconnect
+- `set-control-list` / `set-control-selected` — streaming device CRUD + ADB/ATV/RDK connect/disconnect
 - `send-adb-key` / `send-adb-text` — forwarded to `adb.js`
 - `send-atv-key` / `send-atv-text` — forwarded to `appletv.js`
+- `send-rdk-key` / `send-rdk-text` — forwarded to `rdk.js`
 - `set-adb-path` / `set-atv-path` — update paths to the `adb` and `atvremote` binaries
 - `set-audio-enabled` — toggles audio in the display window
 - `set-show-keystrokes` — toggles the on-screen key indicator overlay
@@ -101,20 +103,22 @@ Separate `ipcMain.on`/`ipcMain.handle` channels (outside `shared-window-channel`
 - Script recording lifecycle: `start-script-recording`, `stop-script-recording`, `save-script`, `run-script`, `stop-script`, `script-playback-started`, `script-playback-done`
 - Script management: `get-scripts`, `update-script-name`, `update-script-steps`, `delete-script`
 - File dialogs: `save-screenshot-dialog`, `save-video-dialog`, `select-adb-path`, `select-atv-path`, `load-image`, `load-image-by-path`
+- RDK (Xumo): `test-rdk-connection` (reachability/auth check from the Control tab's Test button), `launch-rdk-app` (RDKShell `launchApplication`)
 - Settings persistence: `save-shortcut`, `save-launch-app-at-login`, `save-always-on-top`, `save-dark-mode`, etc.
 - MCP server: `save-mcp-config` / `get-mcp-status` (start/stop the server live, persist `settings.mcp`), `save-video-direct` (non-dialog recording save used by MCP). The main↔display renderer RPC for MCP uses `mcp-rpc-request` (main → display: `{requestId, action, params}`) and `mcp-rpc-response` (display → main: `{requestId, result|error}`); `action` is one of `capture-screenshot`, `send-key`, `send-text`, `start-recording`, `stop-recording`.
 
 ### MCP Server
 
-`settings.mcp = { enabled, port, token }`. When enabled (toggle in the MCP tab → `MCPSection.js`), `main.js` starts `mcp-server.js` after the windows are created and stops it on `before-quit`. Tool handlers never import main directly — they call a `ctx` object built in `main.js` that reuses the existing internals (`switchControlDevice`, `startScriptPlayback`, ADB/ATV send fns, `settings`, menu refreshers) and the `callDisplay()` RPC helper for renderer-side work (canvas screenshot, `MediaRecorder`, key/text sending). `run_script` blocks by storing a resolver keyed by script id and settling it in the existing `script-playback-done` handler. See `docs/mcp-server.md` for the full tool/resource/prompt reference and agent usage.
+`settings.mcp = { enabled, port, token }`. When enabled (toggle in the MCP tab → `MCPSection.js`), `main.js` starts `mcp-server.js` after the windows are created and stops it on `before-quit`. Tool handlers never import main directly — they call a `ctx` object built in `main.js` that reuses the existing internals (`switchControlDevice`, `startScriptPlayback`, ADB/ATV/RDK send fns, `launchRDKApp`, `settings`, menu refreshers) and the `callDisplay()` RPC helper for renderer-side work (canvas screenshot, `MediaRecorder`, key/text sending). The `launch_app` MCP tool maps to `ctx.launchApp` and is RDK-only. `run_script` blocks by storing a resolver keyed by script id and settling it in the existing `script-playback-done` handler. See `docs/mcp-server.md` for the full tool/resource/prompt reference and agent usage.
 
 ### Device Control Protocols
 
 - **Roku (ECP)**: HTTP POST to `http://<ip>:8060/keypress|keydown|keyup/<key>`. Sent directly from the display window renderer via `fetch`.
 - **Android/Fire TV/Google TV (ADB)**: `adb shell input keyevent <code>` or `adb shell input text <text>`. Routed through main process → `adb.js`.
 - **Apple TV (ATV)**: `atvremote --id <deviceId> --protocol mrp <key>` or `atvremote --id <deviceId> text_append=<text>`. Routed through main process → `appletv.js`. Requires `atvremote` binary from the [pyatv](https://pyatv.dev/) package.
+- **Xumo Stream Box (RDK)** *(experimental)*: HTTP JSON-RPC to RDK Services' `org.rdk.RDKShell.1.injectKey` (Linux input keycodes) / `.launchApplication`. Routed through main process → `rdk.js`. Connection is configured per-device (`host`, `port` default `9998`, optional Bearer `token`) rather than via a CLI binary; text input is sent character-by-character as injected keys.
 
-The device ID string format encodes protocol: `"<ip>|ecp"`, `"<ip>|adb"`, or `"<uuid-or-mac>|atv"`.
+The device ID string format encodes protocol: `"<ip>|ecp"`, `"<ip>|adb"`, `"<uuid-or-mac>|atv"`, or `"<host:port>|rdk"`.
 
 ### Automation / Script System
 

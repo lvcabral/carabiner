@@ -96,6 +96,7 @@ carabiner/
 │   ├── settings.js              # Load/save settings.json from userData
 │   ├── adb.js                   # Android/Fire TV/Google TV control via ADB
 │   ├── appletv.js               # Apple TV control via atvremote (pyatv)
+│   ├── rdk.js                   # Xumo Stream Box / RDK control via RDKShell JSON-RPC
 │   ├── mcp-server.js            # Embedded MCP server (localhost) — HTTP/SSE transports
 │   ├── mcp-tools.js             # MCP tool/resource/prompt registration
 │   └── updater.js               # GitHub Releases version check
@@ -105,7 +106,7 @@ carabiner/
 │   └── components/              # One component per settings tab
 │       ├── GeneralSection.js    # Capture device picker and device link
 │       ├── DisplaySection.js    # Border, transparency, window options
-│       ├── ControlSection.js    # Add/remove Roku, Android, and Apple TV devices
+│       ├── ControlSection.js    # Add/remove Roku, Android, Apple TV, and Xumo (RDK) devices
 │       ├── AutomationSection.js # Script recording, playback, and step editing
 │       ├── OverlaySection.js    # Reference image overlay with opacity control
 │       ├── FilesSection.js      # Default save paths for screenshots/recordings
@@ -158,6 +159,7 @@ carabiner/
 - **[Roku ECP API](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)**: For Roku device control
 - **[Android ADB](https://developer.android.com/tools/adb)**: For Android/Fire TV/Google TV device control
 - **[pyatv (atvremote)](https://pyatv.dev/)**: For Apple TV device control
+- **[RDK Services (RDKShell)](https://rdkcentral.github.io/rdkservices/)**: For Xumo Stream Box / RDK device control (experimental)
 - **[Model Context Protocol](https://modelcontextprotocol.io/)**: Protocol behind the embedded MCP server
 
 ## Next Steps
