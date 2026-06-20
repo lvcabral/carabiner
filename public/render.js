@@ -585,7 +585,11 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 
   window.electronAPI.onMessageReceived("window-hide", () => {
-    // Window is hidden - stop video stream to save resources
+    // Stop any in-progress recording first so its file is saved and main clears this
+    // window's recording state, then stop the stream to save resources.
+    if (isRecording) {
+      handleStopRecording();
+    }
     if (videoState !== "stopped") {
       stopVideoStream();
     }
@@ -600,7 +604,10 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 
   window.electronAPI.onMessageReceived("window-minimize", () => {
-    // Window is minimized - stop video stream to save resources
+    // Stop any in-progress recording first, then stop the stream to save resources.
+    if (isRecording) {
+      handleStopRecording();
+    }
     if (videoState !== "stopped") {
       stopVideoStream();
     }

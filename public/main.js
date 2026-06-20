@@ -98,7 +98,7 @@ const senderToPair = new Map(); // webContents.id -> pairId (route renderer → 
 let activePairId = settings.activePairId || settings.pairs?.[0]?.id || "";
 let isQuitting = false;
 let captureDevices;
-let isCurrentlyRecording = false;
+const recordingPairs = new Set(); // pairIds whose Display window is currently recording video
 let isScriptRecording = false;
 let isScriptPlaying = false;
 let saveFlag = false;
@@ -145,6 +145,11 @@ function stopUpdateChecks() {
     clearInterval(updateCheckInterval);
     updateCheckInterval = null;
   }
+}
+
+// Whether the active window is recording (menus' Start/Stop Recording act on it).
+function isActiveRecording() {
+  return recordingPairs.has(activePairId);
 }
 
 // ----- Pair / window helpers (module scope so both startup and IPC can use them) -----
@@ -227,7 +232,7 @@ function rebuildMenus() {
       packageInfo,
       captureDevices,
       settings,
-      isCurrentlyRecording,
+      isActiveRecording(),
       switchControlDevice
     );
   }
@@ -235,9 +240,10 @@ function rebuildMenus() {
   // active window to be visible; the rest just require an enabled window to exist.
   const hasWindow = !!active;
   const activeVisible = hasWindow && active.isVisible();
+  const activeRecording = isActiveRecording();
   updateScreenshotMenuItems(activeVisible);
-  updateRecordingMenuItems(activeVisible, isCurrentlyRecording);
-  updateTrayRecordingMenuItems(isCurrentlyRecording, activeVisible);
+  updateRecordingMenuItems(activeVisible, activeRecording);
+  updateTrayRecordingMenuItems(activeRecording, activeVisible);
   updateAlwaysOnTopMenuItem(getActivePair()?.alwaysOnTop !== false);
   updateEnableAudioMenuItem(getActivePair()?.audioEnabled === true);
   // No window → also disable "Start Script Recording" / "Run Script".
@@ -539,6 +545,7 @@ function createDisplayWindow(pair) {
     }
     senderToPair.delete(win.webContents.id);
     pairWindows.delete(pair.id);
+    recordingPairs.delete(pair.id);
     if (!isQuitting) disconnectPairControl(pair.id);
     pairState.delete(pair.id);
     resetFullscreenVars();
@@ -1216,12 +1223,13 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("show-context-menu", (event) => {
-    const win = getWindow(pairForEvent(event)) || getActiveWindow();
+    const ctxPairId = pairForEvent(event) || activePairId;
+    const win = getWindow(ctxPairId) || getActiveWindow();
     const menu = createContextMenu(
       mainWindow,
       win,
       packageInfo,
-      isCurrentlyRecording,
+      recordingPairs.has(ctxPairId),
       captureDevices,
       settings,
       isScriptRecording,
@@ -1446,9 +1454,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Recording state management
+  // Recording state management — tracked per pair (each Display window records its own
+  // stream to its own file), keyed by the sending window.
   ipcMain.on("recording-state-changed", (event, isRecording) => {
-    isCurrentlyRecording = isRecording;
+    const pairId = pairForEvent(event) || activePairId;
+    if (isRecording) recordingPairs.add(pairId);
+    else recordingPairs.delete(pairId);
     rebuildMenus();
   });
 
@@ -1830,7 +1841,7 @@ app.whenReady().then(async () => {
     updateScriptsSubmenu(settings.scripts, mainWindow, getActiveWindow(), packageInfo, settings);
     const tray = getTray();
     if (tray) {
-      createTrayMenu(mainWindow, getActiveWindow(), packageInfo, captureDevices, settings, isCurrentlyRecording, switchControlDevice);
+      createTrayMenu(mainWindow, getActiveWindow(), packageInfo, captureDevices, settings, isActiveRecording(), switchControlDevice);
     }
   });
 
