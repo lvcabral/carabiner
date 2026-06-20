@@ -15,7 +15,6 @@ let copyScreenshotMenuItem;
 let saveScreenshotMenuItem;
 let startRecordingMenuItem;
 let stopRecordingMenuItem;
-let showDisplayMenuItem;
 let enableAudioMenuItem;
 
 // Script recording menu item references
@@ -38,6 +37,33 @@ let trayStopScriptRecordingItem = null;
 
 // Control device switch callback (stored for reuse across menu rebuilds)
 let _onDeviceSelected = null;
+
+// Window management callbacks (set once from main.js) used by the Windows submenu.
+let _windowActions = null;
+function setWindowActions(actions) {
+  _windowActions = actions;
+}
+
+// The pair targeted by tray/menu actions by default.
+function getActivePair(settings) {
+  if (!settings || !Array.isArray(settings.pairs)) return null;
+  return settings.pairs.find((p) => p.id === settings.activePairId) || settings.pairs[0] || null;
+}
+
+// Friendly name of the active window (capture card + linked control) — shown as a disabled
+// indicator so the user knows which window the (non-context) menu actions target.
+function activeWindowLabel(settings, captureDevices) {
+  const pair = getActivePair(settings);
+  if (!pair) return "No active window";
+  const cap = (captureDevices || []).find((d) => d.deviceId === pair.captureDeviceId);
+  const capName = cap?.label || pair.captureDeviceId || "Capture device";
+  const ctl = pair.controlDeviceId
+    ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
+    : null;
+  // The indicator shows only the control device's alias (no IP / MAC); fall back to its type.
+  const ctlName = ctl ? ctl.alias || ctl.type : null;
+  return ctlName ? `${capName} → ${ctlName}` : capName;
+}
 
 // Context menu variables
 let contextAlwaysOnTopItem = null;
@@ -168,30 +194,6 @@ const MenuItems = {
   hideScreen: (displayWindow, settings) => ({
     label: "Hide Screen",
     click: () => hideWindowSafely(displayWindow, settings),
-  }),
-
-  showCarabiner: (displayWindow) => ({
-    label: "Show Carabiner",
-    click: () => {
-      if (displayWindow) {
-        if (!displayWindow.isVisible()) {
-          displayWindow.show();
-        }
-        displayWindow.focus();
-      }
-    },
-  }),
-
-  showDisplay: (displayWindow) => ({
-    id: "show-display",
-    label: "Show Display",
-    enabled: false,
-    click: () => {
-      if (displayWindow && !displayWindow.isVisible()) {
-        displayWindow.show();
-        displayWindow.focus();
-      }
-    },
   }),
 
   startScriptRecording: (mainWindow, enabled = true) => ({
@@ -331,13 +333,20 @@ const AppMenuItems = {
   }),
 };
 
-function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
+function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings, captureDevices = null) {
   _storedMainWindow = mainWindow;
   _storedDisplayWindow = displayWindow;
   _storedPackageInfo = packageInfo;
   _storedSettings = settings;
 
   const scripts = settings?.scripts || [];
+  // Without an enabled/active window, window-specific actions are disabled.
+  const hasWindow = !!displayWindow;
+  // Disabled indicator: which window the File/View actions act on.
+  const activeIndicator = {
+    label: hasWindow ? `Active Window: ${activeWindowLabel(settings, captureDevices)}` : "No active window",
+    enabled: false,
+  };
 
   const template = [
     // Add macOS-specific app menu
@@ -346,6 +355,8 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
     {
       label: "&File",
       submenu: [
+        { ...activeIndicator },
+        MenuItems.separator(),
         MenuItems.saveScreenshot(displayWindow),
         MenuItems.separator(),
         MenuItems.startRecording(displayWindow, false),
@@ -377,15 +388,18 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
       id: "view-menu",
       label: "&View",
       submenu: [
-        MenuItems.showDisplay(displayWindow),
+        { ...activeIndicator },
         MenuItems.separator(),
-        MenuItems.toggleFullscreen(displayWindow),
-        MenuItems.devTools(),
+        { label: "Display Windows", submenu: windowsSubmenuItems(captureDevices, settings) },
         MenuItems.separator(),
-        MenuItems.alwaysOnTop(displayWindow, mainWindow),
-        MenuItems.enableAudio(displayWindow, mainWindow),
+        { ...MenuItems.toggleFullscreen(displayWindow), enabled: hasWindow },
+        { ...MenuItems.devTools(), enabled: hasWindow },
+        MenuItems.separator(),
+        { ...MenuItems.alwaysOnTop(displayWindow, mainWindow), enabled: hasWindow },
+        { ...MenuItems.enableAudio(displayWindow, mainWindow), enabled: hasWindow },
       ],
     },
+    { role: "windowMenu" },
     {
       label: "&Help",
       submenu: [
@@ -409,7 +423,6 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings) {
   saveScreenshotMenuItem = menu.getMenuItemById("save-screenshot");
   startRecordingMenuItem = menu.getMenuItemById("start-recording");
   stopRecordingMenuItem = menu.getMenuItemById("stop-recording");
-  showDisplayMenuItem = menu.getMenuItemById("show-display");
   enableAudioMenuItem = menu.getMenuItemById("enable-audio");
   startScriptRecordingMenuItem = menu.getMenuItemById("start-script-recording");
   stopScriptRecordingMenuItem = menu.getMenuItemById("stop-script-recording");
@@ -456,12 +469,6 @@ function updateRecordingMenuItems(displayVisible, isRecording) {
   }
   if (stopRecordingMenuItem) {
     stopRecordingMenuItem.enabled = displayVisible && isRecording;
-  }
-}
-
-function updateShowDisplayMenuItem(isVisible) {
-  if (showDisplayMenuItem) {
-    showDisplayMenuItem.enabled = !isVisible;
   }
 }
 
@@ -539,17 +546,28 @@ function createTrayMenu(
 ) {
   if (onDeviceSelected) _onDeviceSelected = onDeviceSelected;
   if (settings) _storedSettings = settings;
+  // Window-specific actions are disabled without an enabled window; screenshot/recording
+  // additionally require the active window to be visible (you can't capture a hidden one).
+  const hasWindow = !!displayWindow;
+  const activeVisible = hasWindow && displayWindow.isVisible();
   const menuItems = [
-    MenuItems.showCarabiner(displayWindow),
+    // Disabled indicator: which window the actions below target.
+    {
+      label: hasWindow ? `Active Window: ${activeWindowLabel(settings, captureDevices)}` : "No active window",
+      enabled: false,
+    },
     MenuItems.separator(),
-    MenuItems.copyScreenshot(displayWindow),
-    MenuItems.saveScreenshot(displayWindow),
+    { ...MenuItems.copyScreenshot(displayWindow), enabled: activeVisible },
+    { ...MenuItems.saveScreenshot(displayWindow), enabled: activeVisible },
     MenuItems.separator(),
     {
-      ...MenuItems.startRecording(displayWindow, !isCurrentlyRecording),
+      ...MenuItems.startRecording(displayWindow, activeVisible && !isCurrentlyRecording),
       id: "tray-start-recording",
     },
-    { ...MenuItems.stopRecording(displayWindow, isCurrentlyRecording), id: "tray-stop-recording" },
+    {
+      ...MenuItems.stopRecording(displayWindow, activeVisible && isCurrentlyRecording),
+      id: "tray-stop-recording",
+    },
     MenuItems.separator(),
     {
       ...MenuItems.startScriptRecording(mainWindow, true),
@@ -566,22 +584,23 @@ function createTrayMenu(
     {
       ...MenuItems.alwaysOnTop(displayWindow, mainWindow),
       id: "tray-always-on-top",
-      checked: settings?.display?.alwaysOnTop ?? displayWindow.isAlwaysOnTop(),
+      enabled: hasWindow,
+      checked: getActivePair(settings)?.alwaysOnTop ?? displayWindow?.isAlwaysOnTop?.() ?? true,
     },
     {
       ...MenuItems.enableAudio(displayWindow, mainWindow),
       id: "tray-enable-audio",
-      checked: settings?.display?.audioEnabled ?? false,
+      enabled: hasWindow,
+      checked: getActivePair(settings)?.audioEnabled ?? false,
     },
   ];
 
   const trayMenu = Menu.buildFromTemplate(menuItems);
 
-  // Add capture devices menu
-  appendCaptureDevicesMenu(trayMenu, mainWindow, captureDevices, settings);
-
-  // Add control device quick-switch submenu
-  appendControlDevicesMenu(trayMenu, _onDeviceSelected, settings);
+  // Windows submenu (enable/disable each capture device's window) + Linked Device submenu
+  // (relink the active window's control).
+  appendWindowsMenu(trayMenu, captureDevices, settings);
+  appendLinkedDeviceMenu(trayMenu, _onDeviceSelected, settings, captureDevices, displayWindow);
 
   // Add common menu items
   const commonItems = [
@@ -612,7 +631,7 @@ function createTrayMenu(
   trayStopScriptRecordingItem = trayContextMenu.getMenuItemById("tray-stop-script-recording");
   trayScriptsSubmenuItem = trayContextMenu.getMenuItemById("tray-scripts-submenu");
   trayStopScriptItem = trayContextMenu.getMenuItemById("tray-stop-script");
-  updateTrayRecordingMenuItems(isCurrentlyRecording);
+  updateTrayRecordingMenuItems(isCurrentlyRecording, activeVisible);
 
   // Set the context menu for the tray
   if (tray) {
@@ -620,54 +639,96 @@ function createTrayMenu(
   }
 }
 
-function appendCaptureDevicesMenu(menu, mainWindow, captureDevices = null, settings = null) {
-  if (!captureDevices || captureDevices.length === 0) {
-    // If no capture devices are available, just return
-    return;
-  }
+function controlLabel(device) {
+  return device.alias
+    ? `${device.type}: ${device.alias} - ${device.ipAddress}`
+    : `${device.type}: ${device.ipAddress}`;
+}
 
-  menu.append(new MenuItem({ type: "separator" }));
-  captureDevices.forEach((device, index) => {
-    let deviceLabel = device.label || `Device ${index + 1}`;
-    const found = settings?.control?.deviceList?.find((d) => d.linked === device.deviceId);
-    deviceLabel += found ? ` - ${found.type} ${found.alias ?? found.ipAddress}` : "";
-    const menuItem = new MenuItem({
-      label: deviceLabel,
-      type: "radio",
-      checked: settings?.display?.deviceId === device.deviceId,
-      click: () => {
-        mainWindow.webContents.send("update-capture-device", device.deviceId);
-      },
-    });
-    menu.append(menuItem);
+// Build the "Display Windows" submenu items — one entry per detected capture device with
+// an Enabled checkbox (mirrors the General tab). Toggling enables/disables that device's
+// Display window. The label shows the linked control device. Reused by the tray menu and
+// the macOS View app menu. Relies on _windowActions.enableCapture.
+function windowsSubmenuItems(captureDevices = null, settings = null) {
+  const devices = captureDevices || [];
+  if (devices.length === 0) {
+    return [{ label: "No capture devices", enabled: false }];
+  }
+  const pairs = settings?.pairs || [];
+  return devices.map((device, index) => {
+    const pair = pairs.find((p) => p.captureDeviceId === device.deviceId);
+    const control = pair?.controlDeviceId
+      ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
+      : null;
+    const capLabel = device.label || `Device ${index + 1}`;
+    const label = control ? `${capLabel} → ${controlLabel(control)}` : capLabel;
+    const enabled = pair?.visible === true;
+    const visible = enabled && (_windowActions?.isVisible?.(device.deviceId) ?? false);
+    return {
+      label,
+      submenu: [
+        {
+          // Enabled = the Display window exists (created/destroyed).
+          label: "Enabled",
+          type: "checkbox",
+          checked: enabled,
+          click: (item) => _windowActions?.enableCapture?.(device.deviceId, item.checked),
+        },
+        {
+          // Visible = show/hide the enabled window without destroying it.
+          label: "Visible",
+          type: "checkbox",
+          checked: visible,
+          enabled,
+          click: (item) => _windowActions?.setVisible?.(device.deviceId, item.checked),
+        },
+      ],
+    };
   });
 }
 
-function appendControlDevicesMenu(menu, onDeviceSelected, settings) {
+function appendWindowsMenu(menu, captureDevices = null, settings = null) {
+  menu.append(new MenuItem({ type: "separator" }));
+  menu.append(
+    new MenuItem({
+      label: "Display Windows",
+      submenu: windowsSubmenuItems(captureDevices, settings),
+    })
+  );
+}
+
+// "Linked Device" submenu — relink the control device of the active window. Shown only
+// when there actually is an active (enabled) window; the header names which window it affects.
+function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices = null, activeWindow = null) {
   const deviceList = settings?.control?.deviceList;
   if (!deviceList || deviceList.length === 0) return;
+  if (!activeWindow) return; // no enabled window → nothing to relink
+  const activePair = getActivePair(settings);
+  if (!activePair) return;
+
+  const cap = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId);
+  const headerSuffix = cap?.label ? ` (${cap.label})` : "";
+  const activeControlId = activePair.controlDeviceId;
 
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(
     new MenuItem({
-      label: "Control Device",
+      label: `Linked Device${headerSuffix}`,
       submenu: deviceList.map((device) => ({
-        label: device.alias
-          ? `${device.type}: ${device.alias} - ${device.ipAddress}`
-          : `${device.type}: ${device.ipAddress}`,
+        label: controlLabel(device),
         type: "radio",
-        checked: settings?.control?.deviceId === device.id,
+        checked: activeControlId === device.id,
         click: () => onDeviceSelected?.(device.id),
       })),
     })
   );
 }
 
-function updateTrayRecordingMenuItems(isRecording) {
+function updateTrayRecordingMenuItems(isRecording, canRecord = true) {
   if (!tray || !trayStartRecordingItem || !trayStopRecordingItem) return;
 
-  trayStartRecordingItem.enabled = !isRecording;
-  trayStopRecordingItem.enabled = isRecording;
+  trayStartRecordingItem.enabled = canRecord && !isRecording;
+  trayStopRecordingItem.enabled = canRecord && isRecording;
 }
 
 function toggleDockIcon(showInDock, mainWindow, displayWindow = null, packageInfo = null) {
@@ -703,9 +764,10 @@ function toggleDockIcon(showInDock, mainWindow, displayWindow = null, packageInf
   } else {
     // Hide from dock/taskbar and create tray
 
-    // Create tray first
-    if (!tray && mainWindow && display && packageInfo) {
-      createTray(mainWindow, display, packageInfo);
+    // Create tray first. The tray must exist even when there is no Display window yet
+    // (e.g. no capture device connected or all disabled), so it does not depend on `display`.
+    if (!tray && mainWindow && packageInfo) {
+      createTray(mainWindow, display || null, packageInfo);
     }
 
     if (isMacOS) {
@@ -753,22 +815,20 @@ function createContextMenu(
     {
       ...MenuItems.alwaysOnTop(displayWindow, mainWindow),
       id: "context-always-on-top",
-      checked: settings?.display?.alwaysOnTop ?? displayWindow.isAlwaysOnTop(),
+      checked: getActivePair(settings)?.alwaysOnTop ?? displayWindow?.isAlwaysOnTop?.() ?? true,
     },
     {
       ...MenuItems.enableAudio(displayWindow, mainWindow),
       id: "context-enable-audio",
-      checked: settings?.display?.audioEnabled ?? false,
+      checked: getActivePair(settings)?.audioEnabled ?? false,
     },
   ];
 
   const menu = Menu.buildFromTemplate(menuItems);
 
-  // Add capture devices menu
-  appendCaptureDevicesMenu(menu, mainWindow, captureDevices, settings);
-
-  // Add control device quick-switch submenu
-  appendControlDevicesMenu(menu, _onDeviceSelected, settings);
+  // Linked Device submenu (relink the active window's control). The global "Display
+  // Windows" enable/disable list lives in the menu bar / View app menu, not this popup.
+  appendLinkedDeviceMenu(menu, _onDeviceSelected, settings, captureDevices, displayWindow);
 
   // Add remaining menu items
   const additionalItems = [
@@ -904,12 +964,10 @@ module.exports = {
   updateEnableAudioMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
-  updateShowDisplayMenuItem,
   updateScriptRecordingMenuItems,
   updateScriptsSubmenu,
   createTrayMenu,
-  appendCaptureDevicesMenu,
-  appendControlDevicesMenu,
+  setWindowActions,
   updateTrayRecordingMenuItems,
   toggleDockIcon,
   createContextMenu,

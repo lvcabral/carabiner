@@ -74,30 +74,40 @@ field.
 
 ## Tool reference
 
+> **Multiple windows.** Carabiner can run several Display windows at once — one per
+> capture device, each linked to its own control device (configured in the General tab).
+> Device/window tools act on the **active** window by default (the last one focused, or set
+> via `select_device`). To target a specific window instead, pass the optional **`deviceId`**
+> argument (the window's control device id, as returned by `list_windows`). Tools accepting
+> `deviceId`: `get_current_device`, `send_key`, `send_text`, `launch_app`, `take_screenshot`,
+> `start_recording`, `stop_recording`, `run_script`, `show_display`, `hide_display`,
+> `toggle_fullscreen`, `toggle_on_top`.
+
 ### Device control
 | Tool | Description |
 |------|-------------|
 | `list_devices` | All configured control devices with protocol and connection status |
-| `select_device` | Switch the active device by id (`<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`, `<host:port>\|rdk`) |
-| `send_key` | Send one keypress (see [Keys](#keys)) |
-| `send_text` | Type a string on the current device |
-| `get_current_device` | Protocol, address, and connection state of the active device |
-| `launch_app` | Launch an application by client name (and optional URI). **RDK (Xumo) only** — uses `RDKShell.launchApplication` |
+| `list_windows` | Open Display windows (pairs): `pairId`, capture label, control device id, visibility, and which is active. Use a window's `controlDeviceId` as `deviceId` to target it |
+| `select_device` | Make the window bound to a device active (or switch the active window's control device to it). Id format `<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`, `<host:port>\|rdk` |
+| `send_key` | Send one keypress (see [Keys](#keys)); optional `deviceId` |
+| `send_text` | Type a string on the device; optional `deviceId` |
+| `get_current_device` | Protocol, address, and connection state of the active (or `deviceId`) device |
+| `launch_app` | Launch an application by client name (and optional URI). **RDK (Xumo) only** — uses `RDKShell.launchApplication`; optional `deviceId` |
 
 ### Capture & recording
 | Tool | Description |
 |------|-------------|
 | `list_capture_devices` | Available HDMI capture cards |
 | `select_capture_device` | Switch the active capture source |
-| `take_screenshot` | Capture the current frame; returns a PNG image and (by default) saves it to the screenshots folder |
-| `start_recording` | Begin recording (optional `filename_prefix`) |
-| `stop_recording` | Stop recording, save to the recordings folder, return the file path |
+| `take_screenshot` | Capture the current frame; returns a PNG image and (by default) saves it to the screenshots folder; optional `deviceId` |
+| `start_recording` | Begin recording (optional `filename_prefix`); optional `deviceId` |
+| `stop_recording` | Stop recording, save to the recordings folder, return the file path; optional `deviceId` |
 
 ### Automation scripts
 | Tool | Description |
 |------|-------------|
 | `list_scripts` | All saved scripts (id, name, controlType, step count) |
-| `run_script` | Run a script by id; **blocks until it completes or is cancelled** |
+| `run_script` | Run a script by id; **blocks until it completes or is cancelled**; optional `deviceId` to play on a specific window |
 | `stop_script` | Cancel the running script |
 | `create_script` | Create a script from a steps array |
 | `delete_script` | Remove a script by id |
@@ -105,9 +115,9 @@ field.
 ### Display & app state
 | Tool | Description |
 |------|-------------|
-| `show_display` / `hide_display` | Show or hide the floating display window |
-| `toggle_fullscreen` | Toggle fullscreen |
-| `toggle_on_top` | Toggle always-on-top |
+| `show_display` / `hide_display` | Show or hide the floating display window; optional `deviceId` |
+| `toggle_fullscreen` | Toggle fullscreen; optional `deviceId` |
+| `toggle_on_top` | Toggle always-on-top; optional `deviceId` |
 | `get_settings` | Read-only settings snapshot (auth token redacted) |
 | `get_app_info` | App version, OS, and MCP server status |
 

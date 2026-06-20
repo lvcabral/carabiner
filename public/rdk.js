@@ -9,16 +9,19 @@
  *--------------------------------------------------------------------------------------------*/
 const http = require("http");
 
-let host = "";
-let port = 9998;
-let token = "";
-let isRDKConnected = false;
+// Track every connected RDK target so multiple Display windows can each drive a
+// different Xumo/RDK box at the same time. Keyed by "host:port" → {host,port,token}.
+const connectedTargets = new Map();
 let rpcSeq = 0;
 
+function targetKey(host, port) {
+  return `${host}:${port || 9998}`;
+}
+
 function jsonRpc(method, params = {}, options = {}) {
-  const targetHost = options.host ?? host;
-  const targetPort = options.port ?? port;
-  const targetToken = options.token ?? token;
+  const targetHost = options.host;
+  const targetPort = options.port ?? 9998;
+  const targetToken = options.token ?? "";
   const timeoutMs = options.timeoutMs ?? 5000;
   if (!targetHost) {
     return Promise.reject(new Error("RDK host is not configured."));
@@ -82,24 +85,39 @@ function connectRDK(rdkHost, rdkPort, rdkToken) {
     console.error("RDK host not provided.");
     return false;
   }
-  host = rdkHost;
-  port = Number(rdkPort) || 9998;
-  token = typeof rdkToken === "string" ? rdkToken : "";
-  isRDKConnected = true;
-  console.log(`RDK configured for ${host}:${port}`);
-  jsonRpc("Controller.1.status").catch((err) => {
-    console.warn(`RDK reachability check failed for ${host}:${port}: ${err.message}`);
+  const port = Number(rdkPort) || 9998;
+  const token = typeof rdkToken === "string" ? rdkToken : "";
+  connectedTargets.set(targetKey(rdkHost, port), { host: rdkHost, port, token });
+  console.log(`RDK configured for ${rdkHost}:${port}`);
+  jsonRpc("Controller.1.status", {}, { host: rdkHost, port, token }).catch((err) => {
+    console.warn(`RDK reachability check failed for ${rdkHost}:${port}: ${err.message}`);
   });
-  return isRDKConnected;
+  return true;
 }
 
-function disconnectRDK() {
-  host = "";
-  port = 9998;
-  token = "";
-  isRDKConnected = false;
-  console.log("Disconnected from RDK");
-  return isRDKConnected;
+// Disconnect a specific target; with no argument, forget every target.
+function disconnectRDK(rdkHost, rdkPort) {
+  if (rdkHost) {
+    connectedTargets.delete(targetKey(rdkHost, Number(rdkPort) || 9998));
+    console.log(`Disconnected from RDK ${rdkHost}`);
+  } else {
+    connectedTargets.clear();
+    console.log("Disconnected from RDK");
+  }
+  return false;
+}
+
+function isRDKConnected(rdkHost, rdkPort) {
+  if (rdkHost) return connectedTargets.has(targetKey(rdkHost, Number(rdkPort) || 9998));
+  return connectedTargets.size > 0;
+}
+
+// Resolve a target descriptor ({host,port,token}) to use for a send call,
+// preferring the connection registry so the caller can pass a partial {host,port}.
+function resolveTarget(target = {}) {
+  const key = targetKey(target.host, target.port);
+  const stored = connectedTargets.get(key);
+  return stored || (target.host ? { host: target.host, port: target.port || 9998, token: target.token || "" } : null);
 }
 
 async function testRDKConnection({ host: testHost, port: testPort, token: testToken } = {}) {
@@ -115,9 +133,10 @@ async function testRDKConnection({ host: testHost, port: testPort, token: testTo
   }
 }
 
-function sendRDKKey(keyCode, modifiers = []) {
-  if (!isRDKConnected || !host) {
-    console.error("Cannot send RDK key — not connected.", { isRDKConnected, host });
+function sendRDKKey(keyCode, modifiers = [], target) {
+  const resolved = resolveTarget(target);
+  if (!resolved) {
+    console.error("Cannot send RDK key — not connected.", { target });
     return;
   }
   const code = parseInt(keyCode, 10);
@@ -125,23 +144,25 @@ function sendRDKKey(keyCode, modifiers = []) {
     console.error(`Invalid RDK key code: ${keyCode}`);
     return;
   }
-  jsonRpc("org.rdk.RDKShell.1.injectKey", { keyCode: code, modifiers }).catch((err) => {
+  jsonRpc("org.rdk.RDKShell.1.injectKey", { keyCode: code, modifiers }, resolved).catch((err) => {
     console.error(`RDK injectKey failed for ${code}: ${err.message}`);
   });
 }
 
-async function sendRDKText(text) {
-  if (!isRDKConnected || typeof text !== "string" || text.length === 0) {
+async function sendRDKText(text, target) {
+  const resolved = resolveTarget(target);
+  if (!resolved || typeof text !== "string" || text.length === 0) {
     return;
   }
   for (const char of text) {
     const mapping = textCharToInjectKey(char);
     if (!mapping) continue;
     try {
-      await jsonRpc("org.rdk.RDKShell.1.injectKey", {
-        keyCode: mapping.keyCode,
-        modifiers: mapping.modifiers,
-      });
+      await jsonRpc(
+        "org.rdk.RDKShell.1.injectKey",
+        { keyCode: mapping.keyCode, modifiers: mapping.modifiers },
+        resolved
+      );
     } catch (err) {
       console.error(`RDK text inject failed for '${char}': ${err.message}`);
     }
@@ -149,8 +170,9 @@ async function sendRDKText(text) {
   }
 }
 
-function launchRDKApp(client, uri) {
-  if (!isRDKConnected || !host) {
+function launchRDKApp(client, uri, target) {
+  const resolved = resolveTarget(target);
+  if (!resolved) {
     return Promise.reject(new Error("RDK is not connected."));
   }
   if (!client) {
@@ -158,7 +180,7 @@ function launchRDKApp(client, uri) {
   }
   const params = { client };
   if (uri) params.uri = uri;
-  return jsonRpc("org.rdk.RDKShell.1.launchApplication", params);
+  return jsonRpc("org.rdk.RDKShell.1.launchApplication", params, resolved);
 }
 
 // Linux input event code reference for the printable ASCII range.

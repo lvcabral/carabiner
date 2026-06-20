@@ -24,12 +24,13 @@ const {
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
-const { saveSettings, loadSettings } = require("./settings");
-const { connectADB, disconnectADB, sendADBKey, sendADBText } = require("./adb");
-const { connectATV, disconnectATV, sendATVKey, sendATVText } = require("./appletv");
+const { saveSettings, loadSettings, makePair, newPairId } = require("./settings");
+const { connectADB, disconnectADB, isADBConnected, sendADBKey, sendADBText } = require("./adb");
+const { connectATV, disconnectATV, isATVConnected, sendATVKey, sendATVText } = require("./appletv");
 const {
   connectRDK,
   disconnectRDK,
+  isRDKConnected,
   sendRDKKey,
   sendRDKText,
   launchRDKApp,
@@ -42,10 +43,10 @@ const {
   updateEnableAudioMenuItem,
   updateScreenshotMenuItems,
   updateRecordingMenuItems,
-  updateShowDisplayMenuItem,
   updateScriptRecordingMenuItems,
   updateScriptsSubmenu,
   createTrayMenu,
+  setWindowActions,
   updateTrayRecordingMenuItems,
   toggleDockIcon,
   createContextMenu,
@@ -62,16 +63,39 @@ const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.
 
 if (require("electron-squirrel-startup") === true) app.quit();
 
+// Single-instance lock — only one Carabiner process may run. Running a second
+// instance would overwrite the shared settings.json, fail to bind the MCP port,
+// and waste memory with extra Electron processes. When a second launch is
+// attempted, bring the running instance forward instead (see issue #74).
+const gotInstanceLock = app.requestSingleInstanceLock();
+if (!gotInstanceLock) {
+  app.quit();
+} else {
+  const surfaceWindow = (win) => {
+    if (!win || win.isDestroyed()) return false;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    return true;
+  };
+  app.on("second-instance", () => {
+    // Show the active Display window; if no window is enabled, show the Settings window.
+    if (!surfaceWindow(getActiveWindow())) {
+      surfaceWindow(mainWindow);
+    }
+  });
+}
+
 const isMacOS = process.platform === "darwin";
 const isWindows = process.platform === "win32";
 const isDev = process.env.ELECTRON_IS_DEV === "1";
 const settings = loadSettings();
-let lastSize = [500, 290];
-let controlIp = "";
-let controlType = "";
-let isADBConnected = false;
-let isATVConnected = false;
-let isRDKConnected = false;
+// Multi-window registry: each capture+control pair owns its own Display window.
+let mainWindow = null; // settings (React) window; hoisted so helpers can reach it
+const pairWindows = new Map(); // pairId -> BrowserWindow
+const pairState = new Map(); // pairId -> { controlIp, controlType }
+const senderToPair = new Map(); // webContents.id -> pairId (route renderer → main messages)
+let activePairId = settings.activePairId || settings.pairs?.[0]?.id || "";
 let isQuitting = false;
 let captureDevices;
 let isCurrentlyRecording = false;
@@ -123,6 +147,107 @@ function stopUpdateChecks() {
   }
 }
 
+// ----- Pair / window helpers (module scope so both startup and IPC can use them) -----
+function getPair(pairId) {
+  return (settings.pairs || []).find((p) => p.id === pairId) || null;
+}
+function getActivePair() {
+  return getPair(activePairId) || (settings.pairs || [])[0] || null;
+}
+function getWindow(pairId) {
+  const win = pairWindows.get(pairId);
+  return win && !win.isDestroyed() ? win : null;
+}
+function getActiveWindow() {
+  const win = getWindow(activePairId);
+  if (win) return win;
+  for (const w of pairWindows.values()) {
+    if (w && !w.isDestroyed()) return w;
+  }
+  return null;
+}
+function getDisplayWindows() {
+  return [...pairWindows.values()].filter((w) => w && !w.isDestroyed());
+}
+function pairForEvent(event) {
+  const id = event?.sender?.id;
+  return id != null ? senderToPair.get(id) : undefined;
+}
+// Resolve an MCP deviceId to the pair bound to it; fall back to the active pair.
+function pairIdForDeviceId(deviceId) {
+  if (!deviceId) return activePairId;
+  const p = (settings.pairs || []).find((x) => x.controlDeviceId === deviceId);
+  return p ? p.id : activePairId;
+}
+function setActivePair(pairId) {
+  if (!pairId || activePairId === pairId) return;
+  activePairId = pairId;
+  settings.activePairId = pairId;
+  saveSettings(settings);
+  mainWindow?.webContents?.send("active-pair-changed", pairId);
+  rebuildMenus();
+}
+
+// Title for a Display window: capture card name + linked control (so the macOS Window
+// menu can tell multiple Display windows apart).
+function pairWindowTitle(pair) {
+  const cap = (captureDevices || []).find((d) => d.deviceId === pair.captureDeviceId);
+  const capName = cap?.label || "Display Window";
+  const ctl = pair.controlDeviceId
+    ? settings.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
+    : null;
+  const ctlName = ctl ? ctl.alias || ctl.type : null;
+  return ctlName ? `${capName} → ${ctlName}` : capName;
+}
+
+// Keep each open Display window's title in sync with its pair (capture + control).
+function updateWindowTitles() {
+  for (const [pairId, win] of pairWindows) {
+    if (!win || win.isDestroyed()) continue;
+    const pair = getPair(pairId);
+    if (pair) win.setTitle(pairWindowTitle(pair));
+  }
+}
+
+// Rebuild the macOS app menu and tray so their actions (and the "Active Window" indicator)
+// target the current active window. Non-context menus capture a window reference at build
+// time, so they must be rebuilt when the active window, device list, or control changes.
+function rebuildMenus() {
+  updateWindowTitles();
+  if (!mainWindow) return;
+  const active = getActiveWindow();
+  if (isMacOS) {
+    createMacOSMenu(mainWindow, active, packageInfo, settings, captureDevices);
+  }
+  const tray = getTray();
+  if (tray) {
+    createTrayMenu(
+      mainWindow,
+      active,
+      packageInfo,
+      captureDevices,
+      settings,
+      isCurrentlyRecording,
+      switchControlDevice
+    );
+  }
+  // Re-apply dynamic states that a fresh build resets. Screenshot/recording require the
+  // active window to be visible; the rest just require an enabled window to exist.
+  const hasWindow = !!active;
+  const activeVisible = hasWindow && active.isVisible();
+  updateScreenshotMenuItems(activeVisible);
+  updateRecordingMenuItems(activeVisible, isCurrentlyRecording);
+  updateTrayRecordingMenuItems(isCurrentlyRecording, activeVisible);
+  updateAlwaysOnTopMenuItem(getActivePair()?.alwaysOnTop !== false);
+  updateEnableAudioMenuItem(getActivePair()?.audioEnabled === true);
+  // No window → also disable "Start Script Recording" / "Run Script".
+  updateScriptRecordingMenuItems(
+    !hasWindow || isScriptRecording || isScriptPlaying,
+    isScriptRecording,
+    isScriptPlaying
+  );
+}
+
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
   path: app.getPath("exe"),
@@ -160,27 +285,8 @@ function createWindow(name, options, showOnStart = true) {
     if (name === "mainWindow" && !isQuitting) {
       event.preventDefault();
       win?.hide();
-    } else if (name === "displayWindow") {
-      resetFullscreenVars();
-      app.quit();
     }
   });
-
-  if (name === "displayWindow") {
-    win.on("hide", () => {
-      win.webContents.send("stop-video-stream");
-      updateScreenshotMenuItems(false);
-      updateRecordingMenuItems(false, false);
-      updateTrayRecordingMenuItems(isCurrentlyRecording);
-    });
-
-    win.on("show", () => {
-      win.webContents.send("start-video-stream");
-      updateScreenshotMenuItems(true);
-      updateRecordingMenuItems(true, false);
-      updateTrayRecordingMenuItems(isCurrentlyRecording);
-    });
-  }
 
   return win;
 }
@@ -208,17 +314,74 @@ function createMainWindow() {
   return win;
 }
 
-function createDisplayWindow() {
-  if (settings.display?.resolution?.includes("px")) {
-    lastSize = settings.display.resolution
-      .split("|")
-      .map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
+// Resolve the RDK connection config ({host,port,token}) for a "<host:port>|rdk" device id.
+function findRDKDeviceConfig(deviceId) {
+  if (typeof deviceId !== "string" || !deviceId.endsWith("|rdk")) return null;
+  const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
+  if (!device) {
+    const [hostPort] = deviceId.split("|");
+    const [host, portStr] = hostPort.split(":");
+    const port = parseInt(portStr, 10);
+    if (!host || Number.isNaN(port)) return null;
+    return { host, port, token: "" };
+  }
+  return { host: device.ipAddress, port: device.port, token: device.token || "" };
+}
+
+// True when another pair is still bound to the same control device id.
+function isControlTargetSharedByOthers(pairId, deviceId) {
+  if (!deviceId) return false;
+  return (settings.pairs || []).some((p) => p.id !== pairId && p.controlDeviceId === deviceId);
+}
+
+// Connect (or re-register) the control device a pair is bound to, recording its
+// routing target in pairState. Connecting the same target twice is a no-op in the
+// control modules, so two pairs sharing a device safely share one connection.
+function connectPairControl(pairId) {
+  const pair = getPair(pairId);
+  if (!pair) return;
+  const deviceId = pair.controlDeviceId || "";
+  const [ip = "", type = ""] = deviceId ? deviceId.split("|") : [];
+  pairState.set(pairId, { controlDeviceId: deviceId, controlIp: ip, controlType: type });
+  if (!deviceId) return;
+  if (type === "adb") connectADB(ip, settings.control?.adbPath);
+  else if (type === "atv") connectATV(ip, settings.control?.atvremotePath);
+  else if (type === "rdk") {
+    const cfg = findRDKDeviceConfig(deviceId);
+    if (cfg) connectRDK(cfg.host, cfg.port, cfg.token);
+  }
+}
+
+// Disconnect the control device for a pair, unless another pair still uses it.
+function disconnectPairControl(pairId, deviceId) {
+  const id = deviceId ?? pairState.get(pairId)?.controlDeviceId;
+  if (!id || isControlTargetSharedByOthers(pairId, id)) return;
+  const [ip = "", type = ""] = id.split("|");
+  if (type === "adb") disconnectADB(ip);
+  else if (type === "atv") disconnectATV(ip);
+  else if (type === "rdk") {
+    const cfg = findRDKDeviceConfig(id);
+    if (cfg) disconnectRDK(cfg.host, cfg.port);
+  }
+}
+
+// True once both the settings window and every Display window are hidden — used on
+// macOS dock mode to hide the whole app.
+function allWindowsHidden() {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) return false;
+  return getDisplayWindows().every((w) => !w.isVisible());
+}
+
+function createDisplayWindow(pair) {
+  let sizeFromRes = null;
+  if (typeof pair.resolution === "string" && pair.resolution.includes("px")) {
+    sizeFromRes = pair.resolution.split("|").map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
   }
 
   // Windows 11 specific configuration to remove the 1-pixel border
   const windowOptions = {
-    width: lastSize[0] ?? 500,
-    height: lastSize[1] ?? 290,
+    width: sizeFromRes?.[0] ?? 500,
+    height: sizeFromRes?.[1] ?? 290,
     minWidth: 500,
     minHeight: 290,
     titleBarStyle: "hidden",
@@ -226,7 +389,7 @@ function createDisplayWindow() {
     darkTheme: false,
     hasShadow: false,
     frame: false,
-    alwaysOnTop: true,
+    alwaysOnTop: pair.alwaysOnTop !== false,
     skipTaskbar: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -244,8 +407,8 @@ function createDisplayWindow() {
     windowOptions.shadow = false;
   }
 
-  // Create window directly instead of using createWindow wrapper to avoid webPreferences conflicts
-  const windowState = settings["displayWindow"] || {
+  // Per-pair saved bounds override the size derived from resolution.
+  const windowState = pair.bounds || {
     width: windowOptions.width,
     height: windowOptions.height,
     x: undefined,
@@ -265,84 +428,284 @@ function createDisplayWindow() {
   });
 
   if (isMacOS) win.setWindowButtonVisibility(false);
-  win.loadFile("public/display.html");
+  // Pass the pair id to the renderer so it knows which capture/control it owns.
+  win.loadFile("public/display.html", { query: { pairId: pair.id } });
   win.setResizable(true);
   win.setAspectRatio(16 / 9);
+
+  // Keep our pair-based title (capture + control) instead of the page's <title>, so the
+  // macOS Window menu can distinguish multiple Display windows.
+  win.on("page-title-updated", (e) => e.preventDefault());
+  win.setTitle(pairWindowTitle(pair));
+
+  pairWindows.set(pair.id, win);
+  senderToPair.set(win.webContents.id, pair.id);
+
+  const saveBounds = () => {
+    if (!win.isFullScreen()) {
+      const target = getPair(pair.id);
+      if (target) {
+        target.bounds = win.getBounds();
+        saveSettings(settings);
+      }
+    }
+  };
 
   if (isWindows) {
     // Apply Windows 11 specific fixes after the window is ready
     win.once("ready-to-show", () => {
-      // Force transparent background and remove any system borders
       win.setBackgroundColor("#00000000");
-
-      // Show the window after applying the background
-      if (settings.display?.visible !== false) {
-        win.show();
-      }
+      if (pair.visible !== false) win.show();
     });
-    // This is a workaround for the issue where frameless windows on Windows 11
-    // show a title bar when the window loses focus and removes the 1-pixel border.
-    win.on("blur", () => {
-      win.setBackgroundColor("#00000000");
-    });
-    win.on("focus", () => {
-      win.setBackgroundColor("#00000000");
-    });
-    win.on("show", () => {
-      win.setBackgroundColor("#00000000");
-    });
-    win.on("restore", () => {
-      win.setBackgroundColor("#00000000");
-    });
+    // Workaround: frameless windows on Windows 11 flash a title bar on focus changes.
+    win.on("blur", () => win.setBackgroundColor("#00000000"));
+    win.on("show", () => win.setBackgroundColor("#00000000"));
+    win.on("restore", () => win.setBackgroundColor("#00000000"));
   } else {
-    // For non-Windows platforms, show normally after ready
     win.once("ready-to-show", () => {
-      if (settings.display?.visible !== false) {
-        win.show();
-      }
+      if (pair.visible !== false) win.show();
     });
+  }
+
+  win.on("focus", () => {
+    if (isWindows) win.setBackgroundColor("#00000000");
+    setActivePair(pair.id);
+  });
+
+  if (!isMacOS) {
+    win.on("system-context-menu", (event) => event.preventDefault());
   }
 
   win.on("move", () => {
     win.webContents.send("window-moved");
-    // Save position when window is moved
-    if (!win.isFullScreen()) {
-      const bounds = win.getBounds();
-      settings["displayWindow"] = bounds;
-      saveSettings(settings);
-    }
+    saveBounds();
   });
 
-  // Save size when window is resized
   win.on("resize", () => {
-    // Check for fullscreen state and toggling state on Windows/Linux
     if (!win.isFullScreen() && !isTogglingFullscreen()) {
-      const bounds = win.getBounds();
-      settings["displayWindow"] = bounds;
-      saveSettings(settings);
+      saveBounds();
+    }
+    if (!isTogglingFullscreen()) {
+      if (!isMacOS) resetFullscreenVars();
+      const [width, height] = win.getSize();
+      mainWindow?.webContents?.send("shared-window-channel", {
+        type: "window-resized",
+        payload: { width, height, pairId: pair.id },
+      });
     }
   });
 
-  win.on("enter-full-screen", () => {
-    win.webContents.send("enter-full-screen");
+  win.on("enter-full-screen", () => win.webContents.send("enter-full-screen"));
+  win.on("leave-full-screen", () => win.webContents.send("leave-full-screen"));
+
+  win.on("show", () => {
+    win.webContents.send("window-show");
+    // Rebuild menus so window-specific actions reflect the new visibility/active window.
+    rebuildMenus();
   });
 
-  win.on("leave-full-screen", () => {
-    win.webContents.send("leave-full-screen");
+  win.on("hide", () => {
+    win.webContents.send("window-hide");
+    if (isMacOS && settings.display?.showInDock && !isTogglingFullscreen() && allWindowsHidden()) {
+      app.hide();
+    }
+    if (isScriptRecording) {
+      isScriptRecording = false;
+    }
+    rebuildMenus();
   });
 
-  // Add close event handler to save window position and size
-  win.on("close", (event) => {
-    if (!win.isFullScreen()) {
-      const bounds = win.getBounds();
-      settings["displayWindow"] = bounds;
+  win.on("minimize", () => {
+    win.webContents.send("window-minimize");
+    if (isScriptRecording) isScriptRecording = false;
+    rebuildMenus();
+  });
+
+  win.on("restore", () => {
+    win.webContents.send("window-restore");
+    rebuildMenus();
+  });
+
+  // Closing one Display window no longer quits the app — it just hides that pair.
+  // The app quits via the tray/menu Quit, before-quit, or window-all-closed policy.
+  win.on("close", () => {
+    saveBounds();
+    const target = getPair(pair.id);
+    // Only a user-initiated close marks the pair hidden; on app quit we preserve the
+    // last visibility so windows reopen as they were on the next launch.
+    if (target && !isQuitting) {
+      target.visible = false;
       saveSettings(settings);
     }
+    senderToPair.delete(win.webContents.id);
+    pairWindows.delete(pair.id);
+    if (!isQuitting) disconnectPairControl(pair.id);
+    pairState.delete(pair.id);
     resetFullscreenVars();
-    app.quit();
   });
 
   return win;
+}
+
+// Open (create + connect + show) the Display window for a pair if not already open.
+function openPair(pair) {
+  if (!pair || getWindow(pair.id)) return getWindow(pair.id);
+  const win = createDisplayWindow(pair);
+  setAlwaysOnTop(pair.alwaysOnTop !== false, win);
+  connectPairControl(pair.id);
+  return win;
+}
+
+// Close and tear down the Display window for a pair.
+function closePair(pairId) {
+  const win = getWindow(pairId);
+  if (win) win.close();
+}
+
+// Enable/disable a pair (pair.visible is the "enabled" flag = whether a Display window
+// exists for the capture device). Enabling opens+shows the window; disabling closes it.
+// Temporary show/hide of an enabled window is a separate concern (the global shortcut).
+function togglePairVisibility(pairId, enabled) {
+  const pair = getPair(pairId);
+  if (!pair) return;
+  pair.visible = enabled;
+  saveSettings(settings);
+  if (enabled) {
+    let win = getWindow(pairId);
+    if (!win) win = openPair(pair);
+    win?.show();
+  } else {
+    closePair(pairId);
+  }
+  mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+}
+
+// Switch the control device bound to a pair (defaults to the active pair). Reconciles
+// the pair's control connection and notifies only that pair's Display window.
+function switchControlDevice(deviceId, pairId = activePairId) {
+  if (!deviceId) return;
+  const pair = getPair(pairId);
+  if (!pair) return;
+  const prevDeviceId = pair.controlDeviceId;
+  pair.controlDeviceId = deviceId;
+  saveSettings(settings);
+  if (prevDeviceId && prevDeviceId !== deviceId) {
+    disconnectPairControl(pairId, prevDeviceId);
+  }
+  connectPairControl(pairId);
+  const win = getWindow(pairId);
+  win?.webContents?.send("shared-window-channel", {
+    type: "set-control-selected",
+    payload: deviceId,
+  });
+  win?.webContents?.send("shared-window-channel", {
+    type: "set-control-list",
+    payload: settings.control.deviceList,
+  });
+  mainWindow?.webContents?.send("update-control-device", {
+    deviceId,
+    deviceList: settings.control.deviceList,
+    pairId,
+  });
+  mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+  rebuildMenus();
+}
+
+// Enable/disable a capture device's Display window from the tray, creating the pair on
+// demand. Mirrors the General tab's Enabled checkbox.
+function setCaptureWindowEnabled(captureDeviceId, enabled) {
+  if (!captureDeviceId) return;
+  if (!settings.pairs) settings.pairs = [];
+  let pair = settings.pairs.find((p) => p.captureDeviceId === captureDeviceId);
+  if (enabled) {
+    if (!pair) {
+      pair = makePair({ id: captureDeviceId, captureDeviceId, controlDeviceId: "", visible: true });
+      settings.pairs.push(pair);
+    } else {
+      pair.visible = true;
+    }
+    saveSettings(settings);
+    let win = getWindow(pair.id);
+    if (!win) win = openPair(pair);
+    win?.show();
+  } else if (pair) {
+    pair.visible = false;
+    // Forget the pair entirely if nothing else (a linked control) needs remembering.
+    if (!pair.controlDeviceId) {
+      settings.pairs = settings.pairs.filter((p) => p.id !== pair.id);
+    }
+    saveSettings(settings);
+    closePair(pair.id);
+  }
+  mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+  rebuildMenus();
+}
+
+// Show/hide an already-enabled window (transient — does NOT change the enabled flag, so
+// the window stays in the registry and reopens on next launch). Gives the menu a way to
+// re-show a window that was hidden via the shortcut or the Close Window command.
+function setCaptureWindowVisible(captureDeviceId, visible) {
+  const pair = (settings.pairs || []).find((p) => p.captureDeviceId === captureDeviceId);
+  if (!pair) return;
+  const win = getWindow(pair.id);
+  if (!win) return; // not enabled
+  if (visible) win.show();
+  else hideWindowSafely(win, settings);
+  rebuildMenus();
+}
+
+// Whether an enabled window is currently shown (used for the "Visible" menu checkbox).
+function isCaptureWindowVisible(captureDeviceId) {
+  const pair = (settings.pairs || []).find((p) => p.captureDeviceId === captureDeviceId);
+  if (!pair) return false;
+  const win = getWindow(pair.id);
+  return !!win && win.isVisible();
+}
+
+// Reconcile the live windows with settings.pairs: open enabled, close disabled/removed,
+// and apply control-device changes. Existing enabled windows are left as-is so a
+// shortcut-driven hide isn't undone by an unrelated settings edit.
+function reconcilePairs(newPairs) {
+  const next = (newPairs || []).map((p) => makePair(p));
+  const nextIds = new Set(next.map((p) => p.id));
+
+  // Close windows whose pair was removed entirely.
+  for (const id of [...pairWindows.keys()]) {
+    if (!nextIds.has(id)) closePair(id);
+  }
+
+  // Detect control-device changes before we overwrite settings.pairs.
+  const prevById = new Map((settings.pairs || []).map((p) => [p.id, p]));
+  settings.pairs = next;
+  if (!nextIds.has(activePairId)) {
+    activePairId = next[0]?.id || "";
+    settings.activePairId = activePairId;
+  }
+  saveSettings(settings);
+
+  for (const pair of next) {
+    const prev = prevById.get(pair.id);
+    const win = getWindow(pair.id);
+    // Disabled pair: ensure its window is closed (so it can't be re-shown by the shortcut).
+    if (pair.visible === false) {
+      if (win) closePair(pair.id);
+      continue;
+    }
+    // Enabled but no window yet: open it.
+    if (!win) {
+      openPair(pair);
+      continue;
+    }
+    // Enabled with an existing window: apply only control-device changes.
+    if (!prev || prev.controlDeviceId !== pair.controlDeviceId) {
+      if (prev?.controlDeviceId) disconnectPairControl(pair.id, prev.controlDeviceId);
+      connectPairControl(pair.id);
+      win.webContents.send("shared-window-channel", {
+        type: "set-control-selected",
+        payload: pair.controlDeviceId,
+      });
+    }
+  }
 }
 
 function setAlwaysOnTop(alwaysOnTop, window) {
@@ -354,19 +717,27 @@ function setAlwaysOnTop(alwaysOnTop, window) {
   updateAlwaysOnTopMenuItem(alwaysOnTop);
 }
 
-function registerShortcut(shortcut, window) {
+// Global shortcut toggles all Display windows together: if any is visible, hide them
+// all; otherwise show them all. Deterministic regardless of which window has focus.
+function registerShortcut(shortcut) {
   globalShortcut.unregisterAll();
+  if (!shortcut) return;
   globalShortcut.register(shortcut, () => {
-    if (window.isDestroyed()) return;
-    if (window.isVisible()) {
-      hideWindowSafely(window, settings);
+    const wins = getDisplayWindows();
+    if (wins.length === 0) return;
+    if (wins.some((w) => w.isVisible())) {
+      wins.forEach((w) => {
+        if (w.isVisible()) hideWindowSafely(w, settings);
+      });
     } else {
-      window.show();
+      wins.forEach((w) => w.show());
     }
   });
 }
 
 app.whenReady().then(async () => {
+  // Second instance: the lock holder handles focusing; bail before creating windows.
+  if (!gotInstanceLock) return;
   if (process.platform !== "linux") {
     try {
       const access = systemPreferences.getMediaAccessStatus("camera");
@@ -393,9 +764,24 @@ app.whenReady().then(async () => {
     }
   }
 
-  const mainWindow = createMainWindow();
-  const displayWindow = createDisplayWindow();
-  setAlwaysOnTop(settings.display.alwaysOnTop ?? true, displayWindow);
+  mainWindow = createMainWindow();
+  // Open a Display window for each ENABLED pair (visible !== false). Disabled pairs are
+  // remembered in settings but have no window until enabled.
+  (settings.pairs || []).filter((p) => p.visible !== false).forEach((pair) => openPair(pair));
+  // Drive the "Display Windows" submenu: Enabled (create/destroy) + Visible (show/hide).
+  setWindowActions({
+    enableCapture: setCaptureWindowEnabled,
+    setVisible: setCaptureWindowVisible,
+    isVisible: isCaptureWindowVisible,
+  });
+
+  // With no Display window (no capture device connected, or all disabled) there's nothing
+  // to look at, so always show the settings window at start so the user can configure one.
+  const anyEnabledPair = (settings.pairs || []).some((p) => p.visible !== false);
+  if (!anyEnabledPair && mainWindow && !mainWindow.isVisible()) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 
   // --- Allow Mac to sleep (issue #91) ---------------------------------------
   // Live audio I/O (and the playing <video>) cause macOS to hold
@@ -412,19 +798,20 @@ app.whenReady().then(async () => {
   let autoSuspended = false;
 
   function suspendCapture() {
-    if (autoSuspended || !displayWindow || displayWindow.isDestroyed()) return;
+    const windows = getDisplayWindows();
+    if (autoSuspended || windows.length === 0) return;
     autoSuspended = true;
     if (isDev) log.info("[allow-sleep] screen locked — pausing capture");
-    displayWindow.webContents.send("auto-suspend");
+    windows.forEach((win) => win.webContents.send("auto-suspend"));
   }
 
   function resumeCapture() {
     if (!autoSuspended) return;
     autoSuspended = false;
-    if (displayWindow && !displayWindow.isDestroyed() && displayWindow.isVisible()) {
-      if (isDev) log.info("[allow-sleep] screen unlocked — resuming capture");
-      displayWindow.webContents.send("auto-resume");
-    }
+    if (isDev) log.info("[allow-sleep] screen unlocked — resuming capture");
+    getDisplayWindows().forEach((win) => {
+      if (win.isVisible()) win.webContents.send("auto-resume");
+    });
   }
 
   function startSleepWatcher() {
@@ -450,17 +837,10 @@ app.whenReady().then(async () => {
     } else if (isDev) {
       log.info("[allow-sleep] watcher not started — display.allowSleep is disabled");
     }
-    createMacOSMenu(mainWindow, displayWindow, packageInfo, settings);
-    // Ensure menu reflects the correct always on top state from settings
-    updateAlwaysOnTopMenuItem(settings.display.alwaysOnTop ?? true);
-    // Ensure menu reflects the correct enable audio state from settings
-    updateEnableAudioMenuItem(settings.display.audioEnabled ?? false);
-    // Set initial state of show display menu item based on display window visibility
-    updateShowDisplayMenuItem(settings.display?.visible !== false);
-  } else {
-    displayWindow.on("system-context-menu", (event, point) => {
-      event.preventDefault();
-    });
+    createMacOSMenu(mainWindow, getActiveWindow(), packageInfo, settings, captureDevices);
+    // Ensure menu reflects the active pair's always on top / audio state from settings
+    updateAlwaysOnTopMenuItem(getActivePair()?.alwaysOnTop !== false);
+    updateEnableAudioMenuItem(getActivePair()?.audioEnabled === true);
   }
 
   // This is a workaround for the issue where frameless windows on Windows 11
@@ -468,7 +848,7 @@ app.whenReady().then(async () => {
   function resetFramelessWindow() {
     if (isWindows) {
       setTimeout(() => {
-        displayWindow?.setBackgroundColor("#00000000");
+        getDisplayWindows().forEach((win) => win.setBackgroundColor("#00000000"));
       }, 1000);
     }
   }
@@ -476,201 +856,61 @@ app.whenReady().then(async () => {
   // Initialize dock/tray mode based on user setting (both macOS and Windows)
   if (isMacOS || isWindows) {
     const showInDock = settings.display.showInDock !== false; // Default to true
-    toggleDockIcon(showInDock, mainWindow, displayWindow, packageInfo);
+    toggleDockIcon(showInDock, mainWindow, getActiveWindow(), packageInfo);
   }
 
-  if (
-    typeof settings?.control?.deviceId === "string" &&
-    settings.control.deviceId.includes("|adb")
-  ) {
-    [controlIp, controlType] = settings.control.deviceId.split("|");
-    if (!isADBConnected) {
-      isADBConnected = connectADB(controlIp, settings.control?.adbPath);
-    }
-  }
-
-  if (
-    typeof settings?.control?.deviceId === "string" &&
-    settings.control.deviceId.includes("|atv")
-  ) {
-    [controlIp, controlType] = settings.control.deviceId.split("|");
-    if (!isATVConnected) {
-      isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
-    }
-  }
-
-  if (
-    typeof settings?.control?.deviceId === "string" &&
-    settings.control.deviceId.includes("|rdk")
-  ) {
-    [controlIp, controlType] = settings.control.deviceId.split("|");
-    if (!isRDKConnected) {
-      const cfg = findRDKDeviceConfig(settings.control.deviceId);
-      if (cfg) {
-        isRDKConnected = connectRDK(cfg.host, cfg.port, cfg.token);
-      }
-    }
-  }
+  // Normalize all menu enable-states once windows + tray exist (disables window-specific
+  // actions when there is no enabled/active window).
+  rebuildMenus();
 
   if (settings.display?.shortcut) {
-    registerShortcut(settings.display.shortcut, displayWindow);
+    registerShortcut(settings.display.shortcut);
   }
 
   // Initialize version checking (only in production and if enabled)
   startUpdateChecks();
 
-  // Hide app when both windows are hidden in macOS (only in dock mode)
+  // Hide the whole app on macOS dock mode once every window is hidden. Per-window
+  // show/hide/minimize/restore handlers live in createDisplayWindow().
   if (isMacOS) {
     mainWindow.on("hide", () => {
-      if (!displayWindow.isVisible() && settings.display?.showInDock && !isTogglingFullscreen()) {
+      if (settings.display?.showInDock && !isTogglingFullscreen() && allWindowsHidden()) {
         app.hide();
       }
     });
-
-    displayWindow.on("hide", () => {
-      if (!mainWindow.isVisible() && settings.display?.showInDock && !isTogglingFullscreen()) {
-        app.hide();
-      }
-    });
-
-    // Listen for display window resize events
-    displayWindow.on("resize", () => {
-      const [width, height] = displayWindow.getSize();
-      // Send resize notification to main window
-      mainWindow.webContents?.send("shared-window-channel", {
-        type: "window-resized",
-        payload: { width, height },
-      });
-    });
-  } else {
-    // Listen for display window resize events on Windows and Linux
-    displayWindow.on("resize", () => {
-      if (!isTogglingFullscreen()) {
-        resetFullscreenVars();
-        // Send resize notification to main window (same as macOS)
-        const [width, height] = displayWindow.getSize();
-        mainWindow.webContents?.send("shared-window-channel", {
-          type: "window-resized",
-          payload: { width, height },
-        });
-      }
-    });
-  }
-
-  // Add window visibility event handlers for video stream control
-  displayWindow.on("show", () => {
-    displayWindow.webContents.send("window-show");
-    updateShowDisplayMenuItem(true);
-  });
-
-  displayWindow.on("hide", () => {
-    displayWindow.webContents.send("window-hide");
-    updateShowDisplayMenuItem(false);
-    if (isScriptRecording) {
-      isScriptRecording = false;
-      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
-    }
-  });
-
-  displayWindow.on("minimize", () => {
-    displayWindow.webContents.send("window-minimize");
-    updateShowDisplayMenuItem(false);
-    if (isScriptRecording) {
-      isScriptRecording = false;
-      updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
-    }
-  });
-
-  displayWindow.on("restore", () => {
-    displayWindow.webContents.send("window-restore");
-    updateShowDisplayMenuItem(true);
-  });
-
-  function findRDKDeviceConfig(deviceId) {
-    if (typeof deviceId !== "string" || !deviceId.endsWith("|rdk")) return null;
-    const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
-    if (!device) {
-      const [hostPort] = deviceId.split("|");
-      const [host, portStr] = hostPort.split(":");
-      const port = parseInt(portStr, 10);
-      if (!host || Number.isNaN(port)) return null;
-      return { host, port, token: "" };
-    }
-    return { host: device.ipAddress, port: device.port, token: device.token || "" };
-  }
-
-  function switchControlDevice(deviceId) {
-    if (!deviceId) return;
-    settings.control.deviceId = deviceId;
-    // Update linked property so the capture device label in menus reflects the new selection
-    const currentCaptureId = settings.display.deviceId;
-    if (currentCaptureId && settings.control.deviceList) {
-      settings.control.deviceList = settings.control.deviceList.map((device) => {
-        if (device.id === deviceId) {
-          return { ...device, linked: currentCaptureId };
-        } else if (device.linked === currentCaptureId) {
-          return { ...device, linked: "" };
-        }
-        return device;
-      });
-    }
-    saveSettings(settings);
-    const oldControlIp = controlIp;
-    [controlIp, controlType] = deviceId.split("|");
-    if (isADBConnected && oldControlIp !== controlIp) {
-      isADBConnected = disconnectADB();
-    }
-    if (isRDKConnected && oldControlIp !== controlIp) {
-      isRDKConnected = disconnectRDK();
-    }
-    if (!isADBConnected && controlType === "adb") {
-      isADBConnected = connectADB(controlIp, settings.control?.adbPath);
-    }
-    if (!isRDKConnected && controlType === "rdk") {
-      const cfg = findRDKDeviceConfig(deviceId);
-      if (cfg) {
-        isRDKConnected = connectRDK(cfg.host, cfg.port, cfg.token);
-      }
-    }
-    displayWindow?.webContents?.send("shared-window-channel", {
-      type: "set-control-selected",
-      payload: deviceId,
-    });
-    displayWindow?.webContents?.send("shared-window-channel", {
-      type: "set-control-list",
-      payload: settings.control.deviceList,
-    });
-    mainWindow?.webContents?.send("update-control-device", {
-      deviceId,
-      deviceList: settings.control.deviceList,
-    });
-    const currentTray = getTray();
-    if (currentTray) {
-      createTrayMenu(
-        mainWindow,
-        displayWindow,
-        packageInfo,
-        captureDevices,
-        settings,
-        isCurrentlyRecording,
-        switchControlDevice
-      );
-    }
   }
 
   ipcMain.on("shared-window-channel", (event, arg) => {
-    // Only forward set-video-stream messages if display window is visible or being shown
-    // Forward all other messages unconditionally
-    if (arg.type !== "set-video-stream") {
-      displayWindow?.webContents?.send("shared-window-channel", arg);
+    // Resolve which pair this message targets: explicit pairId (from the settings UI),
+    // the sending Display window (renderer → main), else the active pair.
+    const pairId = arg.pairId || pairForEvent(event) || activePairId;
+    const targetWin = getWindow(pairId);
+    const pair = getPair(pairId);
+
+    // Forward renderer-bound appearance/control messages to the target pair's window.
+    // Control-key sends originate from the renderer (no echo), and the messages below
+    // are handled with bespoke forwarding/visibility logic.
+    const NO_FORWARD = new Set([
+      "set-video-stream",
+      "set-capture-devices",
+      "send-adb-key",
+      "send-adb-text",
+      "send-atv-key",
+      "send-atv-text",
+      "send-rdk-key",
+      "send-rdk-text",
+      "clear-overlay-image",
+      "set-display-size",
+    ]);
+    if (!NO_FORWARD.has(arg.type)) {
+      targetWin?.webContents?.send("shared-window-channel", arg);
     }
     saveFlag = true;
     if (arg.type && arg.type === "set-capture-devices") {
       const newDevices = JSON.parse(arg.payload);
-      const currentDeviceId = settings.display.deviceId;
 
-      // Check if device list actually changed (not just selection)
-      // Compare device IDs in both directions to ensure lists are identical
+      // De-dupe: every Display window reports the same hardware list on load, so only
+      // rebuild the tray when the global list actually changes.
       const devicesChanged =
         !captureDevices ||
         captureDevices.length !== newDevices.length ||
@@ -681,171 +921,104 @@ app.whenReady().then(async () => {
           captureDevices.some((oldDev) => oldDev.deviceId === newDev.deviceId)
         );
 
-      // Check if current capture device was removed
-      if (currentDeviceId && !newDevices.find((device) => device.deviceId === currentDeviceId)) {
-        // If current device was removed and display window is hidden, show it
-        if (displayWindow && !displayWindow.isVisible()) {
-          displayWindow.show();
-        }
+      // If the sending pair's capture device was removed and its window is hidden, show it.
+      if (
+        pair?.captureDeviceId &&
+        !newDevices.find((device) => device.deviceId === pair.captureDeviceId) &&
+        targetWin &&
+        !targetWin.isVisible()
+      ) {
+        targetWin.show();
       }
 
       captureDevices = newDevices;
       mainWindow?.webContents?.send("shared-window-channel", arg);
 
-      // Only rebuild tray menu when device list actually changes (devices added/removed)
-      if (devicesChanged) {
-        const tray = getTray();
-        if (tray) {
-          createTrayMenu(
-            mainWindow,
-            displayWindow,
-            packageInfo,
-            captureDevices,
-            settings,
-            isCurrentlyRecording,
-            switchControlDevice
-          );
-        }
-      }
+      // Rebuild menus so device-name labels (incl. the active-window indicator) refresh.
+      if (devicesChanged) rebuildMenus();
     } else if (arg.type && arg.type === "set-video-stream") {
       saveFlag = false;
       let deviceIdChanged = false;
-      if (arg.payload?.video?.deviceId?.exact) {
+      if (pair && arg.payload?.video?.deviceId?.exact) {
         const newDeviceId = arg.payload.video.deviceId.exact;
-        if (settings.display.deviceId !== newDeviceId) {
-          settings.display.deviceId = newDeviceId;
+        if (pair.captureDeviceId !== newDeviceId) {
+          pair.captureDeviceId = newDeviceId;
           deviceIdChanged = true;
         }
         saveFlag = true;
       }
-      if (arg.payload?.video?.width && arg.payload?.video?.height) {
-        settings.display.captureWidth = arg.payload.video.width;
-        settings.display.captureHeight = arg.payload.video.height;
+      if (pair && arg.payload?.video?.width && arg.payload?.video?.height) {
+        pair.captureWidth = arg.payload.video.width;
+        pair.captureHeight = arg.payload.video.height;
         saveFlag = true;
       }
 
-      // Rebuild tray menu with updated settings to reflect new selection
-      // This is more reliable than trying to update individual menu items
-      if (deviceIdChanged && captureDevices?.length > 0) {
-        const tray = getTray();
-        if (tray) {
-          createTrayMenu(
-            mainWindow,
-            displayWindow,
-            packageInfo,
-            captureDevices,
-            settings,
-            isCurrentlyRecording,
-            switchControlDevice
-          );
-        }
-      }
+      if (deviceIdChanged && captureDevices?.length > 0) rebuildMenus();
 
-      // Only start video stream if display window is visible
-      // Always save the settings, but only forward to display window if it's visible
-      if (displayWindow?.isVisible()) {
-        displayWindow.webContents.send("shared-window-channel", arg);
+      // Forward to the target window when visible; show it if explicitly requested.
+      if (targetWin?.isVisible()) {
+        targetWin.webContents.send("shared-window-channel", arg);
       }
-
-      // Show display window if explicitly requested
-      if (arg.payload?.showDisplayWindow && !displayWindow.isVisible()) {
-        displayWindow.show();
-        // When showing the window, send the video stream settings to start playback
-        displayWindow.webContents.send("shared-window-channel", arg);
+      if (arg.payload?.showDisplayWindow && targetWin && !targetWin.isVisible()) {
+        targetWin.show();
+        targetWin.webContents.send("shared-window-channel", arg);
       }
     } else if (arg.type && arg.type === "set-transparency") {
       saveFlag = false;
-      if (typeof arg.payload === "number") {
-        settings.display.transparency = arg.payload;
+      if (pair && typeof arg.payload === "number") {
+        pair.transparency = arg.payload;
         saveFlag = true;
       }
-      // Show display window so user can see transparency changes
-      if (!displayWindow.isVisible()) {
-        displayWindow.show();
-      }
+      if (targetWin && !targetWin.isVisible()) targetWin.show();
     } else if (arg.type && arg.type === "set-resolution") {
-      let { width, height } = arg.payload;
-      settings.display.resolution = `${width}|${height}`;
+      const { width, height } = arg.payload;
+      if (pair) pair.resolution = `${width}|${height}`;
       saveFlag = true;
-      width = Number(width.replace("px", "")) + 15;
-      height = Number(height.replace("px", "")) + 15;
-      lastSize = [width, height];
     } else if (arg.type && arg.type === "set-border-width") {
-      settings.border.width = arg.payload;
-      // Show display window so user can see border changes
-      if (!displayWindow.isVisible()) {
-        displayWindow.show();
-      }
+      if (pair) pair.border = { ...pair.border, width: arg.payload };
+      if (targetWin && !targetWin.isVisible()) targetWin.show();
     } else if (arg.type && arg.type === "set-border-style") {
-      settings.border.style = arg.payload;
-      // Show display window so user can see border changes
-      if (!displayWindow.isVisible()) {
-        displayWindow.show();
-      }
+      if (pair) pair.border = { ...pair.border, style: arg.payload };
+      if (targetWin && !targetWin.isVisible()) targetWin.show();
     } else if (arg.type && arg.type === "set-border-color") {
-      settings.border.color = arg.payload;
-      // Show display window so user can see border changes
-      if (!displayWindow.isVisible()) {
-        displayWindow.show();
-      }
+      if (pair) pair.border = { ...pair.border, color: arg.payload };
+      if (targetWin && !targetWin.isVisible()) targetWin.show();
     } else if (arg.type && arg.type === "set-control-list") {
-      let currentDeviceRemoved = false;
-      const found = arg.payload.find((device) => device.id === settings.control.deviceId);
-      if (!found && settings.control.deviceId) {
-        currentDeviceRemoved = true;
-        settings.control.deviceId = "";
-        if (isADBConnected) {
-          isADBConnected = disconnectADB();
+      // The device catalog is global. Remove any pair binding to a deleted device.
+      const remainingIds = new Set(arg.payload.map((d) => d.id));
+      let clearedAny = false;
+      (settings.pairs || []).forEach((p) => {
+        if (p.controlDeviceId && !remainingIds.has(p.controlDeviceId)) {
+          disconnectPairControl(p.id, p.controlDeviceId);
+          p.controlDeviceId = "";
+          clearedAny = true;
+          getWindow(p.id)?.webContents?.send("shared-window-channel", {
+            type: "set-control-selected",
+            payload: "",
+          });
         }
-        if (isATVConnected) {
-          isATVConnected = disconnectATV();
-        }
-        if (isRDKConnected) {
-          isRDKConnected = disconnectRDK();
-        }
-      }
+      });
       settings.control.deviceList = arg.payload;
-      // If current device was removed and display window is hidden, show it
-      if (currentDeviceRemoved && displayWindow && !displayWindow.isVisible()) {
-        displayWindow.show();
-      }
+      if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
     } else if (arg.type && arg.type === "set-control-selected") {
-      settings.control.deviceId = arg.payload;
-      const oldControlIp = controlIp;
-      [controlIp, controlType] = arg.payload.split("|");
-      if (isADBConnected && oldControlIp !== controlIp) {
-        isADBConnected = disconnectADB();
-      }
-      if (isATVConnected && oldControlIp !== controlIp) {
-        isATVConnected = disconnectATV();
-      }
-      if (isRDKConnected && oldControlIp !== controlIp) {
-        isRDKConnected = disconnectRDK();
-      }
-      if (!isADBConnected && controlType === "adb") {
-        isADBConnected = connectADB(controlIp, settings.control?.adbPath);
-      }
-      if (!isATVConnected && controlType === "atv") {
-        isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
-      }
-      if (!isRDKConnected && controlType === "rdk") {
-        const cfg = findRDKDeviceConfig(arg.payload);
-        if (cfg) {
-          isRDKConnected = connectRDK(cfg.host, cfg.port, cfg.token);
-        }
+      if (pair) {
+        const prev = pair.controlDeviceId;
+        pair.controlDeviceId = arg.payload;
+        if (prev && prev !== arg.payload) disconnectPairControl(pairId, prev);
+        connectPairControl(pairId);
       }
     } else if (arg.type && arg.type === "send-adb-key") {
-      sendADBKey(arg.payload);
+      sendADBKey(arg.payload, pairState.get(pairId)?.controlIp);
     } else if (arg.type && arg.type === "send-adb-text") {
-      sendADBText(arg.payload);
+      sendADBText(arg.payload, pairState.get(pairId)?.controlIp);
     } else if (arg.type && arg.type === "send-atv-key") {
-      sendATVKey(arg.payload);
+      sendATVKey(arg.payload, pairState.get(pairId)?.controlIp);
     } else if (arg.type && arg.type === "send-atv-text") {
-      sendATVText(arg.payload);
+      sendATVText(arg.payload, pairState.get(pairId)?.controlIp);
     } else if (arg.type && arg.type === "send-rdk-key") {
-      sendRDKKey(arg.payload);
+      sendRDKKey(arg.payload, [], findRDKDeviceConfig(pairState.get(pairId)?.controlDeviceId));
     } else if (arg.type && arg.type === "send-rdk-text") {
-      sendRDKText(arg.payload);
+      sendRDKText(arg.payload, findRDKDeviceConfig(pairState.get(pairId)?.controlDeviceId));
     } else if (arg.type && arg.type === "set-adb-path") {
       settings.control.adbPath = arg.payload;
       saveFlag = true;
@@ -853,7 +1026,7 @@ app.whenReady().then(async () => {
       settings.control.atvremotePath = arg.payload;
       saveFlag = true;
     } else if (arg.type && arg.type === "set-audio-enabled") {
-      settings.display.audioEnabled = arg.payload;
+      if (pair) pair.audioEnabled = arg.payload;
       saveFlag = true;
     } else if (arg.type && arg.type === "set-show-keystrokes") {
       settings.display.showKeystrokes = arg.payload;
@@ -868,21 +1041,16 @@ app.whenReady().then(async () => {
       }
     } else if (arg.type && arg.type === "clear-overlay-image") {
       saveFlag = false;
-      // Clear the overlay image by sending a specific clear message
-      displayWindow?.webContents?.send("clear-overlay-image");
+      targetWin?.webContents?.send("clear-overlay-image");
     } else if (arg.type && arg.type === "set-display-size") {
       saveFlag = false;
       const { width, height } = arg.payload;
-      if (displayWindow && width && height) {
-        // Show display window so user can see size changes
-        if (!displayWindow.isVisible()) {
-          displayWindow.show();
-        }
-        displayWindow.setSize(width, height);
-        // Send resize notification back to display section
+      if (targetWin && width && height) {
+        if (!targetWin.isVisible()) targetWin.show();
+        targetWin.setSize(width, height);
         mainWindow?.webContents?.send("shared-window-channel", {
           type: "window-resized",
-          payload: { width, height },
+          payload: { width, height, pairId },
         });
       }
     }
@@ -895,8 +1063,30 @@ app.whenReady().then(async () => {
   ipcMain.on("save-shortcut", (event, shortcut) => {
     settings.display.shortcut = shortcut;
     saveSettings(settings);
-    registerShortcut(shortcut, displayWindow);
+    registerShortcut(shortcut);
   });
+
+  // ----- Multi-window pair management (capture+control pairs → Display windows) -----
+  ipcMain.on("set-pairs", (event, pairs) => {
+    reconcilePairs(pairs);
+    rebuildMenus();
+    mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+  });
+
+  ipcMain.on("toggle-pair-visibility", (event, { pairId, visible } = {}) => {
+    togglePairVisibility(pairId, visible);
+  });
+
+  ipcMain.on("set-active-pair", (event, pairId) => {
+    setActivePair(pairId);
+  });
+
+  ipcMain.handle("get-pairs", async () => ({ pairs: settings.pairs, activePairId }));
+
+  // The capture-device list is reported by the Display window(s) on load. Cache it so a
+  // late-mounting renderer (e.g. a pair's capture dropdown) can fetch it without waiting
+  // for the next broadcast.
+  ipcMain.handle("get-capture-devices", async () => captureDevices || []);
 
   ipcMain.on("save-launch-app-at-login", (event, launchAppAtLogin) => {
     settings.display.launchAppAtLogin = launchAppAtLogin;
@@ -913,33 +1103,46 @@ app.whenReady().then(async () => {
     saveSettings(settings);
   });
 
-  ipcMain.on("save-always-on-top", (event, alwaysOnTop) => {
-    settings.display.alwaysOnTop = alwaysOnTop;
-    saveSettings(settings);
-
-    // Show display window so user can see the always on top behavior change
-    if (!displayWindow.isVisible()) {
-      displayWindow.show();
+  ipcMain.on("save-always-on-top", (event, alwaysOnTop, pairId = activePairId) => {
+    const pair = getPair(pairId);
+    if (pair) {
+      pair.alwaysOnTop = alwaysOnTop;
+      saveSettings(settings);
     }
 
-    setAlwaysOnTop(alwaysOnTop, displayWindow);
-
-    // Update all menu items to reflect the new state
-    updateAlwaysOnTopMenuItem(alwaysOnTop);
+    const win = getWindow(pairId);
+    if (win) {
+      // Show the window so the user can see the always-on-top behavior change.
+      if (!win.isVisible()) win.show();
+      setAlwaysOnTop(alwaysOnTop, win);
+    } else {
+      updateAlwaysOnTopMenuItem(alwaysOnTop);
+    }
 
     // Broadcast the change to the React UI
-    mainWindow.webContents.send("update-always-on-top", alwaysOnTop);
+    mainWindow.webContents.send("update-always-on-top", { value: alwaysOnTop, pairId });
+    mainWindow?.webContents?.send("pairs-updated", settings.pairs);
   });
 
-  ipcMain.on("save-audio-enabled", (event, audioEnabled) => {
-    settings.display.audioEnabled = audioEnabled;
-    saveSettings(settings);
+  ipcMain.on("save-audio-enabled", (event, audioEnabled, pairId = activePairId) => {
+    const pair = getPair(pairId);
+    if (pair) {
+      pair.audioEnabled = audioEnabled;
+      saveSettings(settings);
+    }
 
     // Update all menu items to reflect the new state
     updateEnableAudioMenuItem(audioEnabled);
 
+    // Forward to the pair's Display window so it toggles its stream audio.
+    getWindow(pairId)?.webContents?.send("shared-window-channel", {
+      type: "set-audio-enabled",
+      payload: audioEnabled,
+    });
+
     // Broadcast the change to the React UI
-    mainWindow.webContents.send("update-audio-enabled", audioEnabled);
+    mainWindow.webContents.send("update-audio-enabled", { value: audioEnabled, pairId });
+    mainWindow?.webContents?.send("pairs-updated", settings.pairs);
   });
 
   ipcMain.on("save-dark-mode", (event, darkMode) => {
@@ -977,7 +1180,11 @@ app.whenReady().then(async () => {
     }
 
     // Toggle dock/tray mode
-    toggleDockIcon(showInDock, mainWindow, null, packageInfo);
+    toggleDockIcon(showInDock, mainWindow, getActiveWindow(), packageInfo);
+
+    // A freshly created tray is built without device data; populate it (and refresh the
+    // app menu) so the Display Windows submenu reflects the current capture devices.
+    rebuildMenus();
 
     // If switching to menubar mode (unchecking), ensure window stays visible
     if (!showInDock) {
@@ -987,7 +1194,8 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("toggle-fullscreen-window", (event) => {
-    toggleFullScreen(displayWindow);
+    const win = getWindow(pairForEvent(event)) || getActiveWindow();
+    if (win) toggleFullScreen(win);
   });
 
   ipcMain.on("open-settings-from-display", (event) => {
@@ -1000,16 +1208,18 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on("open-display-devtools", (event) => {
-    if (!displayWindow) {
+    const win = getWindow(pairForEvent(event)) || getActiveWindow();
+    if (!win) {
       return;
     }
-    openDevTools(displayWindow);
+    openDevTools(win);
   });
 
   ipcMain.on("show-context-menu", (event) => {
+    const win = getWindow(pairForEvent(event)) || getActiveWindow();
     const menu = createContextMenu(
       mainWindow,
-      displayWindow,
+      win,
       packageInfo,
       isCurrentlyRecording,
       captureDevices,
@@ -1018,7 +1228,7 @@ app.whenReady().then(async () => {
       isScriptPlaying,
       switchControlDevice
     );
-    menu.popup({ window: displayWindow });
+    menu.popup({ window: win || undefined });
   });
 
   // Reusable function for loading and sending image data to display window
@@ -1033,7 +1243,7 @@ app.whenReady().then(async () => {
       } else if (ext === "webp") {
         mimeType = "image/webp";
       }
-      displayWindow?.webContents?.send("image-loaded", `data:${mimeType};base64,${imageData}`);
+      getActiveWindow()?.webContents?.send("image-loaded", `data:${mimeType};base64,${imageData}`);
       return true;
     } catch (error) {
       console.error("Error loading image:", error);
@@ -1062,7 +1272,8 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("launch-rdk-app", async (event, { client, uri } = {}) => {
     try {
-      const result = await launchRDKApp(client, uri);
+      const target = findRDKDeviceConfig(pairState.get(activePairId)?.controlDeviceId);
+      const result = await launchRDKApp(client, uri, target);
       return { success: true, result };
     } catch (err) {
       return { success: false, error: err.message };
@@ -1210,7 +1421,7 @@ app.whenReady().then(async () => {
         ? path.join(settings.files.recordingPath, filename)
         : path.join(os.homedir(), isMacOS ? "Movies" : "Videos", filename);
       resetFramelessWindow();
-      const result = await dialog.showSaveDialog(displayWindow, {
+      const result = await dialog.showSaveDialog(getActiveWindow() || mainWindow, {
         title: "Save Video Recording",
         defaultPath: defaultPath,
         filters: [
@@ -1238,8 +1449,7 @@ app.whenReady().then(async () => {
   // Recording state management
   ipcMain.on("recording-state-changed", (event, isRecording) => {
     isCurrentlyRecording = isRecording;
-    updateRecordingMenuItems(true, isRecording);
-    updateTrayRecordingMenuItems(isRecording);
+    rebuildMenus();
   });
 
   // Save screenshot dialog
@@ -1249,7 +1459,7 @@ app.whenReady().then(async () => {
         ? path.join(settings.files.screenshotPath, filename)
         : path.join(os.homedir(), "Pictures", filename);
       resetFramelessWindow();
-      const result = await dialog.showSaveDialog(displayWindow, {
+      const result = await dialog.showSaveDialog(getActiveWindow() || mainWindow, {
         title: "Save Screenshot",
         defaultPath: defaultPath,
         filters: [
@@ -1274,20 +1484,22 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Script recording controls — forwarded to display window
+  // Script recording controls — single-active, routed to the active Display window.
   ipcMain.on("start-script-recording", () => {
     if (!isScriptRecording) {
-      if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
+      const win = getActiveWindow();
+      if (win && !win.isVisible()) win.show();
       isScriptRecording = true;
       updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
       mainWindow?.webContents.send("script-recording-state-changed", true);
-      displayWindow?.webContents.send("start-script-recording");
+      win?.webContents.send("start-script-recording");
     }
   });
 
   ipcMain.on("stop-script-recording", () => {
     if (isScriptRecording) {
-      displayWindow?.webContents.send("stop-script-recording");
+      // Broadcast — only the window currently recording acts on it.
+      getDisplayWindows().forEach((win) => win.webContents.send("stop-script-recording"));
     }
   });
 
@@ -1302,9 +1514,10 @@ app.whenReady().then(async () => {
   // (canvas screenshot, MediaRecorder, key/text sending). Reuses render.js internals.
   const mcpPendingRpc = new Map();
   let mcpRpcSeq = 0;
-  function callDisplay(action, params = {}) {
+  function callDisplay(action, params = {}, pairId = activePairId) {
     return new Promise((resolve, reject) => {
-      if (!displayWindow || displayWindow.isDestroyed()) {
+      const win = getWindow(pairId) || getActiveWindow();
+      if (!win) {
         reject(new Error("Display window is not available."));
         return;
       }
@@ -1316,7 +1529,7 @@ app.whenReady().then(async () => {
         }
       }, 20000);
       mcpPendingRpc.set(requestId, { resolve, reject, timeout });
-      displayWindow.webContents.send("mcp-rpc-request", { requestId, action, params });
+      win.webContents.send("mcp-rpc-request", { requestId, action, params });
     });
   }
   ipcMain.on("mcp-rpc-response", (event, { requestId, result, error }) => {
@@ -1330,15 +1543,16 @@ app.whenReady().then(async () => {
 
   // Shared script playback used by both the run-script IPC and the MCP run_script tool.
   const mcpPendingScripts = new Map();
-  function startScriptPlayback(scriptId) {
+  function startScriptPlayback(scriptId, pairId = activePairId) {
     if (isScriptRecording || isScriptPlaying) return false;
     const script = settings.scripts?.find((s) => s.id === scriptId);
     if (!script) return false;
-    if (displayWindow && !displayWindow.isVisible()) displayWindow.show();
+    const win = getWindow(pairId) || getActiveWindow();
+    if (win && !win.isVisible()) win.show();
     isScriptPlaying = true;
     updateScriptRecordingMenuItems(isScriptRecording || isScriptPlaying, isScriptRecording, isScriptPlaying);
     mainWindow?.webContents.send("script-playback-started", script.id);
-    displayWindow?.webContents.send("play-script", {
+    win?.webContents.send("play-script", {
       id: script.id,
       steps: script.steps,
       controlType: script.controlType,
@@ -1382,60 +1596,84 @@ app.whenReady().then(async () => {
       electron: process.versions.electron,
       mcp: { running: isMcpRunning(), port: getMcpPort() },
     }),
-    // Device control
-    getCurrentDevice: () => {
-      const id = settings.control.deviceId || "";
+    // List the live Display windows (pairs) so an MCP agent can target one explicitly.
+    listWindows: () =>
+      (settings.pairs || []).map((p) => {
+        const cap = (captureDevices || []).find((d) => d.deviceId === p.captureDeviceId);
+        const win = getWindow(p.id);
+        return {
+          pairId: p.id,
+          captureDeviceId: p.captureDeviceId || "",
+          captureLabel: cap?.label || "",
+          controlDeviceId: p.controlDeviceId || "",
+          visible: !!win && win.isVisible(),
+          active: p.id === activePairId,
+        };
+      }),
+    // Device control — `deviceId` optionally targets a specific window's device.
+    getCurrentDevice: (deviceId) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      const id = deviceId || getPair(pairId)?.controlDeviceId || "";
       const [ip = "", type = ""] = id ? id.split("|") : [];
       let connected = false;
-      if (type === "adb") connected = isADBConnected;
-      else if (type === "atv") connected = isATVConnected;
-      else if (type === "rdk") connected = isRDKConnected;
-      else if (type === "ecp") connected = !!ip;
-      return { id, ip, type, connected };
+      if (type === "adb") connected = isADBConnected(ip);
+      else if (type === "atv") connected = isATVConnected(ip);
+      else if (type === "rdk") {
+        const cfg = findRDKDeviceConfig(id);
+        connected = cfg ? isRDKConnected(cfg.host, cfg.port) : false;
+      } else if (type === "ecp") connected = !!ip;
+      return { id, ip, type, connected, pairId };
     },
-    listDevices: () =>
-      (settings.control.deviceList || []).map((d) => ({
+    listDevices: () => {
+      const activeControl = getActivePair()?.controlDeviceId;
+      return (settings.control.deviceList || []).map((d) => ({
         id: d.id,
         name: d.alias || "",
         deviceType: d.type || "",
         ipAddress: d.ipAddress || (d.id ? d.id.split("|")[0] : ""),
         protocol: d.id ? d.id.split("|")[1] : "",
-        selected: d.id === settings.control.deviceId,
-      })),
+        selected: d.id === activeControl,
+      }));
+    },
     selectDevice: (deviceId) => {
       const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
       if (!device) throw new Error(`Unknown device id: ${deviceId}`);
-      const newIp = deviceId.split("|")[0];
-      // switchControlDevice handles ADB but not ATV; reconcile ATV connection here.
-      if (isATVConnected && controlIp !== newIp) isATVConnected = disconnectATV();
-      switchControlDevice(deviceId);
-      if (controlType === "atv" && !isATVConnected) {
-        isATVConnected = connectATV(controlIp, settings.control?.atvremotePath);
+      // If a window is already bound to this device, make it active; otherwise switch
+      // the active window's control device to it.
+      const bound = (settings.pairs || []).find((p) => p.controlDeviceId === deviceId);
+      if (bound) {
+        setActivePair(bound.id);
+      } else {
+        switchControlDevice(deviceId, activePairId);
       }
-      return mcpCtx.getCurrentDevice();
+      return mcpCtx.getCurrentDevice(deviceId);
     },
-    launchApp: async ({ client, uri } = {}) => {
-      if (controlType !== "rdk") {
+    launchApp: async ({ client, uri, deviceId } = {}) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      const st = pairState.get(pairId);
+      if (st?.controlType !== "rdk") {
         throw new Error("launch_app is only supported on RDK (Xumo) devices.");
       }
       if (!client) {
         throw new Error("client is required.");
       }
-      const result = await launchRDKApp(client, uri);
+      const result = await launchRDKApp(client, uri, findRDKDeviceConfig(st.controlDeviceId));
       return { launched: client, uri: uri || null, result };
     },
-    sendKey: async (nativeKey, mod) => {
-      if (!settings.control.deviceId) {
+    sendKey: async (nativeKey, mod, deviceId) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      if (!getPair(pairId)?.controlDeviceId) {
         throw new Error("No control device selected. Use select_device first.");
       }
-      await callDisplay("send-key", { key: nativeKey, mod });
+      await callDisplay("send-key", { key: nativeKey, mod }, pairId);
       return { sent: nativeKey };
     },
-    sendText: async (text) => {
-      if (!settings.control.deviceId) {
+    sendText: async (text, deviceId) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      if (!getPair(pairId)?.controlDeviceId) {
         throw new Error("No control device selected. Use select_device first.");
       }
-      await callDisplay("send-text", { text });
+      await callDisplay("send-text", { text }, pairId);
       return { sent: text };
     },
     // Capture & recording
@@ -1447,8 +1685,9 @@ app.whenReady().then(async () => {
       mainWindow?.webContents?.send("update-capture-device", deviceId);
       return { deviceId: found.deviceId, label: found.label };
     },
-    takeScreenshot: async ({ save = true } = {}) => {
-      const dataUrl = await callDisplay("capture-screenshot");
+    takeScreenshot: async ({ save = true, deviceId } = {}) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      const dataUrl = await callDisplay("capture-screenshot", {}, pairId);
       if (!dataUrl || typeof dataUrl !== "string") {
         throw new Error("No video frame available to capture.");
       }
@@ -1461,11 +1700,12 @@ app.whenReady().then(async () => {
       }
       return { base64, mimeType: "image/png", filePath };
     },
-    startRecording: async ({ filenamePrefix } = {}) => {
-      await callDisplay("start-recording", { filenamePrefix });
+    startRecording: async ({ filenamePrefix, deviceId } = {}) => {
+      await callDisplay("start-recording", { filenamePrefix }, pairIdForDeviceId(deviceId));
       return { recording: true };
     },
-    stopRecording: async () => callDisplay("stop-recording"),
+    stopRecording: async ({ deviceId } = {}) =>
+      callDisplay("stop-recording", {}, pairIdForDeviceId(deviceId)),
     // Scripts
     listScripts: () =>
       (settings.scripts || []).map((s) => ({
@@ -1475,7 +1715,7 @@ app.whenReady().then(async () => {
         stepCount: s.steps?.length || 0,
       })),
     getScripts: () => settings.scripts || [],
-    runScript: (scriptId) =>
+    runScript: (scriptId, deviceId) =>
       new Promise((resolve, reject) => {
         if (isScriptRecording || isScriptPlaying) {
           reject(new Error("Busy: a script is already recording or playing."));
@@ -1487,13 +1727,13 @@ app.whenReady().then(async () => {
           return;
         }
         mcpPendingScripts.set(scriptId, resolve);
-        if (!startScriptPlayback(scriptId)) {
+        if (!startScriptPlayback(scriptId, pairIdForDeviceId(deviceId))) {
           mcpPendingScripts.delete(scriptId);
           reject(new Error("Failed to start script playback."));
         }
       }),
     stopScript: () => {
-      displayWindow?.webContents.send("stop-script");
+      getDisplayWindows().forEach((win) => win.webContents.send("stop-script"));
       return { stopped: true };
     },
     createScript: ({ name, controlType, steps }) => {
@@ -1508,7 +1748,7 @@ app.whenReady().then(async () => {
       settings.scripts.push(script);
       saveSettings(settings);
       mainWindow?.webContents.send("shared-window-channel", { type: "scripts-updated", payload: settings.scripts });
-      updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+      updateScriptsSubmenu(settings.scripts, mainWindow, getActiveWindow(), packageInfo, settings);
       return { id: script.id, name: script.name, controlType: script.controlType, stepCount: script.steps.length };
     },
     deleteScript: (scriptId) => {
@@ -1516,30 +1756,39 @@ app.whenReady().then(async () => {
       settings.scripts = (settings.scripts || []).filter((s) => s.id !== scriptId);
       saveSettings(settings);
       mainWindow?.webContents.send("shared-window-channel", { type: "scripts-updated", payload: settings.scripts });
-      updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+      updateScriptsSubmenu(settings.scripts, mainWindow, getActiveWindow(), packageInfo, settings);
       return { deleted: before !== settings.scripts.length };
     },
-    // Display window
-    showDisplay: () => {
-      if (!displayWindow.isVisible()) displayWindow.show();
+    // Display window — `deviceId` optionally targets a specific window/pair.
+    showDisplay: ({ deviceId } = {}) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      togglePairVisibility(pairId, true);
       return { visible: true };
     },
-    hideDisplay: () => {
-      if (displayWindow.isVisible()) displayWindow.hide();
+    hideDisplay: ({ deviceId } = {}) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      togglePairVisibility(pairId, false);
       return { visible: false };
     },
-    toggleFullscreen: () => {
-      toggleFullScreen(displayWindow);
-      return { fullscreen: displayWindow.isFullScreen() };
+    toggleFullscreen: ({ deviceId } = {}) => {
+      const win = getWindow(pairIdForDeviceId(deviceId));
+      if (win) toggleFullScreen(win);
+      return { fullscreen: !!win && win.isFullScreen() };
     },
-    toggleOnTop: () => {
-      const newVal = !(settings.display.alwaysOnTop ?? true);
-      settings.display.alwaysOnTop = newVal;
-      saveSettings(settings);
-      if (!displayWindow.isVisible()) displayWindow.show();
-      setAlwaysOnTop(newVal, displayWindow);
-      updateAlwaysOnTopMenuItem(newVal);
-      mainWindow?.webContents?.send("update-always-on-top", newVal);
+    toggleOnTop: ({ deviceId } = {}) => {
+      const pairId = pairIdForDeviceId(deviceId);
+      const pair = getPair(pairId);
+      const newVal = !(pair?.alwaysOnTop !== false);
+      if (pair) {
+        pair.alwaysOnTop = newVal;
+        saveSettings(settings);
+      }
+      const win = getWindow(pairId);
+      if (win) {
+        if (!win.isVisible()) win.show();
+        setAlwaysOnTop(newVal, win);
+      }
+      mainWindow?.webContents?.send("update-always-on-top", { value: newVal, pairId });
       return { onTop: newVal };
     },
   };
@@ -1578,19 +1827,19 @@ app.whenReady().then(async () => {
       type: "scripts-updated",
       payload: settings.scripts,
     });
-    updateScriptsSubmenu(settings.scripts, mainWindow, displayWindow, packageInfo, settings);
+    updateScriptsSubmenu(settings.scripts, mainWindow, getActiveWindow(), packageInfo, settings);
     const tray = getTray();
     if (tray) {
-      createTrayMenu(mainWindow, displayWindow, packageInfo, captureDevices, settings, isCurrentlyRecording, switchControlDevice);
+      createTrayMenu(mainWindow, getActiveWindow(), packageInfo, captureDevices, settings, isCurrentlyRecording, switchControlDevice);
     }
   });
 
-  ipcMain.on("run-script", (event, scriptId) => {
-    startScriptPlayback(scriptId);
+  ipcMain.on("run-script", (event, scriptId, pairId) => {
+    startScriptPlayback(scriptId, pairId || activePairId);
   });
 
   ipcMain.on("stop-script", () => {
-    displayWindow?.webContents.send("stop-script");
+    getDisplayWindows().forEach((win) => win.webContents.send("stop-script"));
   });
 
   ipcMain.on("script-playback-done", (event, scriptId) => {
@@ -1617,17 +1866,12 @@ app.whenReady().then(async () => {
     if (isMcpRunning()) {
       stopMcpServer();
     }
-    if (isADBConnected) {
-      disconnectADB();
-    }
-    if (isATVConnected) {
-      disconnectATV();
-    }
-    if (isRDKConnected) {
-      disconnectRDK();
-    }
+    // Tear down every control connection (no-arg disconnect clears all targets).
+    disconnectADB();
+    disconnectATV();
+    disconnectRDK();
     if (isScriptRecording) {
-      displayWindow?.webContents.send("discard-script-recording");
+      getDisplayWindows().forEach((win) => win.webContents.send("discard-script-recording"));
     }
   });
 });

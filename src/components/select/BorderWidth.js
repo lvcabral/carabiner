@@ -10,7 +10,7 @@
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
 
-function BorderWidth({ value, onChange }) {
+function BorderWidth({ value, onChange, size }) {
   const borderWidths = [
     {
       value: "0.1px",
@@ -33,8 +33,8 @@ function BorderWidth({ value, onChange }) {
   return (
     <Card.Text as="div">
       <Form.Group controlId="formVideoBorderWidth">
-        <Form.Label>Width</Form.Label>
-        <Form.Control as="select" value={value} onChange={onChange}>
+        <Form.Label>Border Width</Form.Label>
+        <Form.Control as="select" size={size} value={value} onChange={onChange}>
           {borderWidths.map((borderWidth) => (
             <option key={borderWidth.value} value={borderWidth.value}>
               {borderWidth.label}

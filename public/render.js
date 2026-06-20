@@ -17,6 +17,11 @@ const scriptRecordingIndicator = document.getElementById("script-recording-indic
 const scriptPlaybackIndicator = document.getElementById("script-playback-indicator");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 
+// Each Display window owns one capture+control pair; its id is passed via the load
+// query string (see createDisplayWindow in main.js). Main routes this window's
+// shared-window-channel messages by sender, so outgoing messages need not tag it.
+const myPairId = new URLSearchParams(window.location.search).get("pairId") || "";
+
 // Indicators share a single anchor (top-left) and reflow left-to-right in the
 // order they were activated, so whichever turned on first sits at the anchor and
 // later ones appear to its right. When an earlier one ends, the rest shift back.
@@ -61,6 +66,35 @@ let currentConstraints = { video: true, audio: false };
 let videoState = "stopped";
 let resizeTimeout;
 let audioEnabled = false;
+// This window's saved capture device, so it can (re)start its stream on show even if
+// it launched hidden and never received a set-video-stream from the settings window.
+let myCaptureDeviceId = "";
+let myCaptureWidth = 1280;
+let myCaptureHeight = 720;
+
+// Ensure currentConstraints points at this window's capture device. Returns true when
+// a specific device is available to stream.
+function ensureMyConstraints() {
+  const hasDevice =
+    currentConstraints.video &&
+    typeof currentConstraints.video === "object" &&
+    currentConstraints.video.deviceId;
+  if (!hasDevice && myCaptureDeviceId) {
+    currentConstraints = {
+      video: {
+        deviceId: { exact: myCaptureDeviceId },
+        width: myCaptureWidth,
+        height: myCaptureHeight,
+      },
+      audio: false,
+    };
+  }
+  return !!(
+    currentConstraints.video &&
+    typeof currentConstraints.video === "object" &&
+    currentConstraints.video.deviceId
+  );
+}
 
 // Overlay image setup
 overlayImage.src = "";
@@ -174,14 +208,38 @@ let lastKeyTimestamp = null;
 let isPlayingScript = false;
 let scriptPlaybackCancelled = false;
 
-// Load settings from main process
+// Load settings from main process. This window restores its OWN pair's control
+// device + appearance; showKeystrokes remains a global app setting.
 window.electronAPI.invoke("load-settings").then(async (settings) => {
-  if (settings.control && settings.control.deviceId) {
-    handleControlSelected(settings.control.deviceId);
+  // The global device catalog is used for capture-device labels.
+  if (settings.control && Array.isArray(settings.control.deviceList)) {
+    handleControlList(settings.control.deviceList);
   }
-  if (settings.display && settings.display.audioEnabled !== undefined) {
-    audioEnabled = settings.display.audioEnabled;
-    // Note: updateAudioConstraints() will be called when video stream is set
+  const pair = (settings.pairs || []).find((p) => p.id === myPairId) || (settings.pairs || [])[0];
+  if (pair) {
+    if (pair.controlDeviceId) {
+      handleControlSelected(pair.controlDeviceId);
+    }
+    audioEnabled = pair.audioEnabled === true;
+    // Restore this window's appearance.
+    if (pair.border) {
+      if (pair.border.color) handleSetBorderColor(pair.border.color);
+      if (pair.border.style) handleSetBorderStyle(pair.border.style);
+      if (pair.border.width) handleSetBorderWidth(pair.border.width);
+    }
+    if (typeof pair.transparency === "number") handleSetTransparency(pair.transparency);
+    // Remember this window's capture device so it can stream on show even if launched hidden.
+    if (pair.captureDeviceId) {
+      myCaptureDeviceId = pair.captureDeviceId;
+      myCaptureWidth = pair.captureWidth || 1280;
+      myCaptureHeight = pair.captureHeight || 720;
+    }
+    // Self-start the capture stream from the saved device so the window streams on
+    // launch without depending on the settings window / capture dropdown timing.
+    if (myCaptureDeviceId && pair.visible !== false) {
+      ensureMyConstraints();
+      handleSetVideoStream(currentConstraints);
+    }
   }
   if (settings.display && settings.display.showKeystrokes !== undefined) {
     showKeystrokes = settings.display.showKeystrokes;
@@ -481,7 +539,10 @@ async function getCaptureDeviceLabel(deviceId) {
     (device) => device.deviceId === actualDeviceId && device.kind === "videoinput"
   );
   let deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
-  const streamDevice = controlList.find((device) => device.linked === captureDevice?.deviceId);
+  // This window owns one control device; show it (resolved from the window's own selection).
+  const streamDevice = controlIp
+    ? controlList.find((device) => device.id === `${controlIp}|${controlType}`)
+    : null;
   if (streamDevice) {
     deviceLabel += ` - ${streamDevice.type} ${streamDevice.alias ?? streamDevice.ipAddress}`;
   }
@@ -516,17 +577,10 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Handle window visibility changes via Electron IPC events
   window.electronAPI.onMessageReceived("window-show", () => {
-    // Window is now visible - restart video stream if we have constraints and it's stopped
-    if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
-      // Only restart if we have a proper video stream constraint (not just the default { video: true })
-      const hasSpecificDevice =
-        currentConstraints.video !== true &&
-        typeof currentConstraints.video === "object" &&
-        currentConstraints.video.deviceId;
-
-      if (hasSpecificDevice) {
-        renderDisplay(currentConstraints);
-      }
+    // Window is now visible - (re)start the stream. ensureMyConstraints() falls back to
+    // this window's saved capture device when it launched hidden and never received a stream.
+    if (videoState === "stopped" && ensureMyConstraints()) {
+      renderDisplay(currentConstraints);
     }
   });
 

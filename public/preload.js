@@ -14,9 +14,10 @@ const isPackaged = __dirname.includes(".asar");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   sendSync: (chan, message) => ipcRenderer.sendSync(chan, message),
-  send: (chan, message) => ipcRenderer.send(chan, message),
+  send: (chan, ...args) => ipcRenderer.send(chan, ...args),
   invoke: (chan, ...args) => ipcRenderer.invoke(chan, ...args),
   onMessageReceived: (chan, callback) => ipcRenderer.on(chan, callback),
+  removeListener: (chan) => ipcRenderer.removeAllListeners(chan),
   showContextMenu: () => ipcRenderer.send("show-context-menu"),
   loadImage: () => ipcRenderer.invoke("load-image"),
   getPackageInfo: () => ipcRenderer.invoke("get-package-info"),
