@@ -88,15 +88,15 @@ Builds installers sequentially for macOS (universal DMG), Windows (x64), and Lin
 ```console
 carabiner/
 ├── public/                      # Electron main process and display window files
-│   ├── main.js                  # Main Electron process — window management and IPC routing
+│   ├── main.js                  # Main process — multi-window pair registry, IPC routing, single-instance
 │   ├── preload.js               # contextBridge — exposes electronAPI to both renderers
-│   ├── display.html             # Display window HTML (loaded by displayWindow)
-│   ├── render.js                # Display window renderer — video, keyboard, recording, scripts
-│   ├── menu.js                  # macOS menu bar, system tray, and right-click context menu
-│   ├── settings.js              # Load/save settings.json from userData
-│   ├── adb.js                   # Android/Fire TV/Google TV control via ADB
-│   ├── appletv.js               # Apple TV control via atvremote (pyatv)
-│   ├── rdk.js                   # Xumo Stream Box / RDK control via RDKShell JSON-RPC
+│   ├── display.html             # Display window HTML (one window per capture+control pair)
+│   ├── render.js                # Display window renderer — video, keyboard, recording, scripts (per window)
+│   ├── menu.js                  # macOS app menu, system tray, and right-click context menu
+│   ├── settings.js              # Load/save settings.json (pairs[] model + migration)
+│   ├── adb.js                   # Android/Fire TV/Google TV control via ADB (multi-target)
+│   ├── appletv.js               # Apple TV control via atvremote (pyatv, multi-target)
+│   ├── rdk.js                   # Xumo Stream Box / RDK control via RDKShell JSON-RPC (multi-target)
 │   ├── mcp-server.js            # Embedded MCP server (localhost) — HTTP/SSE transports
 │   ├── mcp-tools.js             # MCP tool/resource/prompt registration
 │   └── updater.js               # GitHub Releases version check
@@ -104,8 +104,8 @@ carabiner/
 │   ├── App.js                   # Root component — tab layout
 │   ├── index.js                 # React entry point
 │   └── components/              # One component per settings tab
-│       ├── GeneralSection.js    # Capture device picker and device link
-│       ├── DisplaySection.js    # Border, transparency, window options
+│       ├── GeneralSection.js    # Capture-device grid: link control + Enabled per window
+│       ├── DisplaySection.js    # Per-window appearance (Editing Window selector)
 │       ├── ControlSection.js    # Add/remove Roku, Android, Apple TV, and Xumo (RDK) devices
 │       ├── AutomationSection.js # Script recording, playback, and step editing
 │       ├── OverlaySection.js    # Reference image overlay with opacity control
