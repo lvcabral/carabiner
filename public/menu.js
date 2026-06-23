@@ -661,7 +661,9 @@ function windowsSubmenuItems(captureDevices = null, settings = null) {
       ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
       : null;
     const capLabel = device.label || `Device ${index + 1}`;
-    const label = control ? `${capLabel} → ${controlLabel(control)}` : capLabel;
+    // Show only the control device's alias/type here (no IP / MAC) to keep the label readable.
+    const controlName = control ? (control.alias ? `${control.type}: ${control.alias}` : control.type) : null;
+    const label = controlName ? `${capLabel} → ${controlName}` : capLabel;
     const enabled = pair?.visible === true;
     const visible = enabled && (_windowActions?.isVisible?.(device.deviceId) ?? false);
     return {
