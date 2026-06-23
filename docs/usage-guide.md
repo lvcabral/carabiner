@@ -68,6 +68,11 @@ Other tips:
 - The right-click context menu includes a **Linked Device** submenu to relink the active window's control device on the fly.
 - On macOS, the **Window** menu lists each Display window by its capture card + linked control name.
 
+#### Automatic capture pausing & reconnection
+
+- **Capture stops when a window isn't visible.** A Display window only holds its capture device while it's actually on screen. Hiding, minimizing, moving it to another Space, fully covering it with another window, or locking the computer releases the capture device — so the macOS camera/recording indicator turns off and the device is freed (letting the Mac sleep). Capture resumes automatically when the window becomes visible again.
+- **Automatic reconnection after sleep.** When your computer wakes and a capture device (e.g. on a monitor's USB hub) takes a few seconds to come back, the window shows a **"reconnecting"** overlay and keeps retrying for about 30 seconds until the device is ready, then resumes streaming on its own. The "no capture device" image only appears if the device never returns.
+
 ### Screenshots
 
 Capture screenshots of your streaming display:
