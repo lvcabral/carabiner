@@ -41,6 +41,9 @@ function makePair(partial = {}) {
     captureHeight: partial.captureHeight || 720,
     alwaysOnTop: partial.alwaysOnTop !== false,
     audioEnabled: partial.audioEnabled === true,
+    // Per-window overlay reference image (applied on top of this window's capture).
+    overlayImagePath: partial.overlayImagePath || "",
+    overlayOpacity: typeof partial.overlayOpacity === "number" ? partial.overlayOpacity : 0,
   };
 }
 
@@ -90,6 +93,10 @@ function migrateSettings(settings) {
       captureHeight: display.captureHeight,
       alwaysOnTop: display.alwaysOnTop,
       audioEnabled: display.audioEnabled,
+      // Carry the legacy single global overlay onto the migrated window.
+      overlayImagePath: settings.overlay?.imagePath,
+      overlayOpacity:
+        typeof settings.overlay?.opacity === "number" ? settings.overlay.opacity : undefined,
     });
     settings.pairs = [migratedPair];
     settings.activePairId = migratedPair.id;

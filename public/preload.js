@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onMessageReceived: (chan, callback) => ipcRenderer.on(chan, callback),
   removeListener: (chan) => ipcRenderer.removeAllListeners(chan),
   showContextMenu: () => ipcRenderer.send("show-context-menu"),
-  loadImage: () => ipcRenderer.invoke("load-image"),
+  loadImage: (pairId) => ipcRenderer.invoke("load-image", pairId),
   getPackageInfo: () => ipcRenderer.invoke("get-package-info"),
   openExternal: (url) => shell.openExternal(url),
   log: (level, ...args) => {

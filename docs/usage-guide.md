@@ -164,13 +164,14 @@ for setup and examples.
 
 ### Overlay Images
 
-Load reference images for design comparison:
+Load reference images for design comparison. The overlay is **per window** — each Display window has its own overlay image and opacity:
 
-1. Open **Overlay** section in settings
-2. Load an image file to overlay on the video
-3. Adjust opacity as needed
-4. Perfect for achieving pixel-perfect UI designs
-5. A list of recent images is available for quick access
+1. Open the **Overlay** tab in settings
+2. Pick the target window with the **Display Window** selector at the top (it follows the window you last focused)
+3. Load an image file to overlay on that window's video
+4. Adjust opacity as needed
+5. Perfect for achieving pixel-perfect UI designs
+6. A shared list of recent images is available for quick access across all windows
 
 ### File Management
 

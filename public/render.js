@@ -243,6 +243,11 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
       if (pair.border.width) handleSetBorderWidth(pair.border.width);
     }
     if (typeof pair.transparency === "number") handleSetTransparency(pair.transparency);
+    // Restore this window's own overlay reference image + opacity (per-window in the Overlay tab).
+    if (typeof pair.overlayOpacity === "number") handleOverlayOpacity(pair.overlayOpacity);
+    if (pair.overlayImagePath) {
+      window.electronAPI.invoke("load-image-by-path", pair.overlayImagePath, myPairId);
+    }
     // Remember this window's capture device so it can stream on show even if launched hidden.
     if (pair.captureDeviceId) {
       myCaptureDeviceId = pair.captureDeviceId;

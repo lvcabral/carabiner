@@ -149,7 +149,12 @@ function App() {
           </Tab>
           <Tab eventKey="overlay" title="Overlay">
             <div className="tab-content-container">
-              <OverlaySection />
+              <OverlaySection
+                pairs={pairs}
+                activePairId={activePairId}
+                onPairsChange={handlePairsChange}
+                streamingDevices={streamingDevices}
+              />
             </div>
           </Tab>
           <Tab eventKey="files" title="Files">

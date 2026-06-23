@@ -40,7 +40,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 
 ### Additional Features
 
-- **Overlay Images**: Load reference images for pixel-perfect UI comparison with opacity control
+- **Overlay Images**: Load reference images for pixel-perfect UI comparison with opacity control — per window
 - **Customizable Display**: Adjust transparency, borders, dimensions and toggle always-on-top behavior
 - **Control Demo Mode**: Show the pressed control keys on the screen for demos and presentations
 - **Global Shortcut**: Quick show/hide all display windows from anywhere with a keyboard shortcut

@@ -1239,8 +1239,9 @@ app.whenReady().then(async () => {
     menu.popup({ window: win || undefined });
   });
 
-  // Reusable function for loading and sending image data to display window
-  const loadAndSendImage = (imagePath) => {
+  // Reusable function for loading and sending image data to a specific pair's Display
+  // window (the Overlay tab is per-window). Falls back to the active window if no pair given.
+  const loadAndSendImage = (imagePath, pairId) => {
     try {
       const imageData = fs.readFileSync(imagePath, { encoding: "base64" });
       // Detect image type from file extension
@@ -1251,7 +1252,8 @@ app.whenReady().then(async () => {
       } else if (ext === "webp") {
         mimeType = "image/webp";
       }
-      getActiveWindow()?.webContents?.send("image-loaded", `data:${mimeType};base64,${imageData}`);
+      const win = getWindow(pairId) || getActiveWindow();
+      win?.webContents?.send("image-loaded", `data:${mimeType};base64,${imageData}`);
       return true;
     } catch (error) {
       console.error("Error loading image:", error);
@@ -1331,7 +1333,7 @@ app.whenReady().then(async () => {
     createDirectorySelector("Select Default Recording Save Location")
   );
 
-  ipcMain.handle("load-image", async () => {
+  ipcMain.handle("load-image", async (event, pairId) => {
     resetFramelessWindow();
     const result = await dialog.showOpenDialog({
       properties: ["openFile"],
@@ -1341,7 +1343,7 @@ app.whenReady().then(async () => {
       return "";
     } else {
       const imagePath = result.filePaths[0];
-      const success = loadAndSendImage(imagePath);
+      const success = loadAndSendImage(imagePath, pairId);
       return success ? imagePath : "";
     }
   });
@@ -1418,8 +1420,8 @@ app.whenReady().then(async () => {
   });
 
   // Handler for loading image by path (unified for both file dialog and recent files)
-  ipcMain.handle("load-image-by-path", async (event, imagePath) => {
-    return loadAndSendImage(imagePath);
+  ipcMain.handle("load-image-by-path", async (event, imagePath, pairId) => {
+    return loadAndSendImage(imagePath, pairId);
   });
 
   // Save video recording dialog
