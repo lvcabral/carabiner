@@ -64,6 +64,12 @@ const margin = 5;
 let currentColor = "#662D91";
 let currentConstraints = { video: true, audio: false };
 let videoState = "stopped";
+// Authoritative handle on the live capture stream. videoPlayer.srcObject can be cleared or
+// reassigned out from under an in-flight getUserMedia, orphaning its tracks (which keeps the
+// macOS camera indicator lit even though videoState reads "stopped"). We track the stream
+// directly and use a generation token to discard stale getUserMedia resolutions.
+let activeStream = null;
+let streamGeneration = 0;
 let resizeTimeout;
 let audioEnabled = false;
 // This window's saved capture device, so it can (re)start its stream on show even if
@@ -430,16 +436,44 @@ function renderDisplay(constraints, isBlankRetry = false) {
     window.electronAPI.log("debug","[Carabiner] Stopping existing stream before starting new one");
     stopVideoStream();
   }
+  // Tag this acquisition. stopVideoStream() and any later renderDisplay() bump the generation,
+  // so a getUserMedia that resolves after we've moved on can detect it's stale and self-release.
+  const myGeneration = ++streamGeneration;
   videoState = "starting";
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then(async (stream) => {
+      // Discard this stream if it's no longer wanted: a newer renderDisplay()/stopVideoStream()
+      // superseded it, or the window was hidden/minimized/locked while getUserMedia resolved.
+      // Stopping the tracks here is what actually releases the camera and clears the macOS
+      // indicator — otherwise these tracks are orphaned and stay live. visibilitychange will
+      // re-acquire the stream when the window becomes visible again.
+      if (myGeneration !== streamGeneration || document.hidden) {
+        window.electronAPI.log("debug","[Carabiner] getUserMedia resolved but stream no longer wanted - releasing");
+        stream.getTracks().forEach((track) => track.stop());
+        if (myGeneration === streamGeneration) videoState = "stopped";
+        return;
+      }
+      // Replace any previous live stream, stopping its tracks so they can't leak.
+      if (activeStream && activeStream !== stream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+      }
+      activeStream = stream;
       const videoTrack = stream.getVideoTracks()[0];
       window.electronAPI.log("debug",
         `[Carabiner] getUserMedia succeeded - track: "${videoTrack?.label}", readyState: ${videoTrack?.readyState}, enabled: ${videoTrack?.enabled}, muted: ${videoTrack?.muted}`
       );
       hideReconnectingOverlay();
       deviceLabel.textContent = await getCaptureDeviceLabel(deviceId);
+      // getCaptureDeviceLabel awaited above — re-check we weren't superseded/hidden meanwhile,
+      // otherwise we'd attach a stream that stopVideoStream() already tore down.
+      if (myGeneration !== streamGeneration || document.hidden) {
+        window.electronAPI.log("debug","[Carabiner] stream superseded while resolving label - releasing");
+        stream.getTracks().forEach((track) => track.stop());
+        if (activeStream === stream) activeStream = null;
+        if (myGeneration === streamGeneration) videoState = "stopped";
+        return;
+      }
       videoPlayer.srcObject = null; // Release any previous stream before assigning new one
       videoPlayer.srcObject = stream;
       const playPromise = videoPlayer.play();
@@ -513,13 +547,20 @@ function stopVideoStream() {
     stopRecording();
   }
 
+  // Invalidate any in-flight getUserMedia so a stream that resolves after this point
+  // releases itself instead of re-attaching a live camera track behind our backs.
+  streamGeneration++;
+
   videoPlayer.pause();
-  const stream = videoPlayer.srcObject;
-  if (stream) {
-    const tracks = stream.getTracks();
-    tracks.forEach((track) => track.stop());
-    videoPlayer.srcObject = null;
-  }
+  // Stop tracks from both the element and our tracked stream. They're normally the same
+  // object, but during a fast restart videoPlayer.srcObject may already be cleared/reassigned
+  // while activeStream still holds the live tracks that keep the macOS camera indicator lit.
+  const streams = new Set();
+  if (videoPlayer.srcObject) streams.add(videoPlayer.srcObject);
+  if (activeStream) streams.add(activeStream);
+  streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
+  videoPlayer.srcObject = null;
+  activeStream = null;
   videoState = "stopped";
 
   // Clear device label when stream stops
@@ -633,6 +674,26 @@ window.addEventListener("DOMContentLoaded", function () {
       if (hasSpecificDevice) {
         renderDisplay(currentConstraints);
       }
+    }
+  });
+
+  // Authoritative stream gate based on the renderer's own visibility. Electron reports
+  // document.hidden whenever this Display window can't actually be seen — hidden, minimized,
+  // on another Space, occluded by another window, or behind the macOS lock screen. Releasing
+  // the capture device in all of those cases guarantees the OS camera/recording indicator
+  // clears when the window isn't visible (and frees the device so the Mac can sleep), and
+  // re-acquires it as soon as the window becomes visible again. This backstops the explicit
+  // window-hide/minimize and lock-screen (allow-sleep) handlers, covering cases they miss.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      if (isRecording) {
+        handleStopRecording();
+      }
+      if (videoState !== "stopped") {
+        stopVideoStream();
+      }
+    } else if (videoState === "stopped" && ensureMyConstraints()) {
+      renderDisplay(currentConstraints);
     }
   });
 
