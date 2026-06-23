@@ -74,7 +74,7 @@ function checkForUpdates(settings, interactive = false) {
   // Honor the "Check for Updates" toggle for automatic checks. Interactive
   // (manual menu) checks always run. This guards against an already-scheduled
   // periodic check firing after the user disabled the option mid-session.
-  if (!interactive && settings?.display?.autoUpdate === false) {
+  if (!interactive && settings?.display?.autoUpdate !== true) {
     return Promise.resolve({ updateAvailable: false, version: "v" + packageInfo.version });
   }
   console.log("Checking for updates...");
