@@ -70,6 +70,15 @@ let videoState = "stopped";
 // directly and use a generation token to discard stale getUserMedia resolutions.
 let activeStream = null;
 let streamGeneration = 0;
+// Self-healing retry for stream acquisition. Coming back from sleep, the capture device
+// re-enumerates (it's "detected") before the USB hub has it ready to stream, so getUserMedia
+// fails. Rather than give up and show the error fallback (the device list is now stable, so no
+// further devicechange fires to trigger recovery), we keep retrying with the reconnecting
+// overlay up until it streams or we exhaust the window (~30s).
+let streamRetryTimer = null;
+let streamRetryAttempts = 0;
+const MAX_STREAM_RETRY_ATTEMPTS = 15;
+const STREAM_RETRY_DELAY = 2000;
 let resizeTimeout;
 let audioEnabled = false;
 // This window's saved capture device, so it can (re)start its stream on show even if
@@ -488,6 +497,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
       }
       currentConstraints = constraints;
       videoState = "playing";
+      cancelStreamRetry(); // stream is up — drop any pending reconnect retries
       if (deviceId) {
         lastKnownDeviceId = deviceId;
         deviceRecoveryAttempts = 0;
@@ -531,13 +541,23 @@ function renderDisplay(constraints, isBlankRetry = false) {
     })
     .catch((err) => {
       console.error(`[Carabiner] getUserMedia failed: ${err.name} - ${err.message}`);
-      hideReconnectingOverlay();
-      showToast(`Error loading capture device! ${err.message}`, 5000, true);
       videoState = "stopped";
-      // Show fallback image when capture device fails to load
-      overlayImage.style.opacity = "1";
-      overlayImage.src = "images/no-capture-device.png";
-      overlayImage.style.display = "block";
+      // If we were already streaming a real device (lastKnownDeviceId set), this failure is
+      // most likely transient — e.g. the capture device re-enumerated on wake but the USB hub
+      // isn't ready yet. Keep the reconnecting overlay up and retry instead of giving up. Only
+      // fall back to the error image once retries are exhausted (or there's no device to retry).
+      if (lastKnownDeviceId && !document.hidden && streamRetryAttempts < MAX_STREAM_RETRY_ATTEMPTS) {
+        showReconnectingOverlay();
+        scheduleStreamRetry();
+      } else {
+        cancelStreamRetry();
+        hideReconnectingOverlay();
+        showToast(`Error loading capture device! ${err.message}`, 5000, true);
+        // Show fallback image when capture device fails to load
+        overlayImage.style.opacity = "1";
+        overlayImage.src = "images/no-capture-device.png";
+        overlayImage.style.display = "block";
+      }
     });
 }
 
@@ -565,6 +585,34 @@ function stopVideoStream() {
 
   // Clear device label when stream stops
   deviceLabel.textContent = "";
+}
+
+// Schedule one more stream-acquisition attempt after a delay. Idempotent — a pending retry or
+// an exhausted attempt budget is a no-op. Won't retry while the window isn't visible.
+function scheduleStreamRetry() {
+  if (streamRetryTimer || document.hidden) return;
+  if (streamRetryAttempts >= MAX_STREAM_RETRY_ATTEMPTS) return;
+  streamRetryAttempts++;
+  window.electronAPI.log("debug",
+    `[Carabiner] Scheduling stream retry ${streamRetryAttempts}/${MAX_STREAM_RETRY_ATTEMPTS} in ${STREAM_RETRY_DELAY}ms`
+  );
+  streamRetryTimer = setTimeout(async () => {
+    streamRetryTimer = null;
+    if (videoState === "stopped" && !document.hidden && ensureMyConstraints()) {
+      // Re-resolve the capture card's audio device too — it may also have re-enumerated on wake.
+      await updateAudioConstraints();
+      renderDisplay(currentConstraints);
+    }
+  }, STREAM_RETRY_DELAY);
+}
+
+// Stop retrying (stream is up, user hid the window, or device truly gone).
+function cancelStreamRetry() {
+  if (streamRetryTimer) {
+    clearTimeout(streamRetryTimer);
+    streamRetryTimer = null;
+  }
+  streamRetryAttempts = 0;
 }
 
 async function getCaptureDeviceLabel(deviceId) {
@@ -598,6 +646,7 @@ window.addEventListener("DOMContentLoaded", function () {
   // screen lock / user idle, and resume on unlock / activity. Kept separate from
   // window-hide/show so it doesn't disturb script recording or window state.
   window.electronAPI.onMessageReceived("auto-suspend", () => {
+    cancelStreamRetry();
     if (videoState !== "stopped") {
       stopVideoStream();
     }
@@ -628,6 +677,7 @@ window.addEventListener("DOMContentLoaded", function () {
   window.electronAPI.onMessageReceived("window-hide", () => {
     // Stop any in-progress recording first so its file is saved and main clears this
     // window's recording state, then stop the stream to save resources.
+    cancelStreamRetry();
     if (isRecording) {
       handleStopRecording();
     }
@@ -646,6 +696,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
   window.electronAPI.onMessageReceived("window-minimize", () => {
     // Stop any in-progress recording first, then stop the stream to save resources.
+    cancelStreamRetry();
     if (isRecording) {
       handleStopRecording();
     }
@@ -686,6 +737,7 @@ window.addEventListener("DOMContentLoaded", function () {
   // window-hide/minimize and lock-screen (allow-sleep) handlers, covering cases they miss.
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
+      cancelStreamRetry();
       if (isRecording) {
         handleStopRecording();
       }
