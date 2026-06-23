@@ -483,7 +483,7 @@ app.whenReady().then(async () => {
       }
     }, 30000);
 
-    // Check for updates every 4 hours
+    // Check for updates every 24 hours
     setInterval(
       async () => {
         try {
@@ -492,7 +492,7 @@ app.whenReady().then(async () => {
           console.error("Error checking for updates:", error);
         }
       },
-      4 * 60 * 60 * 1000
+      24 * 60 * 60 * 1000
     );
   }
 
