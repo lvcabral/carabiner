@@ -78,6 +78,50 @@ let isCurrentlyRecording = false;
 let isScriptRecording = false;
 let isScriptPlaying = false;
 let saveFlag = false;
+let updateCheckTimeout = null;
+let updateCheckInterval = null;
+
+// Schedule the automatic update checks (initial delayed check + recurring one).
+// No-op in dev or when the "Check for Updates" option is disabled. Safe to call
+// repeatedly — it tears down any existing timers first.
+function startUpdateChecks() {
+  stopUpdateChecks();
+  if (!app.isPackaged || settings.display.autoUpdate === false) {
+    return;
+  }
+  // Check for updates 30 seconds after app start
+  updateCheckTimeout = setTimeout(async () => {
+    try {
+      await checkForUpdates(settings);
+    } catch (error) {
+      console.error("Error checking for updates:", error);
+    }
+  }, 30000);
+
+  // Check for updates every 24 hours
+  updateCheckInterval = setInterval(
+    async () => {
+      try {
+        await checkForUpdates(settings);
+      } catch (error) {
+        console.error("Error checking for updates:", error);
+      }
+    },
+    24 * 60 * 60 * 1000
+  );
+}
+
+// Cancel any scheduled automatic update checks.
+function stopUpdateChecks() {
+  if (updateCheckTimeout) {
+    clearTimeout(updateCheckTimeout);
+    updateCheckTimeout = null;
+  }
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval);
+    updateCheckInterval = null;
+  }
+}
 
 const appLauncher = new AutoLaunch({
   name: "Carabiner",
@@ -473,28 +517,7 @@ app.whenReady().then(async () => {
   }
 
   // Initialize version checking (only in production and if enabled)
-  if (app.isPackaged && settings.display.autoUpdate !== false) {
-    // Check for updates 30 seconds after app start
-    setTimeout(async () => {
-      try {
-        await checkForUpdates(settings);
-      } catch (error) {
-        console.error("Error checking for updates:", error);
-      }
-    }, 30000);
-
-    // Check for updates every 24 hours
-    setInterval(
-      async () => {
-        try {
-          await checkForUpdates(settings);
-        } catch (error) {
-          console.error("Error checking for updates:", error);
-        }
-      },
-      24 * 60 * 60 * 1000
-    );
-  }
+  startUpdateChecks();
 
   // Hide app when both windows are hidden in macOS (only in dock mode)
   if (isMacOS) {
@@ -927,6 +950,9 @@ app.whenReady().then(async () => {
   ipcMain.on("save-check-for-updates", (event, checkForUpdates) => {
     settings.display.autoUpdate = checkForUpdates;
     saveSettings(settings);
+    // Start/stop the scheduled checks live so toggling the option takes effect
+    // immediately instead of only on the next launch.
+    startUpdateChecks();
   });
 
   // Manual "Check for Updates" triggered from a menu — always runs (even in dev)
@@ -1587,6 +1613,7 @@ app.whenReady().then(async () => {
   app.on("before-quit", () => {
     isQuitting = true;
     stopSleepWatcher();
+    stopUpdateChecks();
     if (isMcpRunning()) {
       stopMcpServer();
     }

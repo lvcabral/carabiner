@@ -71,6 +71,12 @@ function compareVersions(current, latest) {
 // is always shown (ignoring a previously skipped version) and the user is given
 // "up to date" / error feedback when there is nothing to download.
 function checkForUpdates(settings, interactive = false) {
+  // Honor the "Check for Updates" toggle for automatic checks. Interactive
+  // (manual menu) checks always run. This guards against an already-scheduled
+  // periodic check firing after the user disabled the option mid-session.
+  if (!interactive && settings && settings.display && settings.display.autoUpdate === false) {
+    return Promise.resolve({ updateAvailable: false, version: "v" + packageInfo.version });
+  }
   console.log("Checking for updates...");
   return new Promise((resolve, reject) => {
     // Get repository info from package.json
