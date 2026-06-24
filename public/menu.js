@@ -828,8 +828,9 @@ function createContextMenu(
 
   const menu = Menu.buildFromTemplate(menuItems);
 
-  // Linked Device submenu (relink the active window's control). The global "Display
-  // Windows" enable/disable list lives in the menu bar / View app menu, not this popup.
+  // Display Windows submenu (enable/disable + show/hide each capture device's window) and
+  // Linked Device submenu (relink the active window's control), mirroring the menu bar / tray.
+  appendWindowsMenu(menu, captureDevices, settings);
   appendLinkedDeviceMenu(menu, _onDeviceSelected, settings, captureDevices, displayWindow);
 
   // Add remaining menu items

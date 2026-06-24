@@ -56,7 +56,7 @@ See the complete [keyboard control mappings](./key-mappings.md) for advanced con
 
 ### Managing Windows
 
-Each enabled capture device has its own Display window. You manage them from the **Display Windows** submenu, available in the **menu bar / system tray** menu and the macOS **View** menu (it is intentionally not in the right-click popup):
+Each enabled capture device has its own Display window. You manage them from the **Display Windows** submenu, available in the **menu bar / system tray** menu, the macOS **View** menu, and the right-click context menu:
 
 - **Enabled** — open or close that capture device's window (same as the General tab checkbox).
 - **Visible** — show or hide an enabled window without closing it. This is how you bring back a window you previously hid (via the global shortcut or the Close Window command).
