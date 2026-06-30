@@ -190,6 +190,18 @@ function pairIdForDeviceId(deviceId) {
   const p = (settings.pairs || []).find((x) => x.controlDeviceId === deviceId);
   return p ? p.id : activePairId;
 }
+// Resolve the target pair for an MCP action that drives a window (key/text/screenshot/record).
+// In single-window mode only the one open window exists, so targeting a different configured
+// device would silently act on the wrong window — reject with guidance to switch first.
+function mcpActionPairId(deviceId) {
+  const pairId = pairIdForDeviceId(deviceId);
+  if (isSingleWindowMode() && deviceId && pairId !== activePairId) {
+    throw new Error(
+      "Single-window mode shows one window at a time. Call select_device (or show_display) to switch to this device before driving it."
+    );
+  }
+  return pairId;
+}
 function setActivePair(pairId) {
   if (!pairId || activePairId === pairId) return;
   activePairId = pairId;
@@ -1750,10 +1762,17 @@ app.whenReady().then(async () => {
     selectDevice: (deviceId) => {
       const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
       if (!device) throw new Error(`Unknown device id: ${deviceId}`);
-      // If a window is already bound to this device, make it active; otherwise switch
-      // the active window's control device to it.
       const bound = (settings.pairs || []).find((p) => p.controlDeviceId === deviceId);
-      if (bound) {
+      if (isSingleWindowMode()) {
+        // One window only: switch it to the bound device's capture card, or relink the
+        // current window's control if no capture card is bound to this device yet.
+        if (bound?.captureDeviceId) {
+          switchToWindow(bound.captureDeviceId);
+        } else {
+          switchControlDevice(deviceId, activePairId);
+        }
+      } else if (bound) {
+        // Multi-window: a window already shows this device — just make it the active target.
         setActivePair(bound.id);
       } else {
         switchControlDevice(deviceId, activePairId);
@@ -1761,7 +1780,7 @@ app.whenReady().then(async () => {
       return mcpCtx.getCurrentDevice(deviceId);
     },
     launchApp: async ({ client, uri, deviceId } = {}) => {
-      const pairId = pairIdForDeviceId(deviceId);
+      const pairId = mcpActionPairId(deviceId);
       const st = pairState.get(pairId);
       if (st?.controlType !== "rdk") {
         throw new Error("launch_app is only supported on RDK (Xumo) devices.");
@@ -1773,7 +1792,7 @@ app.whenReady().then(async () => {
       return { launched: client, uri: uri || null, result };
     },
     sendKey: async (nativeKey, mod, deviceId) => {
-      const pairId = pairIdForDeviceId(deviceId);
+      const pairId = mcpActionPairId(deviceId);
       if (!getPair(pairId)?.controlDeviceId) {
         throw new Error("No control device selected. Use select_device first.");
       }
@@ -1781,7 +1800,7 @@ app.whenReady().then(async () => {
       return { sent: nativeKey };
     },
     sendText: async (text, deviceId) => {
-      const pairId = pairIdForDeviceId(deviceId);
+      const pairId = mcpActionPairId(deviceId);
       if (!getPair(pairId)?.controlDeviceId) {
         throw new Error("No control device selected. Use select_device first.");
       }
@@ -1798,7 +1817,7 @@ app.whenReady().then(async () => {
       return { deviceId: found.deviceId, label: found.label };
     },
     takeScreenshot: async ({ save = true, deviceId } = {}) => {
-      const pairId = pairIdForDeviceId(deviceId);
+      const pairId = mcpActionPairId(deviceId);
       const dataUrl = await callDisplay("capture-screenshot", {}, pairId);
       if (!dataUrl || typeof dataUrl !== "string") {
         throw new Error("No video frame available to capture.");
@@ -1813,11 +1832,11 @@ app.whenReady().then(async () => {
       return { base64, mimeType: "image/png", filePath };
     },
     startRecording: async ({ filenamePrefix, deviceId } = {}) => {
-      await callDisplay("start-recording", { filenamePrefix }, pairIdForDeviceId(deviceId));
+      await callDisplay("start-recording", { filenamePrefix }, mcpActionPairId(deviceId));
       return { recording: true };
     },
     stopRecording: async ({ deviceId } = {}) =>
-      callDisplay("stop-recording", {}, pairIdForDeviceId(deviceId)),
+      callDisplay("stop-recording", {}, mcpActionPairId(deviceId)),
     // Scripts
     listScripts: () =>
       (settings.scripts || []).map((s) => ({
@@ -1839,7 +1858,15 @@ app.whenReady().then(async () => {
           return;
         }
         mcpPendingScripts.set(scriptId, resolve);
-        if (!startScriptPlayback(scriptId, pairIdForDeviceId(deviceId))) {
+        let pairId;
+        try {
+          pairId = mcpActionPairId(deviceId);
+        } catch (err) {
+          mcpPendingScripts.delete(scriptId);
+          reject(err);
+          return;
+        }
+        if (!startScriptPlayback(scriptId, pairId)) {
           mcpPendingScripts.delete(scriptId);
           reject(new Error("Failed to start script playback."));
         }
@@ -1874,21 +1901,29 @@ app.whenReady().then(async () => {
     // Display window — `deviceId` optionally targets a specific window/pair.
     showDisplay: ({ deviceId } = {}) => {
       const pairId = pairIdForDeviceId(deviceId);
+      if (isSingleWindowMode()) {
+        // One window only: showing a device means switching the single window to it
+        // (rather than opening a second window).
+        const pair = getPair(pairId);
+        if (pair?.captureDeviceId) switchToWindow(pair.captureDeviceId);
+        return { visible: true };
+      }
       togglePairVisibility(pairId, true);
       return { visible: true };
     },
     hideDisplay: ({ deviceId } = {}) => {
-      const pairId = pairIdForDeviceId(deviceId);
+      // In single-window mode only the one (active) window can be hidden.
+      const pairId = isSingleWindowMode() ? activePairId : pairIdForDeviceId(deviceId);
       togglePairVisibility(pairId, false);
       return { visible: false };
     },
     toggleFullscreen: ({ deviceId } = {}) => {
-      const win = getWindow(pairIdForDeviceId(deviceId));
+      const win = getWindow(mcpActionPairId(deviceId));
       if (win) toggleFullScreen(win);
       return { fullscreen: !!win && win.isFullScreen() };
     },
     toggleOnTop: ({ deviceId } = {}) => {
-      const pairId = pairIdForDeviceId(deviceId);
+      const pairId = mcpActionPairId(deviceId);
       const pair = getPair(pairId);
       const newVal = !(pair?.alwaysOnTop !== false);
       if (pair) {

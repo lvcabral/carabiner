@@ -74,21 +74,29 @@ field.
 
 ## Tool reference
 
-> **Multiple windows.** Carabiner can run several Display windows at once — one per
-> capture device, each linked to its own control device (configured in the General tab).
-> Device/window tools act on the **active** window by default (the last one focused, or set
-> via `select_device`). To target a specific window instead, pass the optional **`deviceId`**
-> argument (the window's control device id, as returned by `list_windows`). Tools accepting
-> `deviceId`: `get_current_device`, `send_key`, `send_text`, `launch_app`, `take_screenshot`,
-> `start_recording`, `stop_recording`, `run_script`, `show_display`, `hide_display`,
-> `toggle_fullscreen`, `toggle_on_top`.
+> **Window modes.** Carabiner runs in one of two modes (set in the General tab):
+>
+> - **Single-window (default)** — one Display window at a time. Device/window tools act on
+>   that window. To drive a *different* configured device, call `select_device` first (or
+>   `show_display`) — it switches the single window to that device. Passing a `deviceId` that
+>   isn't the current window to an action tool (`send_key`, `take_screenshot`, etc.) returns an
+>   error telling you to switch first, rather than silently acting on the shown window.
+> - **Multi-window** — several windows at once, one per capture device. Device/window tools act
+>   on the **active** window (the last focused, or set via `select_device`); pass the optional
+>   **`deviceId`** (the window's control device id, from `list_windows`) to target any open
+>   window directly.
+>
+> Tools accepting `deviceId`: `get_current_device`, `send_key`, `send_text`, `launch_app`,
+> `take_screenshot`, `start_recording`, `stop_recording`, `run_script`, `show_display`,
+> `hide_display`, `toggle_fullscreen`, `toggle_on_top`. `list_windows` reports every configured
+> pair; in single-window mode only one has `visible: true` (the open one).
 
 ### Device control
 | Tool | Description |
 |------|-------------|
 | `list_devices` | All configured control devices with protocol and connection status |
 | `list_windows` | Open Display windows (pairs): `pairId`, capture label, control device id, visibility, and which is active. Use a window's `controlDeviceId` as `deviceId` to target it |
-| `select_device` | Make the window bound to a device active (or switch the active window's control device to it). Id format `<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`, `<host:port>\|rdk` |
+| `select_device` | Target a device: in single-window mode switches the one window to it; in multi-window mode makes the window bound to it active (or relinks the active window's control). Id format `<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`, `<host:port>\|rdk` |
 | `send_key` | Send one keypress (see [Keys](#keys)); optional `deviceId` |
 | `send_text` | Type a string on the device; optional `deviceId` |
 | `get_current_device` | Protocol, address, and connection state of the active (or `deviceId`) device |
@@ -234,5 +242,8 @@ This re-runs the same QA task every 30 minutes without any external scheduler.
   first (the display window must be streaming). Use `select_capture_device` or pick one in the
   General tab.
 - **`send_key` returns "No control device selected"** — call `select_device` first.
+- **"Single-window mode shows one window at a time…"** — you passed a `deviceId` for a device that
+  isn't the currently shown window. Call `select_device` (or `show_display`) with that id to switch
+  the single window to it first, or enable Multiple Windows mode in the General tab.
 - **Port already in use** — change the port in the MCP Server card and reconnect your client.
 - **401 Unauthorized** — your client is missing the `Authorization: Bearer <token>` header.
