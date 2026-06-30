@@ -73,7 +73,7 @@ You manage windows from the **menu bar / system tray** menu, the macOS **View** 
 Other tips:
 
 - The **global shortcut** (set in the General tab) shows/hides **all** display windows together.
-- The **active window** (the one menu/recording/script actions target) is whichever Display window you last focused. A disabled **"Active Window: …"** item at the top of the app/tray menus shows which window that is; window-specific actions are disabled when no window is enabled.
+- In **Multiple Windows** mode, the **active window** (the one menu/recording/script actions target) is whichever Display window you last focused. A disabled **"Active Window: …"** item at the top of the app/tray menus shows which window that is; window-specific actions are disabled when no window is enabled. This indicator is hidden in **Single Window** mode, where there is only one window.
 - The right-click context menu includes a **Linked Device** submenu to relink the active window's control device on the fly.
 - On macOS, the **Window** menu lists each Display window by its capture card + linked control name.
 
