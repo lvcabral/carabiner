@@ -114,6 +114,7 @@ function loadSettings() {
       showInDock: true, // macOS: true = dock mode, false = menubar mode
       autoUpdate: true, // Check for updates enabled by default
       showKeystrokes: false,
+      singleWindowMode: true, // Default to one Display window; opt in to multi-window
     },
     border: {},
     control: {

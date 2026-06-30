@@ -153,6 +153,12 @@ function isActiveRecording() {
 }
 
 // ----- Pair / window helpers (module scope so both startup and IPC can use them) -----
+// Single-window mode (default): only one Display window exists at a time; the menus offer a
+// device-switch list instead of per-window Enabled/Visible toggles. Multi-window mode lets
+// each enabled capture device have its own window.
+function isSingleWindowMode() {
+  return settings.display?.singleWindowMode !== false; // default true
+}
 function getPair(pairId) {
   return (settings.pairs || []).find((p) => p.id === pairId) || null;
 }
@@ -618,11 +624,75 @@ function switchControlDevice(deviceId, pairId = activePairId) {
   rebuildMenus();
 }
 
-// Enable/disable a capture device's Display window from the tray, creating the pair on
-// demand. Mirrors the General tab's Enabled checkbox.
+// Single-window mode: make this capture device the one and only Display window, closing
+// every other window and marking their pairs hidden. Creates the pair on demand.
+function switchToWindow(captureDeviceId) {
+  if (!captureDeviceId) return;
+  if (!settings.pairs) settings.pairs = [];
+  let pair = settings.pairs.find((p) => p.captureDeviceId === captureDeviceId);
+  if (!pair) {
+    pair = makePair({ id: captureDeviceId, captureDeviceId, controlDeviceId: "", visible: true });
+    settings.pairs.push(pair);
+  }
+  // Hide every other pair; drop the ones with nothing worth remembering (no linked control).
+  settings.pairs.forEach((p) => {
+    if (p.id !== pair.id) p.visible = false;
+  });
+  settings.pairs = settings.pairs.filter((p) => p.id === pair.id || p.controlDeviceId);
+  pair.visible = true;
+  activePairId = pair.id;
+  settings.activePairId = pair.id;
+  saveSettings(settings);
+  // Close any window that isn't the one we're switching to.
+  for (const id of [...pairWindows.keys()]) {
+    if (id !== pair.id) closePair(id);
+  }
+  let win = getWindow(pair.id);
+  if (!win) win = openPair(pair);
+  win?.show();
+  mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+  mainWindow?.webContents?.send("active-pair-changed", pair.id);
+  rebuildMenus();
+}
+
+// In single-window mode keep at most one visible pair (the active one, else the first
+// visible) and point activePairId at it. No-op in multi-window mode.
+function enforceSingleWindowInvariant() {
+  if (!isSingleWindowMode()) return;
+  const visible = (settings.pairs || []).filter((p) => p.visible !== false);
+  if (visible.length === 0) return;
+  const keep = visible.find((p) => p.id === activePairId) || visible[0];
+  settings.pairs.forEach((p) => {
+    if (p.id !== keep.id) p.visible = false;
+  });
+  activePairId = keep.id;
+  settings.activePairId = keep.id;
+}
+
+// Enable/disable a capture device's Display window from the tray / General grid, creating the
+// pair on demand. In single-window mode, enabling a device switches the lone window to it.
 function setCaptureWindowEnabled(captureDeviceId, enabled) {
   if (!captureDeviceId) return;
   if (!settings.pairs) settings.pairs = [];
+  if (isSingleWindowMode()) {
+    if (enabled) {
+      switchToWindow(captureDeviceId);
+      return;
+    }
+    // Disabling the single window: close it (allowing zero windows).
+    const pair = settings.pairs.find((p) => p.captureDeviceId === captureDeviceId);
+    if (pair) {
+      pair.visible = false;
+      if (!pair.controlDeviceId) {
+        settings.pairs = settings.pairs.filter((p) => p.id !== pair.id);
+      }
+      saveSettings(settings);
+      closePair(pair.id);
+    }
+    mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+    rebuildMenus();
+    return;
+  }
   let pair = settings.pairs.find((p) => p.captureDeviceId === captureDeviceId);
   if (enabled) {
     if (!pair) {
@@ -688,6 +758,10 @@ function reconcilePairs(newPairs) {
     activePairId = next[0]?.id || "";
     settings.activePairId = activePairId;
   }
+  // Single-window mode: collapse to one visible pair (the General grid enforces this in the
+  // UI, but enforce here too so the loop below closes any extra windows and the active pair
+  // follows the visible one).
+  enforceSingleWindowInvariant();
   saveSettings(settings);
 
   for (const pair of next) {
@@ -772,14 +846,18 @@ app.whenReady().then(async () => {
   }
 
   mainWindow = createMainWindow();
+  // Single-window mode (default) keeps only one window; collapse any stray extra-visible
+  // pairs before opening so we never open more than one on launch.
+  enforceSingleWindowInvariant();
   // Open a Display window for each ENABLED pair (visible !== false). Disabled pairs are
   // remembered in settings but have no window until enabled.
   (settings.pairs || []).filter((p) => p.visible !== false).forEach((pair) => openPair(pair));
-  // Drive the "Display Windows" submenu: Enabled (create/destroy) + Visible (show/hide).
+  // Drive the windows submenu: Enabled/Visible (multi mode) or device switch (single mode).
   setWindowActions({
     enableCapture: setCaptureWindowEnabled,
     setVisible: setCaptureWindowVisible,
     isVisible: isCaptureWindowVisible,
+    switchDevice: switchToWindow,
   });
 
   // With no Display window (no capture device connected, or all disabled) there's nothing
@@ -1108,6 +1186,27 @@ app.whenReady().then(async () => {
   ipcMain.on("save-show-settings-on-start", (event, showSettingsOnStart) => {
     settings.display.showSettingsOnStart = showSettingsOnStart;
     saveSettings(settings);
+  });
+
+  // Toggle between single-window and multi-window modes. Switching to single mode collapses
+  // to the active window (closing the rest); switching to multi mode just unlocks adding more.
+  ipcMain.on("set-single-window-mode", (event, single) => {
+    settings.display = settings.display || {};
+    settings.display.singleWindowMode = !!single;
+    if (single) {
+      enforceSingleWindowInvariant();
+      // Close every window except the active one.
+      for (const id of [...pairWindows.keys()]) {
+        if (id !== activePairId) closePair(id);
+      }
+      // Ensure the active pair's window is open if it should be visible.
+      const active = getActivePair();
+      if (active && active.visible !== false && !getWindow(active.id)) openPair(active);
+    }
+    saveSettings(settings);
+    mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+    mainWindow?.webContents?.send("single-window-mode-changed", !!single);
+    rebuildMenus();
   });
 
   ipcMain.on("save-always-on-top", (event, alwaysOnTop, pairId = activePairId) => {

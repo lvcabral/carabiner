@@ -337,70 +337,73 @@ function OverlaySection({ pairs = [], activePairId = "", onPairsChange, streamin
               <Form.Label>Opacity ({Math.round(opacity * 100)}%)</Form.Label>
               <Form.Range min="0" max="1" step="0.01" value={opacity} onChange={handleOpacityChange} />
             </Form.Group>
+
+            {recentFiles.length > 0 && (
+              <>
+                <hr className="my-2" />
+                <Row className="align-items-center mb-2">
+                  <Col>
+                    <h6 className="mb-0" style={{ fontSize: "0.85rem" }}>
+                      Recent Images
+                    </h6>
+                  </Col>
+                  <Col xs="auto">
+                    <Button
+                      variant="outline-primary"
+                      size="sm"
+                      style={{ fontSize: "0.72rem" }}
+                      onClick={handleOpenSelected}
+                      disabled={selectedFileIndex < 0}
+                      className="me-2"
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      style={{ fontSize: "0.72rem" }}
+                      onClick={handleDeleteSelected}
+                      disabled={selectedFileIndex < 0}
+                    >
+                      Delete
+                    </Button>
+                  </Col>
+                </Row>
+                <div
+                  style={{
+                    height: "120px",
+                    overflowY: "auto",
+                    border: "1px solid #dee2e6",
+                    borderRadius: "0.375rem",
+                  }}
+                  tabIndex={0}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => {
+                    if (selectedFileIndex < 0 && recentFiles.length > 0) {
+                      setSelectedFileIndex(0);
+                    }
+                  }}
+                  data-list-container="recent-files"
+                >
+                  <ListGroup variant="flush">
+                    {recentFiles.map((filePath, index) => (
+                      <ListGroup.Item
+                        key={index}
+                        className={`px-2 py-1 ${selectedFileIndex === index ? "active" : ""}`}
+                        style={{ cursor: "pointer", border: "none", fontSize: "0.8rem" }}
+                        onClick={() => handleFileSelect(index)}
+                        title={filePath}
+                        data-list-index={index}
+                      >
+                        <span className="text-truncate d-block">{shortenPath(filePath, 53)}</span>
+                      </ListGroup.Item>
+                    ))}
+                  </ListGroup>
+                </div>
+              </>
+            )}
           </Card.Body>
         </Card>
-
-        {recentFiles.length > 0 && (
-          <Card className="mt-2">
-            <Card.Body className="pb-2">
-              <Row className="align-items-center mb-2">
-                <Col>
-                  <h6 className="mb-0">Recent Images</h6>
-                </Col>
-                <Col xs="auto">
-                  <Button
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={handleOpenSelected}
-                    disabled={selectedFileIndex < 0}
-                    className="me-2"
-                  >
-                    Open
-                  </Button>
-                  <Button
-                    variant="outline-danger"
-                    size="sm"
-                    onClick={handleDeleteSelected}
-                    disabled={selectedFileIndex < 0}
-                  >
-                    Delete
-                  </Button>
-                </Col>
-              </Row>
-              <div
-                style={{
-                  height: "120px",
-                  overflowY: "auto",
-                  border: "1px solid #dee2e6",
-                  borderRadius: "0.375rem",
-                }}
-                tabIndex={0}
-                onKeyDown={handleKeyDown}
-                onFocus={() => {
-                  if (selectedFileIndex < 0 && recentFiles.length > 0) {
-                    setSelectedFileIndex(0);
-                  }
-                }}
-                data-list-container="recent-files"
-              >
-                <ListGroup variant="flush">
-                  {recentFiles.map((filePath, index) => (
-                    <ListGroup.Item
-                      key={index}
-                      className={`px-2 py-1 ${selectedFileIndex === index ? "active" : ""}`}
-                      style={{ cursor: "pointer", border: "none", fontSize: "0.8rem" }}
-                      onClick={() => handleFileSelect(index)}
-                      title={filePath}
-                      data-list-index={index}
-                    >
-                      <span className="text-truncate d-block">{shortenPath(filePath, 53)}</span>
-                    </ListGroup.Item>
-                  ))}
-                </ListGroup>
-              </div>
-            </Card.Body>
-          </Card>
-        )}
       </fieldset>
     </Container>
   );

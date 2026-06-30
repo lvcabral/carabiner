@@ -368,3 +368,18 @@ body {
 [data-bs-theme="dark"] .script-list-scroll::-webkit-scrollbar-thumb:hover {
   background-color: #adb5bd;
 }
+
+/* Window Mode row: vertically center the inline radios with the "Window Mode:" label.
+   Bootstrap lays each radio out with a floated input + min-height + margin-top, which sits
+   it lower than the plain label span. Lay each radio out as its own centered flex row. */
+.window-mode-row .form-check {
+  min-height: auto;
+  margin-bottom: 0;
+  padding-left: 0;
+  display: flex;
+  align-items: center;
+}
+.window-mode-row .form-check-input {
+  float: none;
+  margin: 0 0.35em 0 0;
+}

@@ -30,15 +30,22 @@ Carabiner supports **multiple capture devices at once**: each capture card you e
 > 3. Select **Control by mobile apps**.
 > 4. Set to **Enabled** or **Permissive**.
 
-### 2. Enable & Link Capture Devices
+### 2. Choose a Window Mode
 
-1. Open the **General** tab — it lists every capture card detected on your computer in a grid.
+At the top of the **General** tab, pick how Carabiner shows your capture devices:
+
+- **Single Window** (default) — one floating Display window at a time. Selecting another capture device simply switches that window to it. Best for testing one device at a time.
+- **Multiple Windows** — each enabled capture device gets its own floating window, so you can watch and control several devices side by side.
+
+### 3. Enable & Link Capture Devices
+
+1. The **General** tab lists every capture card detected on your computer in a grid.
 2. For each capture card you want to use:
    - Pick a **Control Device** from the dropdown to link a streaming device to that capture card.
-   - Check **Enabled** to open that card's floating Display window.
-3. Repeat for additional capture cards to run several devices side by side — each gets its own window. (Using the same capture card for two windows isn't supported; some cards only allow a single stream.)
+   - In **Single Window** mode, check **Active** to make that card the one shown (checking another switches to it). In **Multiple Windows** mode, check **Enabled** to open that card's floating Display window.
+3. In Multiple Windows mode, repeat for additional capture cards to run several devices side by side — each gets its own window. (Using the same capture card for two windows isn't supported; some cards only allow a single stream.)
 
-Per-window appearance (border, transparency, capture resolution, display size, always-on-top, audio) is configured in the **Display** tab using its **Editing Window** selector, which follows the window you last focused. You can also enable/disable and show/hide each window from the **Display Windows** submenu in the menu bar / macOS **View** menu (see [Managing Windows](#managing-windows)).
+Per-window appearance (border, transparency, capture resolution, display size, always-on-top, audio) is configured in the **Display** tab using its **Editing Window** selector, which follows the window you last focused. You can also switch/enable windows from the menu bar / macOS **View** menu (see [Managing Windows](#managing-windows)).
 
 ## Control Features
 
@@ -56,10 +63,12 @@ See the complete [keyboard control mappings](./key-mappings.md) for advanced con
 
 ### Managing Windows
 
-Each enabled capture device has its own Display window. You manage them from the **Display Windows** submenu, available in the **menu bar / system tray** menu, the macOS **View** menu, and the right-click context menu:
+You manage windows from the **menu bar / system tray** menu, the macOS **View** menu, and the right-click context menu. What appears depends on the window mode (set in the General tab):
 
-- **Enabled** — open or close that capture device's window (same as the General tab checkbox).
-- **Visible** — show or hide an enabled window without closing it. This is how you bring back a window you previously hid (via the global shortcut or the Close Window command).
+- **Single Window mode** — the capture devices are listed **directly on the menu** for quick switching: pick one to switch the single window to that capture device (and its linked control).
+- **Multiple Windows mode** — a **Display Windows** submenu with, per capture device:
+  - **Enabled** — open or close that capture device's window (same as the General tab checkbox).
+  - **Visible** — show or hide an enabled window without closing it. This is how you bring back a window you previously hid (via the global shortcut or the Close Window command).
 
 Other tips:
 

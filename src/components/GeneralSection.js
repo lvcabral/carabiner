@@ -22,6 +22,7 @@ function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPa
   const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
   const [darkMode, setDarkMode] = useState(false);
   const [checkForUpdates, setCheckForUpdates] = useState(true);
+  const [singleWindowMode, setSingleWindowMode] = useState(true);
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
@@ -54,6 +55,8 @@ function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPa
         setShowSettingsOnStart(settings.display.showSettingsOnStart);
       if (settings.display?.showInDock !== undefined) setShowInDock(settings.display.showInDock);
       if (settings.display?.autoUpdate !== undefined) setCheckForUpdates(settings.display.autoUpdate);
+      if (settings.display?.singleWindowMode !== undefined)
+        setSingleWindowMode(settings.display.singleWindowMode);
       if (settings.display?.darkMode !== undefined) {
         setDarkMode(settings.display.darkMode);
         document.body.setAttribute("data-bs-theme", settings.display.darkMode ? "dark" : "light");
@@ -138,8 +141,18 @@ function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPa
         { id: deviceId, captureDeviceId: deviceId, controlDeviceId: "", visible: false, ...patch },
       ];
     }
+    // Single-window mode: enabling a device is a switch — hide every other window.
+    if (singleWindowMode && patch.visible === true) {
+      next = next.map((p) => (p.captureDeviceId === deviceId ? p : { ...p, visible: false }));
+    }
     next = next.filter((p) => p.visible !== false || (p.controlDeviceId && p.controlDeviceId !== ""));
     onPairsChange?.(next);
+  };
+
+  const handleSingleWindowModeChange = (single) => {
+    setSingleWindowMode(single);
+    // Main collapses to the active window and rebuilds menus, then echoes pairs-updated.
+    electronAPI.send("set-single-window-mode", single);
   };
 
   const handleShortcutChange = (value) => {
@@ -168,12 +181,36 @@ function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPa
     <Container fluid className="p-2" style={{ fontSize: "0.85rem" }}>
       <Card>
         <Card.Body className="p-2">
+          {/* Window mode: one Display window at a time, or one per enabled capture device. */}
+          <div className="window-mode-row d-flex align-items-center mb-2">
+            <span className="text-muted fw-semibold me-3">Window Mode:</span>
+            <Form.Check
+              type="radio"
+              id="window-mode-single"
+              label="Single Window"
+              name="windowMode"
+              checked={singleWindowMode}
+              onChange={() => handleSingleWindowModeChange(true)}
+              inline
+              className="mb-0"
+            />
+            <Form.Check
+              type="radio"
+              id="window-mode-multi"
+              label="Multiple Windows"
+              name="windowMode"
+              checked={!singleWindowMode}
+              onChange={() => handleSingleWindowModeChange(false)}
+              inline
+              className="mb-0"
+            />
+          </div>
           {/* Column headers for the capture-device grid below. */}
           <Row className="g-2 mb-1 px-2 text-muted fw-semibold" style={{ fontSize: "0.72rem" }}>
             <Col xs={6}>Capture Device</Col>
             <Col xs={5}>Control Device</Col>
             <Col xs={1} className="text-end p-0">
-              Enabled
+              {singleWindowMode ? "Active" : "Enabled"}
             </Col>
           </Row>
           {captureDevices.length === 0 ? (

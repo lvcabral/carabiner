@@ -28,7 +28,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 ### Core Functionality
 
 - **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Comcast Xumo (experimental)
-- **Multiple Display Windows**: Run several capture devices simultaneously — each capture card gets its own floating window linked to its own streaming device
+- **Single or Multiple Windows**: Use one Display window and switch devices on the fly (default), or opt into multi-window mode to run several capture devices simultaneously — each capture card in its own floating window linked to its own streaming device
 - **Real-time Video Capture**: View your streaming device output directly on your computer
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
 - **Text Pasting**: Paste clipboard content directly to streaming devices

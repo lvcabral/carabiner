@@ -342,11 +342,20 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings, captu
   const scripts = settings?.scripts || [];
   // Without an enabled/active window, window-specific actions are disabled.
   const hasWindow = !!displayWindow;
-  // Disabled indicator: which window the File/View actions act on.
-  const activeIndicator = {
-    label: hasWindow ? `Active Window: ${activeWindowLabel(settings, captureDevices)}` : "No active window",
-    enabled: false,
-  };
+  // Disabled indicator: which window the File/View actions act on. Hidden in single-window
+  // mode (there's only ever one window, so naming it adds no information). Bundled with its
+  // trailing separator so removing it doesn't leave a stray divider.
+  const activeIndicatorItems = isSingleWindowMode(settings)
+    ? []
+    : [
+        {
+          label: hasWindow
+            ? `Active Window: ${activeWindowLabel(settings, captureDevices)}`
+            : "No active window",
+          enabled: false,
+        },
+        MenuItems.separator(),
+      ];
 
   const template = [
     // Add macOS-specific app menu
@@ -355,8 +364,7 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings, captu
     {
       label: "&File",
       submenu: [
-        { ...activeIndicator },
-        MenuItems.separator(),
+        ...activeIndicatorItems,
         MenuItems.saveScreenshot(displayWindow),
         MenuItems.separator(),
         MenuItems.startRecording(displayWindow, false),
@@ -388,9 +396,8 @@ function createMacOSMenu(mainWindow, displayWindow, packageInfo, settings, captu
       id: "view-menu",
       label: "&View",
       submenu: [
-        { ...activeIndicator },
-        MenuItems.separator(),
-        { label: "Display Windows", submenu: windowsSubmenuItems(captureDevices, settings) },
+        ...activeIndicatorItems,
+        ...windowsMenuEntries(captureDevices, settings),
         MenuItems.separator(),
         { ...MenuItems.toggleFullscreen(displayWindow), enabled: hasWindow },
         { ...MenuItems.devTools(), enabled: hasWindow },
@@ -551,12 +558,19 @@ function createTrayMenu(
   const hasWindow = !!displayWindow;
   const activeVisible = hasWindow && displayWindow.isVisible();
   const menuItems = [
-    // Disabled indicator: which window the actions below target.
-    {
-      label: hasWindow ? `Active Window: ${activeWindowLabel(settings, captureDevices)}` : "No active window",
-      enabled: false,
-    },
-    MenuItems.separator(),
+    // Disabled indicator: which window the actions below target. Hidden in single-window
+    // mode (only one window exists). Bundled with its separator to avoid a stray divider.
+    ...(isSingleWindowMode(settings)
+      ? []
+      : [
+          {
+            label: hasWindow
+              ? `Active Window: ${activeWindowLabel(settings, captureDevices)}`
+              : "No active window",
+            enabled: false,
+          },
+          MenuItems.separator(),
+        ]),
     { ...MenuItems.copyScreenshot(displayWindow), enabled: activeVisible },
     { ...MenuItems.saveScreenshot(displayWindow), enabled: activeVisible },
     MenuItems.separator(),
@@ -645,25 +659,51 @@ function controlLabel(device) {
     : `${device.type}: ${device.ipAddress}`;
 }
 
-// Build the "Display Windows" submenu items — one entry per detected capture device with
-// an Enabled checkbox (mirrors the General tab). Toggling enables/disables that device's
-// Display window. The label shows the linked control device. Reused by the tray menu and
-// the macOS View app menu. Relies on _windowActions.enableCapture.
+function isSingleWindowMode(settings) {
+  return settings?.display?.singleWindowMode !== false; // default true
+}
+
+// Friendly "<capture> → <control alias>" label for a capture device, given its pair.
+function windowEntryLabel(device, index, pairs, settings) {
+  const pair = pairs.find((p) => p.captureDeviceId === device.deviceId);
+  const control = pair?.controlDeviceId
+    ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
+    : null;
+  const capLabel = device.label || `Device ${index + 1}`;
+  // Show only the control device's alias/type here (no IP / MAC) to keep the label readable.
+  const controlName = control ? (control.alias ? `${control.type}: ${control.alias}` : control.type) : null;
+  return controlName ? `${capLabel} → ${controlName}` : capLabel;
+}
+
+// Build the "Display Windows" submenu items — one entry per detected capture device.
+// In multi-window mode each entry has Enabled + Visible checkboxes (mirrors the General
+// tab grid). In single-window mode the entries are a radio list to switch the one window
+// to that capture device + its control. Reused by the tray menu, the macOS View app menu,
+// and the right-click context menu. Relies on _windowActions.
 function windowsSubmenuItems(captureDevices = null, settings = null) {
   const devices = captureDevices || [];
   if (devices.length === 0) {
     return [{ label: "No capture devices", enabled: false }];
   }
   const pairs = settings?.pairs || [];
+
+  if (isSingleWindowMode(settings)) {
+    // Radio list: pick which capture device the single Display window shows.
+    return devices.map((device, index) => {
+      const pair = pairs.find((p) => p.captureDeviceId === device.deviceId);
+      const checked = !!pair && pair.visible !== false && pair.id === settings?.activePairId;
+      return {
+        label: windowEntryLabel(device, index, pairs, settings),
+        type: "radio",
+        checked,
+        click: () => _windowActions?.switchDevice?.(device.deviceId),
+      };
+    });
+  }
+
   return devices.map((device, index) => {
     const pair = pairs.find((p) => p.captureDeviceId === device.deviceId);
-    const control = pair?.controlDeviceId
-      ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
-      : null;
-    const capLabel = device.label || `Device ${index + 1}`;
-    // Show only the control device's alias/type here (no IP / MAC) to keep the label readable.
-    const controlName = control ? (control.alias ? `${control.type}: ${control.alias}` : control.type) : null;
-    const label = controlName ? `${capLabel} → ${controlName}` : capLabel;
+    const label = windowEntryLabel(device, index, pairs, settings);
     const enabled = pair?.visible === true;
     const visible = enabled && (_windowActions?.isVisible?.(device.deviceId) ?? false);
     return {
@@ -689,14 +729,22 @@ function windowsSubmenuItems(captureDevices = null, settings = null) {
   });
 }
 
+// Menu entries for the windows section, mode-aware:
+// - single-window mode: the device radio items inline on the menu (quick switch, no submenu)
+// - multi-window mode: a single "Display Windows" submenu (Enabled/Visible per device)
+function windowsMenuEntries(captureDevices = null, settings = null) {
+  const items = windowsSubmenuItems(captureDevices, settings);
+  if (isSingleWindowMode(settings)) {
+    return items;
+  }
+  return [{ label: "Display Windows", submenu: items }];
+}
+
 function appendWindowsMenu(menu, captureDevices = null, settings = null) {
   menu.append(new MenuItem({ type: "separator" }));
-  menu.append(
-    new MenuItem({
-      label: "Display Windows",
-      submenu: windowsSubmenuItems(captureDevices, settings),
-    })
-  );
+  for (const item of windowsMenuEntries(captureDevices, settings)) {
+    menu.append(new MenuItem(item));
+  }
 }
 
 // "Linked Device" submenu — relink the control device of the active window. Shown only
