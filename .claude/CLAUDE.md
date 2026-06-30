@@ -17,16 +17,21 @@ Always create a new git branch before starting work on any new feature or fix. N
 ```bash
 # Development workflow — must build React before running Electron
 npm run build       # Compile React app to build/
-npm run forge       # Start Electron (loads from build/, requires build first)
-npm run debug       # build + run with ELECTRON_IS_DEV=1
+npm run forge       # Start Electron via electron-forge (loads from build/, requires build first)
+npm run electron    # Run Electron directly (electron .) — also needs a prior build
+npm run debug       # build + run with ELECTRON_IS_DEV=1 (build + electron .)
 
 # Testing
 npm test            # Run React component tests (react-scripts test)
 
-# Packaging / releasing
-npm run make        # Create installer for current platform (output: out/make/)
-npm run make:mac    # Universal macOS DMG
-npm run publish     # build + electron-forge publish to GitHub Releases
+# Packaging / releasing (output: out/make/)
+npm run package            # Package the app (electron-forge package, no installer)
+npm run make               # Create installer for the current platform
+npm run make:mac:arm64     # macOS DMG, Apple Silicon (arm64)
+npm run make:mac:universal # macOS DMG, universal (Intel + Apple Silicon)
+npm run make:win           # Windows x64 installer
+npm run make:linux         # Linux x64 installer
+npm run publish            # build + electron-forge publish to GitHub Releases
 ```
 
 **macOS notarization** requires env vars: `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
@@ -70,7 +75,7 @@ Pure vanilla JS — no React. Each Display window is its **own renderer process*
 
 Renderer→main messages are routed by `event.sender` (no need to tag pairId). Video state machine: `stopped → starting → loading → playing`. Recovery attempts are tracked in `deviceRecoveryAttempts` (max 3). `ensureMyConstraints()` lets a window (re)start its stream on show even if it launched hidden.
 
-**Capture is gated on real window visibility.** A `visibilitychange` listener stops the stream whenever `document.hidden` is true — hidden, minimized, on another Space, occluded by another window, or behind the macOS lock screen (Electron reports all of these as hidden) — and re-acquires it when the window becomes visible again. This is the authoritative gate that guarantees the OS camera/recording indicator clears (and the capture device is freed so the Mac can sleep) when a Display window can't be seen; it backstops the explicit `window-hide`/`window-minimize` and `auto-suspend` (allow-sleep) handlers.
+**Capture is gated on real window visibility.** A `visibilitychange` listener stops the stream whenever `document.hidden` is true — hidden, minimized, on another Space, occluded by another window, or behind the macOS lock screen (Electron reports all of these as hidden) — and re-acquires it when the window becomes visible again. This is the authoritative gate that guarantees the OS camera/recording indicator clears (and the capture device is freed so the Mac can sleep) when a Display window can't be seen; it backstops the explicit `window-hide`/`window-minimize` and `auto-suspend` (allow-sleep) handlers. As the other half of this gate, **`renderDisplay()` refuses to acquire while the window isn't visible** (it returns early, stopping any stream): so no restart path — device reconnect after sleep/wake, `auto-resume` on unlock, the retry loop — can light up the camera in a window that isn't shown. Visibility here is `windowHidden || document.hidden`: `windowHidden` is an authoritative flag driven by main's explicit hide/show (`window-hide`/`window-minimize`/`auto-suspend` set it; `window-show`/`window-restore`/`auto-resume` clear it), because `document.hidden` alone is unreliable across macOS sleep/wake (a hidden window can briefly report visible on wake and let a restart slip through). Acquisition resumes only when main actually shows the window again.
 
 **Stream ownership / no orphaned tracks.** The live stream is tracked directly in `activeStream` (not just `videoPlayer.srcObject`), and every `renderDisplay()`/`stopVideoStream()` bumps a `streamGeneration` token. A `getUserMedia` that resolves after a newer call (or after the window hid) detects it's stale and stops its own tracks instead of leaking them — otherwise an orphaned live track keeps the macOS camera indicator lit even though `videoState` reads `stopped`. `stopVideoStream()` stops tracks from both `activeStream` and the element.
 

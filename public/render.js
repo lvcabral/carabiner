@@ -64,6 +64,12 @@ const margin = 5;
 let currentColor = "#662D91";
 let currentConstraints = { video: true, audio: false };
 let videoState = "stopped";
+// Authoritative "this window is hidden" flag driven by the MAIN process (window-hide /
+// window-minimize / auto-suspend), cleared on window-show / window-restore / auto-resume.
+// document.hidden alone is unreliable across macOS sleep/wake — a hidden window can briefly
+// report visible on wake, letting a restart path re-acquire the camera behind a window the
+// user can't see. Main's explicit hide/show is the source of truth, so we gate on it too.
+let windowHidden = false;
 // Authoritative handle on the live capture stream. videoPlayer.srcObject can be cleared or
 // reassigned out from under an in-flight getUserMedia, orphaning its tracks (which keeps the
 // macOS camera indicator lit even though videoState reads "stopped"). We track the stream
@@ -446,6 +452,18 @@ function renderDisplay(constraints, isBlankRetry = false) {
   window.electronAPI.log("debug",
     `[Carabiner] renderDisplay called - deviceId: ${deviceId || "default"}, videoState: ${videoState}, isBlankRetry: ${isBlankRetry}`
   );
+  // Never acquire the camera while this window isn't actually visible (hidden, minimized,
+  // occluded, or behind the lock screen). Any restart path that fires while hidden — device
+  // reconnect after sleep/wake, auto-resume on unlock, the stream retry loop — must wait until
+  // the window is shown again. windowHidden is main's authoritative hide state; document.hidden
+  // covers occlusion. Either being set means "don't stream".
+  if (windowHidden || document.hidden) {
+    window.electronAPI.log("debug",
+      `[Carabiner] renderDisplay skipped — window not visible (windowHidden: ${windowHidden}, document.hidden: ${document.hidden})`
+    );
+    if (videoState !== "stopped") stopVideoStream();
+    return;
+  }
   if (videoState !== "stopped") {
     window.electronAPI.log("debug","[Carabiner] Stopping existing stream before starting new one");
     stopVideoStream();
@@ -651,6 +669,7 @@ window.addEventListener("DOMContentLoaded", function () {
   // screen lock / user idle, and resume on unlock / activity. Kept separate from
   // window-hide/show so it doesn't disturb script recording or window state.
   window.electronAPI.onMessageReceived("auto-suspend", () => {
+    windowHidden = true;
     cancelStreamRetry();
     if (videoState !== "stopped") {
       stopVideoStream();
@@ -658,6 +677,7 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 
   window.electronAPI.onMessageReceived("auto-resume", () => {
+    windowHidden = false;
     if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
       const hasSpecificDevice =
         currentConstraints.video !== true &&
@@ -674,6 +694,7 @@ window.addEventListener("DOMContentLoaded", function () {
   window.electronAPI.onMessageReceived("window-show", () => {
     // Window is now visible - (re)start the stream. ensureMyConstraints() falls back to
     // this window's saved capture device when it launched hidden and never received a stream.
+    windowHidden = false;
     if (videoState === "stopped" && ensureMyConstraints()) {
       renderDisplay(currentConstraints);
     }
@@ -682,6 +703,7 @@ window.addEventListener("DOMContentLoaded", function () {
   window.electronAPI.onMessageReceived("window-hide", () => {
     // Stop any in-progress recording first so its file is saved and main clears this
     // window's recording state, then stop the stream to save resources.
+    windowHidden = true;
     cancelStreamRetry();
     if (isRecording) {
       handleStopRecording();
@@ -701,6 +723,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
   window.electronAPI.onMessageReceived("window-minimize", () => {
     // Stop any in-progress recording first, then stop the stream to save resources.
+    windowHidden = true;
     cancelStreamRetry();
     if (isRecording) {
       handleStopRecording();
@@ -720,6 +743,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
   window.electronAPI.onMessageReceived("window-restore", () => {
     // Window is restored from minimized - restart video stream if we have constraints and it's stopped
+    windowHidden = false;
     if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
       // Only restart if we have a proper video stream constraint (not just the default { video: true })
       const hasSpecificDevice =
