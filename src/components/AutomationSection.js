@@ -71,7 +71,7 @@ function getModLabel(mod) {
   return "Press";
 }
 
-function AutomationSection() {
+function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [] }) {
   const [scripts, setScripts] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -79,17 +79,64 @@ function AutomationSection() {
   const [editingName, setEditingName] = useState("");
   const [editedSteps, setEditedSteps] = useState([]);
   const [playingId, setPlayingId] = useState(null);
+  const [selectedPairId, setSelectedPairId] = useState(activePairId);
+  const [captureDevices, setCaptureDevices] = useState([]);
   const isPlaying = playingId !== null;
   const nameInputRef = useRef(null);
+
+  // Scripts run on a chosen Display window. Only enabled windows are selectable.
+  const visiblePairs = pairs.filter((p) => p.visible !== false);
+  const selectedPair =
+    visiblePairs.find((p) => p.id === selectedPairId) ||
+    visiblePairs.find((p) => p.id === activePairId) ||
+    visiblePairs[0] ||
+    null;
+  // The window's linked control protocol drives which scripts are relevant.
+  const selectedProtocol = selectedPair?.controlDeviceId
+    ? selectedPair.controlDeviceId.split("|")[1]
+    : null;
+  const hasControl = !!selectedProtocol;
+  const filteredScripts = hasControl
+    ? scripts.filter((s) => s.controlType === selectedProtocol)
+    : [];
+
+  const pairLabel = (pair) => {
+    const cap = captureDevices.find((d) => d.deviceId === pair.captureDeviceId);
+    const capName = cap?.label || pair.captureDeviceId || "Capture device";
+    const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
+    return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;
+  };
+
+  // Follow the active window when it changes elsewhere.
+  useEffect(() => {
+    if (activePairId) setSelectedPairId(activePairId);
+  }, [activePairId]);
 
   useEffect(() => {
     electronAPI.invoke("get-scripts").then((data) => {
       setScripts(data || []);
     });
+    electronAPI
+      .invoke("get-capture-devices")
+      .then((devices) => {
+        if (Array.isArray(devices) && devices.length > 0) setCaptureDevices(devices);
+      })
+      .catch(() => {});
 
     const handleSharedChannel = (_, message) => {
       if (message.type === "scripts-updated") {
         setScripts(message.payload || []);
+      } else if (message.type === "set-capture-devices") {
+        let devices = [];
+        if (Array.isArray(message.payload)) devices = message.payload;
+        else if (typeof message.payload === "string") {
+          try {
+            devices = JSON.parse(message.payload);
+          } catch {
+            devices = [];
+          }
+        }
+        if (devices.length > 0) setCaptureDevices(devices);
       }
     };
     electronAPI.onMessageReceived("shared-window-channel", handleSharedChannel);
@@ -117,7 +164,15 @@ function AutomationSection() {
     }
   }, [editingNameId]);
 
+  // Target the selected window: make it the active pair so recording/playback land on it.
+  const handleSelectWindow = (pairId) => {
+    setSelectedPairId(pairId);
+    electronAPI.send("set-active-pair", pairId);
+  };
+
   const handleStartRecording = () => {
+    if (!hasControl) return;
+    if (selectedPair) electronAPI.send("set-active-pair", selectedPair.id);
     electronAPI.send("start-script-recording");
   };
 
@@ -128,7 +183,7 @@ function AutomationSection() {
   const handlePlay = (script) => {
     if (isRecording || playingId) return;
     setPlayingId(script.id);
-    electronAPI.send("run-script", script.id);
+    electronAPI.send("run-script", script.id, selectedPair?.id);
   };
 
   const handleStop = () => {
@@ -223,12 +278,43 @@ function AutomationSection() {
         </Alert>
       )}
 
+      {/* Target window selector — scripts record/run on the chosen Display window. */}
+      <Form.Group className="mb-2">
+        <Form.Label className="mb-1" style={{ fontSize: "0.8rem" }}>
+          Run on Window
+        </Form.Label>
+        <Form.Control
+          as="select"
+          size="sm"
+          value={selectedPair?.id || ""}
+          onChange={(e) => handleSelectWindow(e.target.value)}
+          disabled={visiblePairs.length === 0}
+          style={{ fontSize: "0.8rem" }}
+        >
+          {visiblePairs.length === 0 ? (
+            <option value="">No window enabled — enable a device in the General tab</option>
+          ) : (
+            visiblePairs.map((pair) => (
+              <option key={pair.id} value={pair.id}>
+                {pairLabel(pair)}
+              </option>
+            ))
+          )}
+        </Form.Control>
+        {visiblePairs.length > 0 && !hasControl && (
+          <div className="text-warning mt-1" style={{ fontSize: "0.75rem" }}>
+            No control device linked to this window — link one in the General tab to record or run
+            scripts.
+          </div>
+        )}
+      </Form.Group>
+
       {/* Controls */}
       <div className="d-flex gap-2 mb-2">
         <Button
           size="sm"
           variant="danger"
-          disabled={isRecording || isPlaying}
+          disabled={isRecording || isPlaying || !hasControl}
           onClick={handleStartRecording}
           title="Start Recording (Cmd+Shift+A on Mac / Ctrl+Shift+A on Win/Linux)"
         >
@@ -245,14 +331,21 @@ function AutomationSection() {
         </Button>
       </div>
 
-      {/* Script list */}
-      {scripts.length === 0 ? (
+      {/* Script list (filtered to the selected window's control protocol) */}
+      {filteredScripts.length === 0 ? (
         <p className="text-muted" style={{ fontSize: "0.85rem" }}>
-          No scripts recorded yet. Press <strong>Start Recording</strong>, perform actions on your device, then press <strong>Stop Recording</strong>.
+          {!hasControl ? (
+            "Select a window with a linked control device to record and run scripts."
+          ) : (
+            <>
+              No {selectedProtocol.toUpperCase()} scripts yet. Press <strong>Start Recording</strong>,
+              perform actions on your device, then press <strong>Stop Recording</strong>.
+            </>
+          )}
         </p>
       ) : (
-        <div className="script-list-scroll" style={{ maxHeight: "calc(100vh - 230px)", overflowY: "scroll" }}>
-          {scripts.map((script) => (
+        <div className="script-list-scroll" style={{ maxHeight: "calc(100vh - 290px)", overflowY: "scroll" }}>
+          {filteredScripts.map((script) => (
             <div key={script.id} className="mb-2 border rounded" style={{ overflow: "hidden" }}>
               {/* Script header row */}
               <div className="d-flex align-items-center p-2 gap-2 script-header-row">

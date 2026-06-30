@@ -9,7 +9,7 @@
 
 # Carabiner
 
-**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku, Android-based streaming devices (Fire TV, Google TV, Android TV), Apple TV, and Xumo Stream Box (RDK, experimental) through an intuitive floating and resizable window interface.
+**Carabiner** is a powerful video capture and remote control application designed for streaming device development and testing. It provides seamless control of Roku, Android-based streaming devices (Fire TV, Google TV, Android TV), Apple TV, and Xumo Stream Box (RDK, experimental) through intuitive floating, resizable windows — and can run **multiple capture devices at once**, each in its own window linked to its own streaming device.
 
 <p align="center">
   <img src="https://img.shields.io/badge/Roku-662D91?style=for-the-badge&logo=roku&logoColor=white" alt="Roku" height="42px" />
@@ -28,10 +28,11 @@ Perfect for developers and QA engineers who need to test streaming applications 
 ### Core Functionality
 
 - **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Comcast Xumo (experimental)
+- **Single or Multiple Windows**: Use one Display window and switch devices on the fly (default), or opt into multi-window mode to run several capture devices simultaneously — each capture card in its own floating window linked to its own streaming device
 - **Real-time Video Capture**: View your streaming device output directly on your computer
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
 - **Text Pasting**: Paste clipboard content directly to streaming devices
-- **Video Recording**: Record streaming device sessions in MP4/WebM format for documentation and testing
+- **Video Recording**: Record streaming device sessions in MP4/WebM format — independently per window
 - **Screenshot Capture**: Save or copy screenshots with one click
 - **Automation Scripts**: Record key sequences with precise timing and replay them on demand
 - **MCP Server**: Let AI assistants control devices, run scripts, and capture screenshots via the Model Context Protocol for AI-driven QA automation
@@ -39,10 +40,11 @@ Perfect for developers and QA engineers who need to test streaming applications 
 
 ### Additional Features
 
-- **Overlay Images**: Load reference images for pixel-perfect UI comparison with opacity control
+- **Overlay Images**: Load reference images for pixel-perfect UI comparison with opacity control — per window
 - **Customizable Display**: Adjust transparency, borders, dimensions and toggle always-on-top behavior
 - **Control Demo Mode**: Show the pressed control keys on the screen for demos and presentations
-- **Global Shortcut**: Quick show/hide the display window from anywhere with a keyboard shortcut
+- **Global Shortcut**: Quick show/hide all display windows from anywhere with a keyboard shortcut
+- **Single Instance**: Only one Carabiner runs at a time; launching again brings the running instance forward
 - **Audio Capture**: Toggle audio capture for testing audio features (TTS, Audio tracks)
 - **Auto-Launch**: Start with your system for seamless workflow
 - **Resolution Control**: Configure capture device resolution
@@ -59,9 +61,9 @@ Perfect for developers and QA engineers who need to test streaming applications 
    ```
    See the [Installation Guide](./docs/installation.md) for all platforms and options.
 2. **Launch** Carabiner
-3. **Configure** your capture device in the **General** tab
-4. **Add** your streaming device in the **Control** tab
-5. **Link** your devices in the **General** tab and start controlling!
+3. **Add** your streaming device(s) in the **Control** tab
+4. In the **General** tab, find your capture card in the list, **link** a control device to it, and check **Enabled** to open its window
+5. Repeat per capture card to run several devices at once — then start controlling!
 
 For detailed setup and usage instructions, see our comprehensive guides:
 

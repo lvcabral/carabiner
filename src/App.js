@@ -27,12 +27,24 @@ const { electronAPI } = window;
 
 function App() {
   const [streamingDevices, setStreamingDevices] = useState([]);
+  const [pairs, setPairs] = useState([]);
+  const [activePairId, setActivePairId] = useState("");
   const onDeletedDeviceRef = useRef(null);
 
   useEffect(() => {
     electronAPI.onMessageReceived("update-control-device", (event, data) => {
       if (data?.deviceList) {
         setStreamingDevices(data.deviceList);
+      }
+    });
+    electronAPI.onMessageReceived("pairs-updated", (event, updated) => {
+      if (Array.isArray(updated)) {
+        setPairs(updated);
+      }
+    });
+    electronAPI.onMessageReceived("active-pair-changed", (event, id) => {
+      if (id) {
+        setActivePairId(id);
       }
     });
   }, []);
@@ -42,6 +54,12 @@ function App() {
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.deviceList) {
         handleUpdateStreamingDevices(settings.control.deviceList);
+      }
+      if (Array.isArray(settings.pairs)) {
+        setPairs(settings.pairs);
+      }
+      if (settings.activePairId) {
+        setActivePairId(settings.activePairId);
       }
       // Apply initial dark mode theme
       if (settings.display && settings.display.darkMode !== undefined) {
@@ -71,6 +89,13 @@ function App() {
     }
   };
 
+  // Persist the full pairs array to the main process, which reconciles the live
+  // Display windows (open/close/connect) and echoes back a normalized list.
+  const handlePairsChange = (newPairs) => {
+    setPairs(newPairs);
+    electronAPI.send("set-pairs", newPairs);
+  };
+
   return (
     <div className="p-3 custom-container">
       <div className="p-3 bg-light rounded-3">
@@ -83,14 +108,20 @@ function App() {
             <div className="tab-content-container">
               <GeneralSection
                 streamingDevices={streamingDevices}
-                onUpdateStreamingDevices={handleUpdateStreamingDevices}
                 onDeletedDeviceRef={onDeletedDeviceRef}
+                pairs={pairs}
+                onPairsChange={handlePairsChange}
               />
             </div>
           </Tab>
           <Tab eventKey="border" title="Display">
             <div className="tab-content-container">
-              <DisplaySection />
+              <DisplaySection
+                pairs={pairs}
+                activePairId={activePairId}
+                onPairsChange={handlePairsChange}
+                streamingDevices={streamingDevices}
+              />
             </div>
           </Tab>
           <Tab eventKey="control" title="Control">
@@ -104,7 +135,11 @@ function App() {
           </Tab>
           <Tab eventKey="automation" title="Automation">
             <div className="tab-content-container">
-              <AutomationSection />
+              <AutomationSection
+                pairs={pairs}
+                activePairId={activePairId}
+                streamingDevices={streamingDevices}
+              />
             </div>
           </Tab>
           <Tab eventKey="mcp" title="MCP">
@@ -114,7 +149,12 @@ function App() {
           </Tab>
           <Tab eventKey="overlay" title="Overlay">
             <div className="tab-content-container">
-              <OverlaySection />
+              <OverlaySection
+                pairs={pairs}
+                activePairId={activePairId}
+                onPairsChange={handlePairsChange}
+                streamingDevices={streamingDevices}
+              />
             </div>
           </Tab>
           <Tab eventKey="files" title="Files">

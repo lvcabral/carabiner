@@ -107,6 +107,12 @@ function registerAll(server, ctx) {
   registerPrompts(server, ctx);
 }
 
+// Reusable schema fragment: optionally target a specific window/pair by its control device id.
+const targetDeviceId = z
+  .string()
+  .optional()
+  .describe("Optional control device id to target a specific window; defaults to the active window.");
+
 function registerDeviceTools(server, ctx) {
   server.registerTool(
     "list_devices",
@@ -116,6 +122,18 @@ function registerDeviceTools(server, ctx) {
         "Return all configured control devices with their protocol (ecp/adb/atv/rdk) and connection status.",
     },
     handler(async () => textResult(ctx.listDevices()))
+  );
+
+  server.registerTool(
+    "list_windows",
+    {
+      title: "List display windows",
+      description:
+        "Return the open Display windows (capture+control pairs): pairId, capture label, control " +
+        "device id, visibility, and which one is active. Use a window's controlDeviceId as the " +
+        "optional 'deviceId' on other tools to target that window.",
+    },
+    handler(async () => textResult(ctx.listWindows()))
   );
 
   server.registerTool(
@@ -136,8 +154,9 @@ function registerDeviceTools(server, ctx) {
     {
       title: "Get current device",
       description: "Return protocol, address, and connection state of the active control device.",
+      inputSchema: { deviceId: targetDeviceId },
     },
-    handler(async () => textResult(ctx.getCurrentDevice()))
+    handler(async ({ deviceId }) => textResult(ctx.getCurrentDevice(deviceId)))
   );
 
   server.registerTool(
@@ -150,12 +169,13 @@ function registerDeviceTools(server, ctx) {
         ") or a raw protocol-native key (ECP command, ADB keycode, or ATV command).",
       inputSchema: {
         key: z.string().describe("Friendly key name or raw protocol-native key."),
+        deviceId: targetDeviceId,
       },
     },
-    handler(async ({ key }) => {
-      const current = ctx.getCurrentDevice();
+    handler(async ({ key, deviceId }) => {
+      const current = ctx.getCurrentDevice(deviceId);
       const { key: nativeKey, mod } = resolveKey(key, current.type);
-      await ctx.sendKey(nativeKey, mod);
+      await ctx.sendKey(nativeKey, mod, deviceId);
       return textResult({ sent: key, nativeKey, protocol: current.type });
     })
   );
@@ -167,10 +187,11 @@ function registerDeviceTools(server, ctx) {
       description: "Type a text string on the current device.",
       inputSchema: {
         text: z.string().describe("Text to type."),
+        deviceId: targetDeviceId,
       },
     },
-    handler(async ({ text }) => {
-      await ctx.sendText(text);
+    handler(async ({ text, deviceId }) => {
+      await ctx.sendText(text, deviceId);
       return textResult({ sent: text });
     })
   );
@@ -184,9 +205,10 @@ function registerDeviceTools(server, ctx) {
       inputSchema: {
         client: z.string().describe("Application client name (e.g. 'Netflix', 'Cobalt', 'HtmlApp')."),
         uri: z.string().optional().describe("Optional URI/deep-link payload to pass to the app."),
+        deviceId: targetDeviceId,
       },
     },
-    handler(async ({ client, uri }) => textResult(await ctx.launchApp({ client, uri })))
+    handler(async ({ client, uri, deviceId }) => textResult(await ctx.launchApp({ client, uri, deviceId })))
   );
 }
 
@@ -224,10 +246,11 @@ function registerCaptureTools(server, ctx) {
           .boolean()
           .optional()
           .describe("Whether to also save the PNG to disk (default true)."),
+        deviceId: targetDeviceId,
       },
     },
-    handler(async ({ save }) => {
-      const shot = await ctx.takeScreenshot({ save: save !== false });
+    handler(async ({ save, deviceId }) => {
+      const shot = await ctx.takeScreenshot({ save: save !== false, deviceId });
       return {
         content: [
           { type: "image", data: shot.base64, mimeType: shot.mimeType },
@@ -250,10 +273,11 @@ function registerCaptureTools(server, ctx) {
           .string()
           .optional()
           .describe("Optional filename prefix for the saved recording."),
+        deviceId: targetDeviceId,
       },
     },
-    handler(async ({ filename_prefix }) => {
-      await ctx.startRecording({ filenamePrefix: filename_prefix });
+    handler(async ({ filename_prefix, deviceId }) => {
+      await ctx.startRecording({ filenamePrefix: filename_prefix, deviceId });
       return textResult({ recording: true });
     })
   );
@@ -263,8 +287,9 @@ function registerCaptureTools(server, ctx) {
     {
       title: "Stop recording",
       description: "Stop recording, save the file, and return the saved file path.",
+      inputSchema: { deviceId: targetDeviceId },
     },
-    handler(async () => textResult(await ctx.stopRecording()))
+    handler(async ({ deviceId }) => textResult(await ctx.stopRecording({ deviceId })))
   );
 }
 
@@ -285,9 +310,10 @@ function registerScriptTools(server, ctx) {
       description: "Execute a saved script by id. Blocks until the script completes or is cancelled.",
       inputSchema: {
         scriptId: z.string().describe("Id of the script to run."),
+        deviceId: targetDeviceId,
       },
     },
-    handler(async ({ scriptId }) => textResult(await ctx.runScript(scriptId)))
+    handler(async ({ scriptId, deviceId }) => textResult(await ctx.runScript(scriptId, deviceId)))
   );
 
   server.registerTool(
@@ -341,26 +367,42 @@ function registerScriptTools(server, ctx) {
 function registerDisplayTools(server, ctx) {
   server.registerTool(
     "show_display",
-    { title: "Show display", description: "Make the floating display window visible." },
-    handler(async () => textResult(ctx.showDisplay()))
+    {
+      title: "Show display",
+      description: "Make a floating display window visible (defaults to the active window).",
+      inputSchema: { deviceId: targetDeviceId },
+    },
+    handler(async ({ deviceId }) => textResult(ctx.showDisplay({ deviceId })))
   );
 
   server.registerTool(
     "hide_display",
-    { title: "Hide display", description: "Hide the floating display window." },
-    handler(async () => textResult(ctx.hideDisplay()))
+    {
+      title: "Hide display",
+      description: "Hide a floating display window (defaults to the active window).",
+      inputSchema: { deviceId: targetDeviceId },
+    },
+    handler(async ({ deviceId }) => textResult(ctx.hideDisplay({ deviceId })))
   );
 
   server.registerTool(
     "toggle_fullscreen",
-    { title: "Toggle fullscreen", description: "Toggle fullscreen mode of the display window." },
-    handler(async () => textResult(ctx.toggleFullscreen()))
+    {
+      title: "Toggle fullscreen",
+      description: "Toggle fullscreen mode of a display window (defaults to the active window).",
+      inputSchema: { deviceId: targetDeviceId },
+    },
+    handler(async ({ deviceId }) => textResult(ctx.toggleFullscreen({ deviceId })))
   );
 
   server.registerTool(
     "toggle_on_top",
-    { title: "Toggle always on top", description: "Toggle always-on-top mode of the display window." },
-    handler(async () => textResult(ctx.toggleOnTop()))
+    {
+      title: "Toggle always on top",
+      description: "Toggle always-on-top mode of a display window (defaults to the active window).",
+      inputSchema: { deviceId: targetDeviceId },
+    },
+    handler(async ({ deviceId }) => textResult(ctx.toggleOnTop({ deviceId })))
   );
 }
 

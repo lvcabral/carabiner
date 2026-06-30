@@ -45,19 +45,23 @@ The first command builds the React frontend, and the second starts the Electron 
 ### Core Commands
 
 - **`npm run build`**: Build the React application for production
-- **`npm run forge`**: Run the Electron app (requires a prior `build`)
+- **`npm run forge`**: Run the Electron app via electron-forge (requires a prior `build`)
+- **`npm run electron`**: Run the Electron app directly with `electron .` (also requires a prior `build`)
 - **`npm run debug`**: Build and run with `ELECTRON_IS_DEV=1` for development logging
 - **`npm run test`**: Run React component tests
-- **`npm run make`**: Create a platform-specific installer for the current OS (output: `out/make/`)
-- **`npm run make:mac`**: Create a universal macOS DMG (Intel + Apple Silicon)
-- **`npm run make:all`**: Create installers for macOS (universal), Windows (x64), and Linux (x64)
+- **`npm run package`**: Package the app without building an installer (output: `out/`)
+- **`npm run make`**: Create an installer for the current platform (output: `out/make/`)
+- **`npm run make:mac:arm64`**: Create a macOS DMG for Apple Silicon (arm64)
+- **`npm run make:mac:universal`**: Create a universal macOS DMG (Intel + Apple Silicon)
+- **`npm run make:win`**: Create a Windows x64 installer
+- **`npm run make:linux`**: Create a Linux x64 installer
 - **`npm run publish`**: Build and publish a draft release to GitHub
 
 ## Creating Installers
 
 ### For Your Current Platform
 
-To create a platform-specific installer for your current operating system:
+To create an installer for your current operating system:
 
 ```console
 npm run make
@@ -65,38 +69,40 @@ npm run make
 
 The installer will be created in the `./out/make` directory.
 
-### macOS Universal Binary
+### macOS
 
 ```console
-npm run make:mac
+npm run make:mac:arm64      # Apple Silicon only
+npm run make:mac:universal  # universal (Intel + Apple Silicon)
 ```
 
-Produces a single DMG that runs natively on both Intel and Apple Silicon Macs.
+`make:mac:universal` produces a single DMG that runs natively on both Intel and Apple Silicon Macs.
 
-> **macOS notarization** requires the `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` environment variables to be set before running `make:mac` or `publish`.
+> **macOS notarization** requires the `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` environment variables to be set before running the `make:mac:*` scripts or `publish`.
 
-### All Platforms
+### Windows and Linux
 
 ```console
-npm run make:all
+npm run make:win    # Windows x64 installer
+npm run make:linux  # Linux x64 installer
 ```
 
-Builds installers sequentially for macOS (universal DMG), Windows (x64), and Linux (x64).
+> Cross-platform builds generally require building on (or with the toolchain for) the target OS.
 
 ## Project Structure
 
 ```console
 carabiner/
 ├── public/                      # Electron main process and display window files
-│   ├── main.js                  # Main Electron process — window management and IPC routing
+│   ├── main.js                  # Main process — multi-window pair registry, IPC routing, single-instance
 │   ├── preload.js               # contextBridge — exposes electronAPI to both renderers
-│   ├── display.html             # Display window HTML (loaded by displayWindow)
-│   ├── render.js                # Display window renderer — video, keyboard, recording, scripts
-│   ├── menu.js                  # macOS menu bar, system tray, and right-click context menu
-│   ├── settings.js              # Load/save settings.json from userData
-│   ├── adb.js                   # Android/Fire TV/Google TV control via ADB
-│   ├── appletv.js               # Apple TV control via atvremote (pyatv)
-│   ├── rdk.js                   # Xumo Stream Box / RDK control via RDKShell JSON-RPC
+│   ├── display.html             # Display window HTML (one window per capture+control pair)
+│   ├── render.js                # Display window renderer — video, keyboard, recording, scripts (per window)
+│   ├── menu.js                  # macOS app menu, system tray, and right-click context menu
+│   ├── settings.js              # Load/save settings.json (pairs[] model + migration)
+│   ├── adb.js                   # Android/Fire TV/Google TV control via ADB (multi-target)
+│   ├── appletv.js               # Apple TV control via atvremote (pyatv, multi-target)
+│   ├── rdk.js                   # Xumo Stream Box / RDK control via RDKShell JSON-RPC (multi-target)
 │   ├── mcp-server.js            # Embedded MCP server (localhost) — HTTP/SSE transports
 │   ├── mcp-tools.js             # MCP tool/resource/prompt registration
 │   └── updater.js               # GitHub Releases version check
@@ -104,8 +110,8 @@ carabiner/
 │   ├── App.js                   # Root component — tab layout
 │   ├── index.js                 # React entry point
 │   └── components/              # One component per settings tab
-│       ├── GeneralSection.js    # Capture device picker and device link
-│       ├── DisplaySection.js    # Border, transparency, window options
+│       ├── GeneralSection.js    # Capture-device grid: link control + Enabled per window
+│       ├── DisplaySection.js    # Per-window appearance (Editing Window selector)
 │       ├── ControlSection.js    # Add/remove Roku, Android, Apple TV, and Xumo (RDK) devices
 │       ├── AutomationSection.js # Script recording, playback, and step editing
 │       ├── OverlaySection.js    # Reference image overlay with opacity control

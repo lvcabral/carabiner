@@ -9,8 +9,10 @@
  *--------------------------------------------------------------------------------------------*/
 const { spawn } = require("child_process");
 let atvremotePath = "";
-let deviceId = "";
-let isATVConnected = false;
+
+// Track connected Apple TV device ids so multiple Display windows can each drive a
+// different device. atvremote already addresses a device via `--id <deviceId>`.
+const connectedIds = new Set();
 
 function connectATV(id, path) {
   if (typeof path === "string") {
@@ -20,31 +22,51 @@ function connectATV(id, path) {
     console.error("atvremote path not set.");
     return false;
   }
-  deviceId = id;
-  isATVConnected = true;
+  if (!id) return false;
+  connectedIds.add(id);
   console.log("Apple TV configured for " + id);
-  return isATVConnected;
+  return true;
 }
 
-function disconnectATV() {
-  deviceId = "";
-  isATVConnected = false;
-  console.log("Disconnected from Apple TV");
-  return isATVConnected;
+// Disconnect a specific device id; with no argument, forget every device.
+function disconnectATV(id) {
+  if (id) {
+    connectedIds.delete(id);
+    console.log("Disconnected from Apple TV " + id);
+  } else {
+    connectedIds.clear();
+    console.log("Disconnected from Apple TV");
+  }
+  return false;
 }
 
-function sendATVKey(key) {
-  if (isATVConnected && typeof key === "string" && atvremotePath !== "" && deviceId !== "") {
+function isATVConnected(id) {
+  if (id) return connectedIds.has(id);
+  return connectedIds.size > 0;
+}
+
+function sendATVKey(key, deviceId) {
+  if (deviceId && connectedIds.has(deviceId) && typeof key === "string" && atvremotePath !== "") {
     spawn(atvremotePath, ["--id", deviceId, "--protocol", "mrp", key], { stdio: "ignore" });
   } else {
-    console.error("Cannot send ATV key — not connected or missing parameters.", { isATVConnected, key, atvremotePath, deviceId });
+    console.error("Cannot send ATV key — not connected or missing parameters.", {
+      key,
+      atvremotePath,
+      deviceId,
+    });
   }
 }
 
-function sendATVText(text) {
-  if (isATVConnected && typeof text === "string" && text.length > 0 && atvremotePath !== "" && deviceId !== "") {
+function sendATVText(text, deviceId) {
+  if (
+    deviceId &&
+    connectedIds.has(deviceId) &&
+    typeof text === "string" &&
+    text.length > 0 &&
+    atvremotePath !== ""
+  ) {
     spawn(atvremotePath, ["--id", deviceId, `text_append=${text}`], { stdio: "ignore" });
   }
 }
 
-module.exports = { connectATV, disconnectATV, sendATVKey, sendATVText };
+module.exports = { connectATV, disconnectATV, isATVConnected, sendATVKey, sendATVText };

@@ -10,7 +10,7 @@
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
 
-function BorderStyle({ value, onChange }) {
+function BorderStyle({ value, onChange, size }) {
   const borderStyles = [
     {
       value: "solid",
@@ -49,8 +49,8 @@ function BorderStyle({ value, onChange }) {
   return (
     <Card.Text as="div">
       <Form.Group controlId="formVideoBorderStyle">
-        <Form.Label>Style</Form.Label>
-        <Form.Control as="select" value={value} onChange={onChange}>
+        <Form.Label>Border Style</Form.Label>
+        <Form.Control as="select" size={size} value={value} onChange={onChange}>
           {borderStyles.map((borderStyle) => (
             <option key={borderStyle.value} value={borderStyle.value}>
               {borderStyle.label}

@@ -38,6 +38,7 @@ function ShortcutInput({ value, onChange }) {
       <Form.Control
         type="text"
         value={shortcut}
+        style={{ fontSize: "0.85rem", width: "70%" }}
         onKeyDown={handleKeyDown}
         placeholder="No shortcut set"
         readOnly

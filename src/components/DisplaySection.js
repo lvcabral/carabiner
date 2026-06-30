@@ -7,11 +7,12 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
+import Alert from "react-bootstrap/Alert";
 import SelectBorderWidth from "./select/BorderWidth";
 import SelectBorderStyle from "./select/BorderStyle";
 import SelectResolution, { resolutionOptions } from "./select/Resolution";
@@ -24,24 +25,18 @@ const getDisplaySizeOptions = (maxWidth, maxHeight) => {
   return resolutionOptions
     .filter((option) => {
       const [width, height] = option.value.split("|").map(Number);
-      // Only include options that fit within the monitor dimensions
       return width <= maxWidth && height <= maxHeight;
     })
     .map((option) => {
       const [width, height] = option.value.split("|");
-      return {
-        value: `${width}x${height}`,
-        label: option.label,
-      };
+      return { value: `${width}x${height}`, label: option.label };
     });
 };
 
-// Get list of predefined sizes for validation, filtered by monitor size
 const getPredefinedSizes = (maxWidth, maxHeight) => {
   return resolutionOptions
     .filter((option) => {
       const [width, height] = option.value.split("|").map(Number);
-      // Only include options that fit within the monitor dimensions
       return width <= maxWidth && height <= maxHeight;
     })
     .map((option) => {
@@ -50,142 +45,157 @@ const getPredefinedSizes = (maxWidth, maxHeight) => {
     });
 };
 
-function DisplaySection() {
+function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamingDevices = [] }) {
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-  const [borderWidth, setBorderWidth] = useState("0.1px");
-  const [borderStyle, setBorderStyle] = useState("solid");
-  const [borderColor, setBorderColor] = useState("#662D91");
-  const [resolution, setResolution] = useState("1280|720");
-  const [displaySize, setDisplaySize] = useState("custom"); // Default fallback
-  const [transparency, setTransparency] = useState(0);
-  const [alwaysOnTop, setAlwaysOnTop] = useState(true);
+  const [selectedPairId, setSelectedPairId] = useState(activePairId);
+  const [displaySize, setDisplaySize] = useState("custom");
   const [showKeystrokes, setShowKeystrokes] = useState(false);
   const [allowSleep, setAllowSleep] = useState(true);
-  const [mainDisplaySize, setMainDisplaySize] = useState({
-    width: 1920,
-    height: 1080,
-  }); // Default fallback - largest monitor size
+  const [captureDevices, setCaptureDevices] = useState([]);
+  const [mainDisplaySize, setMainDisplaySize] = useState({ width: 1920, height: 1080 });
 
-  // Load initial data once
+  // Only visible windows can be edited (you can't see appearance changes on a hidden one).
+  const visiblePairs = pairs.filter((p) => p.visible !== false);
+
+  // Label for the "Editing Window" selector: capture card name + linked control (if any).
+  const pairLabel = (pair) => {
+    const cap = captureDevices.find((d) => d.deviceId === pair.captureDeviceId);
+    const capName = cap?.label || pair.captureDeviceId || "Capture device";
+    const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
+    return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;
+  };
+
+  // The pair whose appearance is being edited (defaults to / follows the active window).
+  const selectedPair =
+    visiblePairs.find((p) => p.id === selectedPairId) ||
+    visiblePairs.find((p) => p.id === activePairId) ||
+    visiblePairs[0] ||
+    null;
+  const pairId = selectedPair?.id;
+  const hasWindow = visiblePairs.length > 0;
+
+  const borderWidth = selectedPair?.border?.width || "0.1px";
+  const borderStyle = selectedPair?.border?.style || "solid";
+  const borderColor = selectedPair?.border?.color || "#662D91";
+  const resolution = `${selectedPair?.captureWidth || 1280}|${selectedPair?.captureHeight || 720}`;
+  const transparency = selectedPair?.transparency || 0;
+  const alwaysOnTop = selectedPair?.alwaysOnTop !== false;
+  const audioEnabled = selectedPair?.audioEnabled === true;
+
+  // Follow the active window when the user focuses a different Display window.
+  useEffect(() => {
+    if (activePairId) setSelectedPairId(activePairId);
+  }, [activePairId]);
+
+  // Load global settings + the largest monitor size once.
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load largest display size and settings in parallel
         const [displayInfo, settings] = await Promise.all([
           electronAPI.invoke("get-largest-display-size"),
           electronAPI.invoke("load-settings"),
         ]);
-
-        // Set largest display size
         setMainDisplaySize(displayInfo);
-
-        // Load all settings
-        if (settings.border && settings.border.width) {
-          setBorderWidth(settings.border.width);
-          notifyBorderChange("set-border-width", settings.border.width);
-        }
-        if (settings.border && settings.border.style) {
-          setBorderStyle(settings.border.style);
-          notifyBorderChange("set-border-style", settings.border.style);
-        }
-        if (settings.border && settings.border.color) {
-          setBorderColor(settings.border.color);
-          notifyBorderChange("set-border-color", settings.border.color);
-        }
-        if (settings.display && settings.display.captureWidth) {
-          const captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
-          setResolution(captureResolution);
-        }
-        if (settings.display && settings.display.transparency !== undefined) {
-          setTransparency(settings.display.transparency);
-          notifyTransparencyChange(settings.display.transparency);
-        }
-        if (settings.display && settings.display.alwaysOnTop !== undefined) {
-          setAlwaysOnTop(settings.display.alwaysOnTop);
-        }
+        const devices = await electronAPI.invoke("get-capture-devices");
+        if (Array.isArray(devices) && devices.length > 0) setCaptureDevices(devices);
         if (settings.display && settings.display.showKeystrokes !== undefined) {
           setShowKeystrokes(settings.display.showKeystrokes);
         }
         if (settings.display && settings.display.allowSleep !== undefined) {
           setAllowSleep(settings.display.allowSleep);
         }
-
-        // Set display size based on current window size and filtered predefined options
-        if (
-          settings.displayWindow &&
-          settings.displayWindow.width &&
-          settings.displayWindow.height
-        ) {
-          const windowSize = `${settings.displayWindow.width}x${settings.displayWindow.height}`;
-          const predefinedSizes = getPredefinedSizes(displayInfo.width, displayInfo.height);
-          if (predefinedSizes.includes(windowSize)) {
-            setDisplaySize(windowSize);
-          } else {
-            setDisplaySize("custom");
-          }
-        }
       } catch (error) {
-        console.warn("Failed to load largest display size or settings:", error);
-        // Keep default fallback values
+        console.warn("Failed to load display size or settings:", error);
       }
     };
-
     loadData();
-  }, []); // Only run once on mount
+  }, []);
 
-  // Set up event listeners with current mainDisplaySize values
+  // Reflect the selected window's saved bounds in the Display Size dropdown.
   useEffect(() => {
-    // Listen for window resize events to automatically set to "Custom"
-    const handleWindowResize = (_, message) => {
-      if (message.type === "window-resized") {
+    const bounds = selectedPair?.bounds;
+    if (bounds && bounds.width && bounds.height) {
+      const windowSize = `${bounds.width}x${bounds.height}`;
+      const predefinedSizes = getPredefinedSizes(mainDisplaySize.width, mainDisplaySize.height);
+      setDisplaySize(predefinedSizes.includes(windowSize) ? windowSize : "custom");
+    }
+  }, [selectedPair, mainDisplaySize.width, mainDisplaySize.height]);
+
+  // A live resize of the selected window switches the dropdown to a matching preset / Custom.
+  // Registered once (empty deps) and reads the latest values via refs — re-running this
+  // effect would call removeListener, which is channel-wide and would also evict the
+  // capture-device dropdown's listener on the same "shared-window-channel".
+  const mainDisplaySizeRef = useRef(mainDisplaySize);
+  const selectedPairIdRef = useRef(selectedPairId);
+  useEffect(() => {
+    mainDisplaySizeRef.current = mainDisplaySize;
+  }, [mainDisplaySize]);
+  useEffect(() => {
+    selectedPairIdRef.current = selectedPairId;
+  }, [selectedPairId]);
+
+  useEffect(() => {
+    const handleSharedChannel = (_, message) => {
+      if (message.type === "window-resized" && message.payload?.pairId === selectedPairIdRef.current) {
         const { width, height } = message.payload;
         const windowSize = `${width}x${height}`;
-        const predefinedSizes = getPredefinedSizes(mainDisplaySize.width, mainDisplaySize.height);
-
-        if (predefinedSizes.includes(windowSize)) {
-          setDisplaySize(windowSize);
-        } else {
-          setDisplaySize("custom");
+        const size = mainDisplaySizeRef.current;
+        const predefinedSizes = getPredefinedSizes(size.width, size.height);
+        setDisplaySize(predefinedSizes.includes(windowSize) ? windowSize : "custom");
+      } else if (message.type === "set-capture-devices") {
+        // The General tab enumerates capture devices and broadcasts them; use the list
+        // here to label the "Editing Window" selector with friendly device names.
+        let devices = [];
+        if (Array.isArray(message.payload)) devices = message.payload;
+        else if (typeof message.payload === "string") {
+          try {
+            devices = JSON.parse(message.payload);
+          } catch {
+            devices = [];
+          }
         }
+        if (devices.length > 0) setCaptureDevices(devices);
       }
     };
+    window.electronAPI.onMessageReceived("shared-window-channel", handleSharedChannel);
+    // No cleanup: the settings tabs stay mounted, and removeListener would be
+    // channel-wide (it maps to removeAllListeners), evicting other components' listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const handleAlwaysOnTopUpdate = (event, value) => {
-      setAlwaysOnTop(value);
-    };
+  // ----- helpers that mutate the selected pair -----
+  const patchSelectedPair = (patch) => {
+    if (!pairId) return;
+    onPairsChange?.(pairs.map((p) => (p.id === pairId ? { ...p, ...patch } : p)));
+  };
 
-    window.electronAPI.onMessageReceived("shared-window-channel", handleWindowResize);
-    window.electronAPI.onMessageReceived("update-always-on-top", handleAlwaysOnTopUpdate);
-
-    return () => {
-      // Cleanup listeners if needed
-      try {
-        window.electronAPI.removeListener("shared-window-channel");
-        window.electronAPI.removeListener("update-always-on-top");
-      } catch (error) {
-        console.warn("Error cleaning up event listeners:", error);
-      }
-    };
-  }, [mainDisplaySize.height, mainDisplaySize.width]); // Re-run when mainDisplaySize changes
+  const sendShared = (type, payload) => {
+    electronAPI.sendSync("shared-window-channel", { type, payload, pairId });
+  };
 
   const handleWidthChange = (event) => {
-    setBorderWidth(event.target.value);
-    notifyBorderChange("set-border-width", event.target.value);
+    patchSelectedPair({ border: { ...selectedPair.border, width: event.target.value } });
+    sendShared("set-border-width", event.target.value);
   };
 
   const handleStyleChange = (event) => {
-    setBorderStyle(event.target.value);
-    notifyBorderChange("set-border-style", event.target.value);
+    patchSelectedPair({ border: { ...selectedPair.border, style: event.target.value } });
+    sendShared("set-border-style", event.target.value);
   };
 
   const handleColorChange = (event) => {
-    setBorderColor(event.target.value);
-    notifyBorderChange("set-border-color", event.target.value);
+    patchSelectedPair({ border: { ...selectedPair.border, color: event.target.value } });
+    sendShared("set-border-color", event.target.value);
   };
 
   const handleAlwaysOnTopChange = (e) => {
-    setAlwaysOnTop(e.target.checked);
-    electronAPI.send("save-always-on-top", e.target.checked);
+    patchSelectedPair({ alwaysOnTop: e.target.checked });
+    electronAPI.send("save-always-on-top", e.target.checked, pairId);
+  };
+
+  const handleAudioEnabledChange = (e) => {
+    patchSelectedPair({ audioEnabled: e.target.checked });
+    electronAPI.send("save-audio-enabled", e.target.checked, pairId);
   };
 
   const handleShowKeystrokesChange = (e) => {
@@ -205,63 +215,90 @@ function DisplaySection() {
   };
 
   const handleResolutionChange = (e) => {
-    const captureResolution = e.target.value;
-    setResolution(captureResolution);
-    notifyCaptureChange(null, captureResolution);
+    const [width, height] = e.target.value.split("|").map((n) => parseInt(n, 10));
+    patchSelectedPair({ captureWidth: width, captureHeight: height });
+    notifyCaptureChange({
+      pairId,
+      deviceId: selectedPair?.captureDeviceId,
+      captureWidth: width,
+      captureHeight: height,
+      showDisplayWindow: true,
+    });
   };
 
   const handleTransparencyChange = (e) => {
     const transparencyValue = parseInt(e.target.value);
-    setTransparency(transparencyValue);
-    notifyTransparencyChange(transparencyValue);
+    patchSelectedPair({ transparency: transparencyValue });
+    sendShared("set-transparency", transparencyValue);
   };
 
   const handleDisplaySizeChange = (e) => {
     const size = e.target.value;
     setDisplaySize(size);
-
-    // Only apply predefined sizes, ignore "custom" selection
     if (size !== "custom") {
       const [width, height] = size.split("x").map(Number);
-      notifyDisplaySizeChange(width, height);
+      sendShared("set-display-size", { width, height });
     }
-    // Note: Custom selection just shows in dropdown, no window resize happens
   };
 
   return (
-    <div className="p-3">
+    <div className="p-2" style={{ fontSize: "0.85rem" }}>
       <Card>
-        <Card.Body>
-          <h6>Display Border</h6>
+        <Card.Body className="p-2">
+          {!hasWindow && (
+            <Alert variant="secondary" className="py-2 mb-2" style={{ fontSize: "0.8rem" }}>
+              No capture device is enabled. Enable one in the <strong>General</strong> tab to configure its window.
+            </Alert>
+          )}
+          <fieldset
+            disabled={!hasWindow}
+            style={{ opacity: hasWindow ? 1 : 0.5, border: 0, margin: 0, padding: 0, minWidth: 0 }}
+          >
+            {hasWindow && (
+            <Form.Group className="mb-2">
+              <Form.Label>Display Window</Form.Label>
+              <Form.Control
+                as="select"
+                size="sm"
+                value={selectedPair?.id || ""}
+                onChange={(e) => setSelectedPairId(e.target.value)}
+              >
+                {visiblePairs.map((pair) => (
+                  <option key={pair.id} value={pair.id}>
+                    {pairLabel(pair)}
+                  </option>
+                ))}
+              </Form.Control>
+            </Form.Group> )}
           <Row>
             <Col>
-              <SelectBorderWidth value={borderWidth} onChange={handleWidthChange} />
+              <SelectBorderWidth size="sm" value={borderWidth} onChange={handleWidthChange} />
             </Col>
             <Col>
-              <SelectBorderStyle value={borderStyle} onChange={handleStyleChange} />
+              <SelectBorderStyle size="sm" value={borderStyle} onChange={handleStyleChange} />
             </Col>
             <Col>
               <Form.Group>
-                <Form.Label>Color</Form.Label>
+                <Form.Label>Border Color</Form.Label>
                 <Form.Control
                   type="color"
+                  size="sm"
                   id="video-border-color"
                   value={borderColor}
-                  defaultValue={borderColor}
                   onChange={handleColorChange}
                 />
               </Form.Group>
             </Col>
           </Row>
-          <hr className="mt-3" />
-          <Row className="mt-2">
+          <hr className="my-2" />
+          <Row>
             <Col>
-              <SelectResolution value={resolution} onChange={handleResolutionChange} />
+              <SelectResolution size="sm" value={resolution} onChange={handleResolutionChange} />
             </Col>
             <Col>
               <Form.Group>
                 <Form.Label>Display Size</Form.Label>
-                <Form.Control as="select" value={displaySize} onChange={handleDisplaySizeChange}>
+                <Form.Control as="select" size="sm" value={displaySize} onChange={handleDisplaySizeChange}>
                   {getDisplaySizeOptions(mainDisplaySize.width, mainDisplaySize.height).map(
                     (option) => (
                       <option key={option.value} value={option.value}>
@@ -274,7 +311,7 @@ function DisplaySection() {
               </Form.Group>
             </Col>
           </Row>
-          <Row className="mt-2">
+          <Row className="mt-1">
             <Col>
               <div className="d-flex align-items-end gap-4">
                 <div style={{ flex: "0 0 48%" }}>
@@ -299,6 +336,13 @@ function DisplaySection() {
                   />
                   <Form.Check
                     type="checkbox"
+                    label="Enable Audio"
+                    checked={audioEnabled}
+                    onChange={handleAudioEnabledChange}
+                    className="text-nowrap mt-2"
+                  />
+                  <Form.Check
+                    type="checkbox"
                     label="Show Key Presses"
                     checked={showKeystrokes}
                     onChange={handleShowKeystrokesChange}
@@ -317,32 +361,11 @@ function DisplaySection() {
               </div>
             </Col>
           </Row>
+          </fieldset>
         </Card.Body>
       </Card>
     </div>
   );
-}
-
-function notifyBorderChange(type, payload) {
-  electronAPI.sendSync("shared-window-channel", {
-    type: type,
-    payload: payload,
-  });
-}
-
-function notifyTransparencyChange(transparencyValue) {
-  electronAPI.sendSync("shared-window-channel", {
-    type: "set-transparency",
-    payload: transparencyValue,
-  });
-}
-
-function notifyDisplaySizeChange(width, height) {
-  electronAPI.sendSync("shared-window-channel", {
-    type: "set-display-size",
-    payload: { width, height },
-  });
-  // Note: Window dimensions are automatically saved by the existing close event handler
 }
 
 export default DisplaySection;

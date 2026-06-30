@@ -10,215 +10,270 @@
 import { useEffect, useState, useRef } from "react";
 import { Container, Form, Row, Col, Card } from "react-bootstrap";
 
-import SelectCapture from "./select/Capture";
 import ShortcutInput from "./select/ShortcutInput";
 
 const { electronAPI } = window;
-let captureDevice = "";
-let captureResolution = "1280|720";
-let currentLinked = "";
 
-function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedDeviceRef }) {
-  const [deviceId, setDeviceId] = useState("");
+function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPairsChange }) {
+  const [captureDevices, setCaptureDevices] = useState([]);
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
   const [showSettingsOnStart, setShowSettingsOnStart] = useState(true);
-  const [linkedDevice, setLinkedDevice] = useState("");
-  const [audioEnabled, setAudioEnabled] = useState(false);
   const [showInDock, setShowInDock] = useState(true); // macOS dock/menubar setting
   const [darkMode, setDarkMode] = useState(false);
   const [checkForUpdates, setCheckForUpdates] = useState(true);
+  const [singleWindowMode, setSingleWindowMode] = useState(true);
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
 
-  const streamingDevicesRef = useRef(streamingDevices);
-
+  // Keep latest pairs reachable from long-lived listener callbacks.
+  const pairsRef = useRef(pairs);
   useEffect(() => {
-    streamingDevicesRef.current = streamingDevices;
-  }, [streamingDevices]);
+    pairsRef.current = pairs;
+  }, [pairs]);
 
   useEffect(() => {
     onDeletedDeviceRef.current = (deviceId) => {
-      if (currentLinked === deviceId) {
-        setLinkedDevice("");
+      // A control device was deleted; clear it from any pair that referenced it.
+      const next = pairsRef.current.map((p) =>
+        p.controlDeviceId === deviceId ? { ...p, controlDeviceId: "" } : p
+      );
+      if (next.some((p, i) => p.controlDeviceId !== pairsRef.current[i].controlDeviceId)) {
+        onPairsChange?.(next);
       }
     };
-  }, [onDeletedDeviceRef]);
+  }, [onDeletedDeviceRef, onPairsChange]);
 
   useEffect(() => {
-    // Load settings from main process
+    // Load global (non per-window) settings.
     electronAPI.invoke("load-settings").then((settings) => {
-      if (settings.display && settings.display.captureWidth) {
-        captureResolution = `${settings.display.captureWidth}|${settings.display.captureHeight}`;
-      }
-      if (settings.display && settings.display.shortcut) {
-        setShortcut(settings.display.shortcut);
-      }
-      if (settings.display && settings.display.launchAppAtLogin !== undefined) {
+      if (settings.display?.shortcut) setShortcut(settings.display.shortcut);
+      if (settings.display?.launchAppAtLogin !== undefined)
         setLaunchAppAtLogin(settings.display.launchAppAtLogin);
-      }
-      if (settings.display && settings.display.showSettingsOnStart !== undefined) {
+      if (settings.display?.showSettingsOnStart !== undefined)
         setShowSettingsOnStart(settings.display.showSettingsOnStart);
-      }
-      if (settings.display && settings.display.audioEnabled !== undefined) {
-        setAudioEnabled(settings.display.audioEnabled);
-      }
-      if (settings.display && settings.display.showInDock !== undefined) {
-        setShowInDock(settings.display.showInDock);
-      }
-      if (settings.display && settings.display.autoUpdate !== undefined) {
-        setCheckForUpdates(settings.display.autoUpdate);
-      }
-      if (settings.display && settings.display.darkMode !== undefined) {
+      if (settings.display?.showInDock !== undefined) setShowInDock(settings.display.showInDock);
+      if (settings.display?.autoUpdate !== undefined) setCheckForUpdates(settings.display.autoUpdate);
+      if (settings.display?.singleWindowMode !== undefined)
+        setSingleWindowMode(settings.display.singleWindowMode);
+      if (settings.display?.darkMode !== undefined) {
         setDarkMode(settings.display.darkMode);
-        // Apply dark mode to document
         document.body.setAttribute("data-bs-theme", settings.display.darkMode ? "dark" : "light");
       } else {
-        // First time launch - detect system color scheme preference
         const prefersDarkMode =
           window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         setDarkMode(prefersDarkMode);
-        // Apply the detected theme immediately
         document.body.setAttribute("data-bs-theme", prefersDarkMode ? "dark" : "light");
-        // Save the detected preference
         electronAPI.send("save-dark-mode", prefersDarkMode);
       }
     });
 
-    window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
-    window.electronAPI.onMessageReceived("update-audio-enabled", (event, value) => {
-      setAudioEnabled(value);
-    });
-    window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
-      captureDevice = value;
-      setDeviceId(value);
-      notifyCaptureChange(value, null, true);
-      const linked = streamingDevicesRef.current.find((device) => device.linked === value);
-      currentLinked = linked?.id ?? "";
-      setLinkedDevice(currentLinked);
-      notifyControlChange("set-control-selected", currentLinked);
-    });
+    // Enumerate capture devices directly in the settings window so the grid works even
+    // when no Display window is open (e.g. a fresh install with nothing made visible yet).
+    // Labels are only exposed after a getUserMedia grant, so unlock them once if missing.
+    const enumerate = async () => {
+      try {
+        let devices = await navigator.mediaDevices.enumerateDevices();
+        let vids = devices.filter((d) => d.kind === "videoinput");
+        if (vids.length > 0 && vids.some((d) => !d.label)) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            stream.getTracks().forEach((t) => t.stop());
+            devices = await navigator.mediaDevices.enumerateDevices();
+            vids = devices.filter((d) => d.kind === "videoinput");
+          } catch {
+            /* permission denied — fall back to unlabeled devices */
+          }
+        }
+        const list = vids.map((d) => ({
+          deviceId: d.deviceId,
+          label: d.label || "Capture Device",
+        }));
+        setCaptureDevices(list);
+        // Cache in main so the tray's capture submenu stays in sync.
+        electronAPI.sendSync("shared-window-channel", {
+          type: "set-capture-devices",
+          payload: JSON.stringify(list),
+        });
+      } catch (error) {
+        console.warn("Failed to enumerate capture devices:", error);
+      }
+    };
+    enumerate();
+    navigator.mediaDevices.addEventListener("devicechange", enumerate);
 
-    window.electronAPI.onMessageReceived("update-control-device", (event, data) => {
-      const deviceId = typeof data === "string" ? data : data?.deviceId;
-      currentLinked = deviceId ?? "";
-      setLinkedDevice(deviceId ?? "");
+    window.electronAPI.onMessageReceived("open-display-tab", handleOpenDisplayTab);
+    // Tray "capture device" submenu makes that device's window visible.
+    window.electronAPI.onMessageReceived("update-capture-device", (event, value) => {
+      if (value) setPairForDevice(value, { visible: true });
     });
 
     return () => {
+      navigator.mediaDevices.removeEventListener("devicechange", enumerate);
       window.electronAPI.removeListener("open-display-tab");
-      window.electronAPI.removeListener("update-audio-enabled");
       window.electronAPI.removeListener("update-capture-device");
-      window.electronAPI.removeListener("update-control-device");
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOpenDisplayTab = () => {
-    // Logic to switch to the About tab
-    const aboutTab = document.getElementById("settings-tabs-tab-display");
-    if (aboutTab) {
-      aboutTab.click();
-    }
+    const displayTab = document.getElementById("settings-tabs-tab-display");
+    if (displayTab) displayTab.click();
   };
 
-  const handleCaptureDeviceChange = (e) => {
-    captureDevice = e.target.value;
-    setDeviceId(captureDevice);
-    // Show display window if this is a user-initiated change or if the previous device was removed
-    const showDisplay = e.target.deviceRemoved !== undefined ? e.target.deviceRemoved : true;
-    notifyCaptureChange(captureDevice, null, showDisplay);
-    const linked = streamingDevicesRef.current.find((device) => device.linked === captureDevice);
-    currentLinked = linked?.id ?? "";
-    setLinkedDevice(currentLinked);
-    notifyControlChange("set-control-selected", currentLinked);
+  // ----- capture-device grid editing (one pair per capture device) -----
+  const pairForDevice = (deviceId) =>
+    pairs.find((p) => p.captureDeviceId === deviceId) || null;
+
+  // Create/update the pair bound to a capture device, then persist. set-pairs →
+  // reconcilePairs in main opens/closes/connects the window, so no extra messages
+  // are needed here. Pairs that end up hidden AND unlinked are dropped.
+  const setPairForDevice = (deviceId, patch) => {
+    const list = pairsRef.current;
+    const existing = list.find((p) => p.captureDeviceId === deviceId);
+    let next;
+    if (existing) {
+      next = list.map((p) => (p.captureDeviceId === deviceId ? { ...p, ...patch } : p));
+    } else {
+      next = [
+        ...list,
+        { id: deviceId, captureDeviceId: deviceId, controlDeviceId: "", visible: false, ...patch },
+      ];
+    }
+    // Single-window mode: enabling a device is a switch — hide every other window.
+    if (singleWindowMode && patch.visible === true) {
+      next = next.map((p) => (p.captureDeviceId === deviceId ? p : { ...p, visible: false }));
+    }
+    next = next.filter((p) => p.visible !== false || (p.controlDeviceId && p.controlDeviceId !== ""));
+    onPairsChange?.(next);
+  };
+
+  const handleSingleWindowModeChange = (single) => {
+    setSingleWindowMode(single);
+    // Main collapses to the active window and rebuilds menus, then echoes pairs-updated.
+    electronAPI.send("set-single-window-mode", single);
   };
 
   const handleShortcutChange = (value) => {
     setShortcut(value);
     electronAPI.send("save-shortcut", value);
   };
-
   const handleLaunchAppAtLoginChange = (e) => {
     setLaunchAppAtLogin(e.target.checked);
     electronAPI.send("save-launch-app-at-login", e.target.checked);
   };
-
   const handleShowSettingsOnStartChange = (e) => {
     setShowSettingsOnStart(e.target.checked);
     electronAPI.send("save-show-settings-on-start", e.target.checked);
   };
-
-  const handleAudioEnabledChange = (e) => {
-    setAudioEnabled(e.target.checked);
-    // Notify the render process
-    electronAPI.sendSync("shared-window-channel", {
-      type: "set-audio-enabled",
-      payload: e.target.checked,
-    });
-    // Save to settings
-    electronAPI.send("save-audio-enabled", e.target.checked);
-  };
-
   const handleDarkModeChange = (e) => {
     setDarkMode(e.target.checked);
-    // Apply dark mode to document immediately
     document.body.setAttribute("data-bs-theme", e.target.checked ? "dark" : "light");
-    // Save to settings
     electronAPI.send("save-dark-mode", e.target.checked);
   };
-
   const handleCheckForUpdatesChange = (e) => {
     setCheckForUpdates(e.target.checked);
-    // Save to settings
     electronAPI.send("save-check-for-updates", e.target.checked);
   };
 
-  const handleLinkedDeviceChange = (e) => {
-    currentLinked = e.target.value;
-    setLinkedDevice(currentLinked);
-    notifyControlChange("set-control-selected", currentLinked);
-    // Update the linked device for the current capture device
-    const updatedDevices = streamingDevices.map((device) => {
-      if (device.id === currentLinked) {
-        return { ...device, linked: captureDevice };
-      } else if (device.linked === captureDevice) {
-        return { ...device, linked: "" };
-      }
-      return device;
-    });
-    onUpdateStreamingDevices(updatedDevices);
-  };
-
   return (
-    <Container fluid className="p-2">
+    <Container fluid className="p-2" style={{ fontSize: "0.85rem" }}>
       <Card>
-        <Card.Body>
-          <SelectCapture value={deviceId} onChange={handleCaptureDeviceChange} />
-          <Form.Group controlId="formLinkedDevice" className="form-group-spacing mt-2">
-            <Form.Label>Linked Streaming Device</Form.Label>
-            <Form.Control as="select" value={linkedDevice} onChange={handleLinkedDeviceChange}>
-              <option value="">Select a device</option>
-              {streamingDevices.map((device, index) => (
-                <option key={index} value={device.id}>
-                  {device.type}: {device.alias ? device.alias + " - " : ""}
-                  {device.ipAddress}
-                </option>
-              ))}
-            </Form.Control>
-          </Form.Group>
+        <Card.Body className="p-2">
+          {/* Window mode: one Display window at a time, or one per enabled capture device. */}
+          <div className="window-mode-row d-flex align-items-center mb-2">
+            <span className="text-muted fw-semibold me-3">Window Mode:</span>
+            <Form.Check
+              type="radio"
+              id="window-mode-single"
+              label="Single Window"
+              name="windowMode"
+              checked={singleWindowMode}
+              onChange={() => handleSingleWindowModeChange(true)}
+              inline
+              className="mb-0"
+            />
+            <Form.Check
+              type="radio"
+              id="window-mode-multi"
+              label="Multiple Windows"
+              name="windowMode"
+              checked={!singleWindowMode}
+              onChange={() => handleSingleWindowModeChange(false)}
+              inline
+              className="mb-0"
+            />
+          </div>
+          {/* Column headers for the capture-device grid below. */}
+          <Row className="g-2 mb-1 px-2 text-muted fw-semibold" style={{ fontSize: "0.72rem" }}>
+            <Col xs={6}>Capture Device</Col>
+            <Col xs={5}>Control Device</Col>
+            <Col xs={1} className="text-end p-0">
+              {singleWindowMode ? "Active" : "Enabled"}
+            </Col>
+          </Row>
+          {captureDevices.length === 0 ? (
+            <p className="text-muted small mb-0">No capture devices detected.</p>
+          ) : (
+            <div className="script-list-scroll" style={{ maxHeight: "30vh", overflowY: "auto" }}>
+              {captureDevices.map((device, index) => {
+                const pair = pairForDevice(device.deviceId);
+                return (
+                  <Row
+                    key={device.deviceId}
+                    className="script-header-row border rounded align-items-center g-2 mb-1 mx-0 py-1"
+                    style={{ fontSize: "0.78rem" }}
+                  >
+                    <Col xs={6} className="text-truncate" title={device.label}>
+                      {device.label || `Device ${index + 1}`}
+                    </Col>
+                    <Col xs={5}>
+                      <Form.Control
+                        as="select"
+                        size="sm"
+                        style={{ fontSize: "0.75rem" }}
+                        value={pair?.controlDeviceId || ""}
+                        onChange={(e) =>
+                          setPairForDevice(device.deviceId, { controlDeviceId: e.target.value })
+                        }
+                      >
+                        <option value="">No control device</option>
+                        {streamingDevices.map((d, i) => (
+                          <option key={i} value={d.id}>
+                            {d.type}: {d.alias ? d.alias + " - " : ""}
+                            {d.ipAddress}
+                          </option>
+                        ))}
+                      </Form.Control>
+                    </Col>
+                    <Col xs={1} className="d-flex justify-content-end p-0 pe-2">
+                      <Form.Check
+                        type="checkbox"
+                        aria-label="Enabled"
+                        checked={pair?.visible === true}
+                        onChange={(e) =>
+                          setPairForDevice(device.deviceId, { visible: e.target.checked })
+                        }
+                      />
+                    </Col>
+                  </Row>
+                );
+              })}
+            </div>
+          )}
+          <hr className="mt-3" />
           <Row className="mt-2">
             <Col xs={7}>
               <ShortcutInput value={shortcut} onChange={handleShortcutChange} />
-              {isMacOS && (
+              {(isMacOS || isWindows) && (
                 <Form.Group className="mt-3">
                   <Form.Label>App Icon Mode</Form.Label>
                   <div className="d-flex">
                     <Form.Check
                       type="radio"
-                      label="Dock"
+                      label={isMacOS ? "Dock" : "Taskbar"}
                       name="displayMode"
-                      value="dock"
                       checked={showInDock}
                       onChange={() => {
                         setShowInDock(true);
@@ -228,9 +283,8 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                     />
                     <Form.Check
                       type="radio"
-                      label="Menu Bar"
+                      label={isMacOS ? "Menu Bar" : "System Tray"}
                       name="displayMode"
-                      value="menubar"
                       checked={!showInDock}
                       onChange={() => {
                         setShowInDock(false);
@@ -238,38 +292,6 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                       }}
                       inline
                       className="ms-4"
-                    />
-                  </div>
-                </Form.Group>
-              )}
-              {isWindows && (
-                <Form.Group className="mt-3">
-                  <Form.Label>App Icon Mode</Form.Label>
-                  <div className="d-flex">
-                    <Form.Check
-                      type="radio"
-                      label="Taskbar"
-                      name="displayMode"
-                      value="taskbar"
-                      checked={showInDock}
-                      onChange={() => {
-                        setShowInDock(true);
-                        electronAPI.send("save-show-in-dock", true);
-                      }}
-                      inline
-                    />
-                    <Form.Check
-                      type="radio"
-                      label="System Tray"
-                      name="displayMode"
-                      value="tray"
-                      checked={!showInDock}
-                      onChange={() => {
-                        setShowInDock(false);
-                        electronAPI.send("save-show-in-dock", false);
-                      }}
-                      inline
-                      className="ms-3"
                     />
                   </div>
                 </Form.Group>
@@ -287,12 +309,6 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 label="Settings at App Start"
                 checked={showSettingsOnStart}
                 onChange={handleShowSettingsOnStartChange}
-              />
-              <Form.Check
-                type="checkbox"
-                label="Enable Audio"
-                checked={audioEnabled}
-                onChange={handleAudioEnabledChange}
               />
               <Form.Check
                 type="checkbox"
@@ -314,31 +330,27 @@ function GeneralSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   );
 }
 
-export function notifyCaptureChange(videoSource, resolution, showDisplayWindow = false) {
-  if (resolution) {
-    captureResolution = resolution;
-  }
-  const [width, height] = captureResolution.split("|").map((dim) => parseInt(dim, 10));
+// Start/refresh the capture stream for a specific pair's Display window (used by the
+// Display tab when changing capture resolution).
+export function notifyCaptureChange({
+  pairId,
+  deviceId,
+  captureWidth,
+  captureHeight,
+  showDisplayWindow = false,
+}) {
   const constraints = {
     video: {
-      deviceId: {
-        exact: videoSource ?? captureDevice,
-      },
-      width: width ?? 1280,
-      height: height ?? 720,
+      deviceId: { exact: deviceId },
+      width: captureWidth || 1280,
+      height: captureHeight || 720,
     },
     showDisplayWindow,
   };
   electronAPI.sendSync("shared-window-channel", {
     type: "set-video-stream",
     payload: constraints,
-  });
-}
-
-function notifyControlChange(type, payload) {
-  electronAPI.sendSync("shared-window-channel", {
-    type: type,
-    payload: payload,
+    pairId,
   });
 }
 

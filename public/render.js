@@ -17,6 +17,11 @@ const scriptRecordingIndicator = document.getElementById("script-recording-indic
 const scriptPlaybackIndicator = document.getElementById("script-playback-indicator");
 const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 
+// Each Display window owns one capture+control pair; its id is passed via the load
+// query string (see createDisplayWindow in main.js). Main routes this window's
+// shared-window-channel messages by sender, so outgoing messages need not tag it.
+const myPairId = new URLSearchParams(window.location.search).get("pairId") || "";
+
 // Indicators share a single anchor (top-left) and reflow left-to-right in the
 // order they were activated, so whichever turned on first sits at the anchor and
 // later ones appear to its right. When an earlier one ends, the rest shift back.
@@ -59,8 +64,58 @@ const margin = 5;
 let currentColor = "#662D91";
 let currentConstraints = { video: true, audio: false };
 let videoState = "stopped";
+// Authoritative "this window is hidden" flag driven by the MAIN process (window-hide /
+// window-minimize / auto-suspend), cleared on window-show / window-restore / auto-resume.
+// document.hidden alone is unreliable across macOS sleep/wake — a hidden window can briefly
+// report visible on wake, letting a restart path re-acquire the camera behind a window the
+// user can't see. Main's explicit hide/show is the source of truth, so we gate on it too.
+let windowHidden = false;
+// Authoritative handle on the live capture stream. videoPlayer.srcObject can be cleared or
+// reassigned out from under an in-flight getUserMedia, orphaning its tracks (which keeps the
+// macOS camera indicator lit even though videoState reads "stopped"). We track the stream
+// directly and use a generation token to discard stale getUserMedia resolutions.
+let activeStream = null;
+let streamGeneration = 0;
+// Self-healing retry for stream acquisition. Coming back from sleep, the capture device
+// re-enumerates (it's "detected") before the USB hub has it ready to stream, so getUserMedia
+// fails. Rather than give up and show the error fallback (the device list is now stable, so no
+// further devicechange fires to trigger recovery), we keep retrying with the reconnecting
+// overlay up until it streams or we exhaust the window (~30s).
+let streamRetryTimer = null;
+let streamRetryAttempts = 0;
+const MAX_STREAM_RETRY_ATTEMPTS = 15;
+const STREAM_RETRY_DELAY = 2000;
 let resizeTimeout;
 let audioEnabled = false;
+// This window's saved capture device, so it can (re)start its stream on show even if
+// it launched hidden and never received a set-video-stream from the settings window.
+let myCaptureDeviceId = "";
+let myCaptureWidth = 1280;
+let myCaptureHeight = 720;
+
+// Ensure currentConstraints points at this window's capture device. Returns true when
+// a specific device is available to stream.
+function ensureMyConstraints() {
+  const hasDevice =
+    currentConstraints.video &&
+    typeof currentConstraints.video === "object" &&
+    currentConstraints.video.deviceId;
+  if (!hasDevice && myCaptureDeviceId) {
+    currentConstraints = {
+      video: {
+        deviceId: { exact: myCaptureDeviceId },
+        width: myCaptureWidth,
+        height: myCaptureHeight,
+      },
+      audio: false,
+    };
+  }
+  return !!(
+    currentConstraints.video &&
+    typeof currentConstraints.video === "object" &&
+    currentConstraints.video.deviceId
+  );
+}
 
 // Overlay image setup
 overlayImage.src = "";
@@ -174,14 +229,43 @@ let lastKeyTimestamp = null;
 let isPlayingScript = false;
 let scriptPlaybackCancelled = false;
 
-// Load settings from main process
+// Load settings from main process. This window restores its OWN pair's control
+// device + appearance; showKeystrokes remains a global app setting.
 window.electronAPI.invoke("load-settings").then(async (settings) => {
-  if (settings.control && settings.control.deviceId) {
-    handleControlSelected(settings.control.deviceId);
+  // The global device catalog is used for capture-device labels.
+  if (settings.control && Array.isArray(settings.control.deviceList)) {
+    handleControlList(settings.control.deviceList);
   }
-  if (settings.display && settings.display.audioEnabled !== undefined) {
-    audioEnabled = settings.display.audioEnabled;
-    // Note: updateAudioConstraints() will be called when video stream is set
+  const pair = (settings.pairs || []).find((p) => p.id === myPairId) || (settings.pairs || [])[0];
+  if (pair) {
+    if (pair.controlDeviceId) {
+      handleControlSelected(pair.controlDeviceId);
+    }
+    audioEnabled = pair.audioEnabled === true;
+    // Restore this window's appearance.
+    if (pair.border) {
+      if (pair.border.color) handleSetBorderColor(pair.border.color);
+      if (pair.border.style) handleSetBorderStyle(pair.border.style);
+      if (pair.border.width) handleSetBorderWidth(pair.border.width);
+    }
+    if (typeof pair.transparency === "number") handleSetTransparency(pair.transparency);
+    // Restore this window's own overlay reference image + opacity (per-window in the Overlay tab).
+    if (typeof pair.overlayOpacity === "number") handleOverlayOpacity(pair.overlayOpacity);
+    if (pair.overlayImagePath) {
+      window.electronAPI.invoke("load-image-by-path", pair.overlayImagePath, myPairId);
+    }
+    // Remember this window's capture device so it can stream on show even if launched hidden.
+    if (pair.captureDeviceId) {
+      myCaptureDeviceId = pair.captureDeviceId;
+      myCaptureWidth = pair.captureWidth || 1280;
+      myCaptureHeight = pair.captureHeight || 720;
+    }
+    // Self-start the capture stream from the saved device so the window streams on
+    // launch without depending on the settings window / capture dropdown timing.
+    if (myCaptureDeviceId && pair.visible !== false) {
+      ensureMyConstraints();
+      handleSetVideoStream(currentConstraints);
+    }
   }
   if (settings.display && settings.display.showKeystrokes !== undefined) {
     showKeystrokes = settings.display.showKeystrokes;
@@ -368,20 +452,60 @@ function renderDisplay(constraints, isBlankRetry = false) {
   window.electronAPI.log("debug",
     `[Carabiner] renderDisplay called - deviceId: ${deviceId || "default"}, videoState: ${videoState}, isBlankRetry: ${isBlankRetry}`
   );
+  // Never acquire the camera while this window isn't actually visible (hidden, minimized,
+  // occluded, or behind the lock screen). Any restart path that fires while hidden — device
+  // reconnect after sleep/wake, auto-resume on unlock, the stream retry loop — must wait until
+  // the window is shown again. windowHidden is main's authoritative hide state; document.hidden
+  // covers occlusion. Either being set means "don't stream".
+  if (windowHidden || document.hidden) {
+    window.electronAPI.log("debug",
+      `[Carabiner] renderDisplay skipped — window not visible (windowHidden: ${windowHidden}, document.hidden: ${document.hidden})`
+    );
+    if (videoState !== "stopped") stopVideoStream();
+    return;
+  }
   if (videoState !== "stopped") {
     window.electronAPI.log("debug","[Carabiner] Stopping existing stream before starting new one");
     stopVideoStream();
   }
+  // Tag this acquisition. stopVideoStream() and any later renderDisplay() bump the generation,
+  // so a getUserMedia that resolves after we've moved on can detect it's stale and self-release.
+  const myGeneration = ++streamGeneration;
   videoState = "starting";
   navigator.mediaDevices
     .getUserMedia(constraints)
     .then(async (stream) => {
+      // Discard this stream if it's no longer wanted: a newer renderDisplay()/stopVideoStream()
+      // superseded it, or the window was hidden/minimized/locked while getUserMedia resolved.
+      // Stopping the tracks here is what actually releases the camera and clears the macOS
+      // indicator — otherwise these tracks are orphaned and stay live. visibilitychange will
+      // re-acquire the stream when the window becomes visible again.
+      if (myGeneration !== streamGeneration || document.hidden) {
+        window.electronAPI.log("debug","[Carabiner] getUserMedia resolved but stream no longer wanted - releasing");
+        stream.getTracks().forEach((track) => track.stop());
+        if (myGeneration === streamGeneration) videoState = "stopped";
+        return;
+      }
+      // Replace any previous live stream, stopping its tracks so they can't leak.
+      if (activeStream && activeStream !== stream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+      }
+      activeStream = stream;
       const videoTrack = stream.getVideoTracks()[0];
       window.electronAPI.log("debug",
         `[Carabiner] getUserMedia succeeded - track: "${videoTrack?.label}", readyState: ${videoTrack?.readyState}, enabled: ${videoTrack?.enabled}, muted: ${videoTrack?.muted}`
       );
       hideReconnectingOverlay();
       deviceLabel.textContent = await getCaptureDeviceLabel(deviceId);
+      // getCaptureDeviceLabel awaited above — re-check we weren't superseded/hidden meanwhile,
+      // otherwise we'd attach a stream that stopVideoStream() already tore down.
+      if (myGeneration !== streamGeneration || document.hidden) {
+        window.electronAPI.log("debug","[Carabiner] stream superseded while resolving label - releasing");
+        stream.getTracks().forEach((track) => track.stop());
+        if (activeStream === stream) activeStream = null;
+        if (myGeneration === streamGeneration) videoState = "stopped";
+        return;
+      }
       videoPlayer.srcObject = null; // Release any previous stream before assigning new one
       videoPlayer.srcObject = stream;
       const playPromise = videoPlayer.play();
@@ -396,6 +520,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
       }
       currentConstraints = constraints;
       videoState = "playing";
+      cancelStreamRetry(); // stream is up — drop any pending reconnect retries
       if (deviceId) {
         lastKnownDeviceId = deviceId;
         deviceRecoveryAttempts = 0;
@@ -439,13 +564,23 @@ function renderDisplay(constraints, isBlankRetry = false) {
     })
     .catch((err) => {
       console.error(`[Carabiner] getUserMedia failed: ${err.name} - ${err.message}`);
-      hideReconnectingOverlay();
-      showToast(`Error loading capture device! ${err.message}`, 5000, true);
       videoState = "stopped";
-      // Show fallback image when capture device fails to load
-      overlayImage.style.opacity = "1";
-      overlayImage.src = "images/no-capture-device.png";
-      overlayImage.style.display = "block";
+      // If we were already streaming a real device (lastKnownDeviceId set), this failure is
+      // most likely transient — e.g. the capture device re-enumerated on wake but the USB hub
+      // isn't ready yet. Keep the reconnecting overlay up and retry instead of giving up. Only
+      // fall back to the error image once retries are exhausted (or there's no device to retry).
+      if (lastKnownDeviceId && !document.hidden && streamRetryAttempts < MAX_STREAM_RETRY_ATTEMPTS) {
+        showReconnectingOverlay();
+        scheduleStreamRetry();
+      } else {
+        cancelStreamRetry();
+        hideReconnectingOverlay();
+        showToast(`Error loading capture device! ${err.message}`, 5000, true);
+        // Show fallback image when capture device fails to load
+        overlayImage.style.opacity = "1";
+        overlayImage.src = "images/no-capture-device.png";
+        overlayImage.style.display = "block";
+      }
     });
 }
 
@@ -455,17 +590,52 @@ function stopVideoStream() {
     stopRecording();
   }
 
+  // Invalidate any in-flight getUserMedia so a stream that resolves after this point
+  // releases itself instead of re-attaching a live camera track behind our backs.
+  streamGeneration++;
+
   videoPlayer.pause();
-  const stream = videoPlayer.srcObject;
-  if (stream) {
-    const tracks = stream.getTracks();
-    tracks.forEach((track) => track.stop());
-    videoPlayer.srcObject = null;
-  }
+  // Stop tracks from both the element and our tracked stream. They're normally the same
+  // object, but during a fast restart videoPlayer.srcObject may already be cleared/reassigned
+  // while activeStream still holds the live tracks that keep the macOS camera indicator lit.
+  const streams = new Set();
+  if (videoPlayer.srcObject) streams.add(videoPlayer.srcObject);
+  if (activeStream) streams.add(activeStream);
+  streams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
+  videoPlayer.srcObject = null;
+  activeStream = null;
   videoState = "stopped";
 
   // Clear device label when stream stops
   deviceLabel.textContent = "";
+}
+
+// Schedule one more stream-acquisition attempt after a delay. Idempotent — a pending retry or
+// an exhausted attempt budget is a no-op. Won't retry while the window isn't visible.
+function scheduleStreamRetry() {
+  if (streamRetryTimer || document.hidden) return;
+  if (streamRetryAttempts >= MAX_STREAM_RETRY_ATTEMPTS) return;
+  streamRetryAttempts++;
+  window.electronAPI.log("debug",
+    `[Carabiner] Scheduling stream retry ${streamRetryAttempts}/${MAX_STREAM_RETRY_ATTEMPTS} in ${STREAM_RETRY_DELAY}ms`
+  );
+  streamRetryTimer = setTimeout(async () => {
+    streamRetryTimer = null;
+    if (videoState === "stopped" && !document.hidden && ensureMyConstraints()) {
+      // Re-resolve the capture card's audio device too — it may also have re-enumerated on wake.
+      await updateAudioConstraints();
+      renderDisplay(currentConstraints);
+    }
+  }, STREAM_RETRY_DELAY);
+}
+
+// Stop retrying (stream is up, user hid the window, or device truly gone).
+function cancelStreamRetry() {
+  if (streamRetryTimer) {
+    clearTimeout(streamRetryTimer);
+    streamRetryTimer = null;
+  }
+  streamRetryAttempts = 0;
 }
 
 async function getCaptureDeviceLabel(deviceId) {
@@ -481,7 +651,10 @@ async function getCaptureDeviceLabel(deviceId) {
     (device) => device.deviceId === actualDeviceId && device.kind === "videoinput"
   );
   let deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
-  const streamDevice = controlList.find((device) => device.linked === captureDevice?.deviceId);
+  // This window owns one control device; show it (resolved from the window's own selection).
+  const streamDevice = controlIp
+    ? controlList.find((device) => device.id === `${controlIp}|${controlType}`)
+    : null;
   if (streamDevice) {
     deviceLabel += ` - ${streamDevice.type} ${streamDevice.alias ?? streamDevice.ipAddress}`;
   }
@@ -496,12 +669,15 @@ window.addEventListener("DOMContentLoaded", function () {
   // screen lock / user idle, and resume on unlock / activity. Kept separate from
   // window-hide/show so it doesn't disturb script recording or window state.
   window.electronAPI.onMessageReceived("auto-suspend", () => {
+    windowHidden = true;
+    cancelStreamRetry();
     if (videoState !== "stopped") {
       stopVideoStream();
     }
   });
 
   window.electronAPI.onMessageReceived("auto-resume", () => {
+    windowHidden = false;
     if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
       const hasSpecificDevice =
         currentConstraints.video !== true &&
@@ -516,22 +692,22 @@ window.addEventListener("DOMContentLoaded", function () {
 
   // Handle window visibility changes via Electron IPC events
   window.electronAPI.onMessageReceived("window-show", () => {
-    // Window is now visible - restart video stream if we have constraints and it's stopped
-    if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
-      // Only restart if we have a proper video stream constraint (not just the default { video: true })
-      const hasSpecificDevice =
-        currentConstraints.video !== true &&
-        typeof currentConstraints.video === "object" &&
-        currentConstraints.video.deviceId;
-
-      if (hasSpecificDevice) {
-        renderDisplay(currentConstraints);
-      }
+    // Window is now visible - (re)start the stream. ensureMyConstraints() falls back to
+    // this window's saved capture device when it launched hidden and never received a stream.
+    windowHidden = false;
+    if (videoState === "stopped" && ensureMyConstraints()) {
+      renderDisplay(currentConstraints);
     }
   });
 
   window.electronAPI.onMessageReceived("window-hide", () => {
-    // Window is hidden - stop video stream to save resources
+    // Stop any in-progress recording first so its file is saved and main clears this
+    // window's recording state, then stop the stream to save resources.
+    windowHidden = true;
+    cancelStreamRetry();
+    if (isRecording) {
+      handleStopRecording();
+    }
     if (videoState !== "stopped") {
       stopVideoStream();
     }
@@ -546,7 +722,12 @@ window.addEventListener("DOMContentLoaded", function () {
   });
 
   window.electronAPI.onMessageReceived("window-minimize", () => {
-    // Window is minimized - stop video stream to save resources
+    // Stop any in-progress recording first, then stop the stream to save resources.
+    windowHidden = true;
+    cancelStreamRetry();
+    if (isRecording) {
+      handleStopRecording();
+    }
     if (videoState !== "stopped") {
       stopVideoStream();
     }
@@ -562,6 +743,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
   window.electronAPI.onMessageReceived("window-restore", () => {
     // Window is restored from minimized - restart video stream if we have constraints and it's stopped
+    windowHidden = false;
     if (videoState === "stopped" && currentConstraints && currentConstraints.video) {
       // Only restart if we have a proper video stream constraint (not just the default { video: true })
       const hasSpecificDevice =
@@ -572,6 +754,27 @@ window.addEventListener("DOMContentLoaded", function () {
       if (hasSpecificDevice) {
         renderDisplay(currentConstraints);
       }
+    }
+  });
+
+  // Authoritative stream gate based on the renderer's own visibility. Electron reports
+  // document.hidden whenever this Display window can't actually be seen — hidden, minimized,
+  // on another Space, occluded by another window, or behind the macOS lock screen. Releasing
+  // the capture device in all of those cases guarantees the OS camera/recording indicator
+  // clears when the window isn't visible (and frees the device so the Mac can sleep), and
+  // re-acquires it as soon as the window becomes visible again. This backstops the explicit
+  // window-hide/minimize and lock-screen (allow-sleep) handlers, covering cases they miss.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      cancelStreamRetry();
+      if (isRecording) {
+        handleStopRecording();
+      }
+      if (videoState !== "stopped") {
+        stopVideoStream();
+      }
+    } else if (videoState === "stopped" && ensureMyConstraints()) {
+      renderDisplay(currentConstraints);
     }
   });
 
