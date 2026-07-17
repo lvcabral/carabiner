@@ -1536,21 +1536,24 @@ app.whenReady().then(async () => {
   });
 
   // Save video recording dialog
-  ipcMain.handle("save-video-dialog", async (event, filename, bufferData) => {
+  ipcMain.handle("save-video-dialog", async (event, filename, bufferData, format) => {
     try {
       const defaultPath = settings.files?.recordingPath
         ? path.join(settings.files.recordingPath, filename)
         : path.join(os.homedir(), isMacOS ? "Movies" : "Videos", filename);
       resetFramelessWindow();
+      // Build filters based on the actual recorded format to prevent content/extension mismatch
+      const filters = [];
+      if (format === "webm") {
+        filters.push({ name: "WebM Files", extensions: ["webm"] });
+      } else {
+        filters.push({ name: "MP4 Files", extensions: ["mp4"] });
+      }
+      filters.push({ name: "All Files", extensions: ["*"] });
       const result = await dialog.showSaveDialog(getActiveWindow() || mainWindow, {
         title: "Save Video Recording",
         defaultPath: defaultPath,
-        filters: [
-          { name: "Video Files", extensions: ["mp4", "webm"] },
-          { name: "MP4 Files", extensions: ["mp4"] },
-          { name: "WebM Files", extensions: ["webm"] },
-          { name: "All Files", extensions: ["*"] },
-        ],
+        filters,
       });
 
       if (!result.canceled && result.filePath) {
@@ -1576,8 +1579,8 @@ app.whenReady().then(async () => {
     rebuildMenus();
   });
 
-  // Save screenshot dialog
-  ipcMain.handle("save-screenshot-dialog", async (event, filename, imageData) => {
+  // Show screenshot save dialog (returns the chosen file path without writing data)
+  ipcMain.handle("show-screenshot-dialog", async (event, filename) => {
     try {
       const defaultPath = settings.files?.screenshotPath
         ? path.join(settings.files.screenshotPath, filename)
@@ -1594,14 +1597,22 @@ app.whenReady().then(async () => {
       });
 
       if (!result.canceled && result.filePath) {
-        // Convert base64 to buffer
-        const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "");
-        const buffer = Buffer.from(base64Data, "base64");
-        await fs.promises.writeFile(result.filePath, buffer);
-        return { success: true, filePath: result.filePath };
+        return { canceled: false, filePath: result.filePath };
       } else {
-        return { success: false, canceled: true };
+        return { canceled: true };
       }
+    } catch (error) {
+      console.error("Error showing screenshot dialog:", error);
+      return { canceled: true, error: error.message };
+    }
+  });
+
+  // Write screenshot file (receives raw buffer data and the target path)
+  ipcMain.handle("write-screenshot-file", async (event, filePath, bufferData) => {
+    try {
+      const buffer = Buffer.from(bufferData);
+      await fs.promises.writeFile(filePath, buffer);
+      return { success: true, filePath };
     } catch (error) {
       console.error("Error saving screenshot file:", error);
       return { success: false, error: error.message };
@@ -2048,6 +2059,15 @@ ipcMain.on("save-recording-path", (event, recordingPath) => {
     settings.files = {};
   }
   settings.files.recordingPath = recordingPath;
+  saveSettings(settings);
+});
+
+// Handler for saving recording format
+ipcMain.on("save-recording-format", (event, recordingFormat) => {
+  if (!settings.files) {
+    settings.files = {};
+  }
+  settings.files.recordingFormat = recordingFormat;
   saveSettings(settings);
 });
 
