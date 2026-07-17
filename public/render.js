@@ -130,6 +130,7 @@ let mcpRecording = false;
 let mcpRecordingPrefix = "";
 let mcpStopRecordingResolve = null;
 let mcpStopRecordingReject = null;
+let preferredRecordingFormat = "mp4"; // User preference: "mp4" or "webm"
 
 // Device monitoring variables
 let currentDeviceList = [];
@@ -269,6 +270,9 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
   }
   if (settings.display && settings.display.showKeystrokes !== undefined) {
     showKeystrokes = settings.display.showKeystrokes;
+  }
+  if (settings.files && settings.files.recordingFormat) {
+    preferredRecordingFormat = settings.files.recordingFormat;
   }
 });
 
@@ -445,6 +449,7 @@ const eventHandlers = {
   "set-overlay-opacity": handleOverlayOpacity,
   "set-audio-enabled": handleSetAudioEnabled,
   "set-show-keystrokes": (payload) => { showKeystrokes = payload; },
+  "set-recording-format": (payload) => { preferredRecordingFormat = payload; },
 };
 
 function renderDisplay(constraints, isBlankRetry = false) {
@@ -1066,51 +1071,59 @@ window.addEventListener("DOMContentLoaded", function () {
   }
 
   // Handle save screenshot functionality
-  function handleSaveScreenshot() {
+  async function handleSaveScreenshot() {
     const canvas = getScreenshotCanvas();
     const now = new Date();
     const datePart = now.toLocaleDateString("en-CA");
     const timePart = now.toLocaleTimeString("en-CA", { hour12: false }).replace(/:/g, "");
     const filename = `carabiner-${datePart}-${timePart}.png`;
 
-    canvas.toBlob(async function (blob) {
-      try {
-        // Convert blob to base64 using FileReader
-        const reader = new FileReader();
-        reader.onload = async function () {
-          try {
-            const imageData = reader.result; // This is already a data URL with base64
+    try {
+      // First, show the save dialog to get the chosen file path and format
+      const dialogResult = await window.electronAPI.invoke(
+        "show-screenshot-dialog",
+        filename
+      );
 
-            // Use the new save dialog with default path
-            const result = await window.electronAPI.invoke(
-              "save-screenshot-dialog",
-              filename,
-              imageData
-            );
+      if (dialogResult.canceled || !dialogResult.filePath) {
+        return;
+      }
 
-            if (result.success) {
-              showToast(
-                `Screenshot saved as ${filename}. Click to open containing folder.`,
-                5000,
-                false,
-                () => {
-                  window.electronAPI.invoke("open-containing-folder", result.filePath);
-                }
-              );
-            } else if (!result.canceled) {
-              showToast("Failed to save screenshot", 3000, true);
-            }
-          } catch (error) {
-            console.error("Error saving screenshot:", error);
-            showToast("Failed to save screenshot", 3000, true);
+      // Determine the image format from the chosen file extension
+      const ext = dialogResult.filePath.split(".").pop().toLowerCase();
+      const mimeType = (ext === "jpg" || ext === "jpeg") ? "image/jpeg" : "image/png";
+      const quality = mimeType === "image/jpeg" ? 0.92 : undefined;
+
+      // Convert canvas to blob in the correct format
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, mimeType, quality));
+      const arrayBuffer = await blob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const bufferData = Array.from(uint8Array);
+
+      // Save the image data to the chosen path
+      const result = await window.electronAPI.invoke(
+        "write-screenshot-file",
+        dialogResult.filePath,
+        bufferData
+      );
+
+      if (result.success) {
+        const savedName = dialogResult.filePath.split(/[\\/]/).pop();
+        showToast(
+          `Screenshot saved as ${savedName}. Click to open containing folder.`,
+          5000,
+          false,
+          () => {
+            window.electronAPI.invoke("open-containing-folder", result.filePath);
           }
-        };
-        reader.readAsDataURL(blob);
-      } catch (error) {
-        console.error("Error saving screenshot:", error);
+        );
+      } else {
         showToast("Failed to save screenshot", 3000, true);
       }
-    });
+    } catch (error) {
+      console.error("Error saving screenshot:", error);
+      showToast("Failed to save screenshot", 3000, true);
+    }
   }
 
   // Handle paste functionality
@@ -1162,19 +1175,37 @@ window.addEventListener("DOMContentLoaded", function () {
         videoBitsPerSecond: 2500000, // 2.5 Mbps
       };
 
-      // Try MP4 formats first (supported in Chromium 126+)
-      if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) {
-        options.mimeType = "video/mp4;codecs=h264,aac";
-      } else if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264")) {
-        options.mimeType = "video/mp4;codecs=h264";
-      } else if (MediaRecorder.isTypeSupported("video/mp4")) {
-        options.mimeType = "video/mp4";
-      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
-        options.mimeType = "video/webm;codecs=vp9,opus";
-      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
-        options.mimeType = "video/webm;codecs=vp8,opus";
+      // Select codec based on user preference with fallback
+      if (preferredRecordingFormat === "webm") {
+        // Prefer WebM, fall back to MP4
+        if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
+          options.mimeType = "video/webm;codecs=vp9,opus";
+        } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
+          options.mimeType = "video/webm;codecs=vp8,opus";
+        } else if (MediaRecorder.isTypeSupported("video/webm")) {
+          options.mimeType = "video/webm";
+        } else if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) {
+          options.mimeType = "video/mp4;codecs=h264,aac";
+        } else if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264")) {
+          options.mimeType = "video/mp4;codecs=h264";
+        } else {
+          options.mimeType = "video/mp4";
+        }
       } else {
-        options.mimeType = "video/webm";
+        // Prefer MP4 (default), fall back to WebM
+        if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) {
+          options.mimeType = "video/mp4;codecs=h264,aac";
+        } else if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264")) {
+          options.mimeType = "video/mp4;codecs=h264";
+        } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+          options.mimeType = "video/mp4";
+        } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
+          options.mimeType = "video/webm;codecs=vp9,opus";
+        } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) {
+          options.mimeType = "video/webm;codecs=vp8,opus";
+        } else {
+          options.mimeType = "video/webm";
+        }
       }
 
       mediaRecorder = new MediaRecorder(stream, options);
@@ -1292,7 +1323,7 @@ window.addEventListener("DOMContentLoaded", function () {
       }
 
       // Show save dialog and save file
-      const result = await window.electronAPI.invoke("save-video-dialog", filename, bufferData);
+      const result = await window.electronAPI.invoke("save-video-dialog", filename, bufferData, extension);
 
       if (result.success) {
         showToast(

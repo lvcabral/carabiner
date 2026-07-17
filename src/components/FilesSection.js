@@ -15,6 +15,7 @@ const { electronAPI } = window;
 function FilesSection() {
   const [screenshotPath, setScreenshotPath] = useState("");
   const [recordingPath, setRecordingPath] = useState("");
+  const [recordingFormat, setRecordingFormat] = useState("mp4");
   const [isMacOS, setIsMacOS] = useState(false);
 
   useEffect(() => {
@@ -29,6 +30,9 @@ function FilesSection() {
       }
       if (settings.files && settings.files.recordingPath) {
         setRecordingPath(settings.files.recordingPath);
+      }
+      if (settings.files && settings.files.recordingFormat) {
+        setRecordingFormat(settings.files.recordingFormat);
       }
     });
   }, []);
@@ -57,6 +61,16 @@ function FilesSection() {
   const handleResetRecordingPath = () => {
     setRecordingPath("");
     electronAPI.send("save-recording-path", "");
+  };
+
+  const handleRecordingFormatChange = (e) => {
+    const format = e.target.value;
+    setRecordingFormat(format);
+    electronAPI.send("save-recording-format", format);
+    electronAPI.sendSync("shared-window-channel", {
+      type: "set-recording-format",
+      payload: format,
+    });
   };
 
   // OS-specific folder names
@@ -137,6 +151,22 @@ function FilesSection() {
             </Row>
             <Form.Text className="text-muted">
               If no path is set, recordings will be saved to the {defaultVideoFolder} folder.
+            </Form.Text>
+          </Form.Group>
+
+          {/* Video Recording Format */}
+          <Form.Group controlId="formRecordingFormat" className="form-group-spacing mt-3">
+            <Form.Label>Video Recording Format</Form.Label>
+            <Form.Control
+              as="select"
+              value={recordingFormat}
+              onChange={handleRecordingFormatChange}
+            >
+              <option value="mp4">MP4 (H.264)</option>
+              <option value="webm">WebM (VP9/VP8)</option>
+            </Form.Control>
+            <Form.Text className="text-muted">
+              MP4 is recommended for best compatibility. WebM is an open format alternative.
             </Form.Text>
           </Form.Group>
         </Card.Body>
