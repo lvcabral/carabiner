@@ -464,6 +464,8 @@ const STREAM_PREFIX = "stream:";
 const STREAM_NEGOTIATION_TIMEOUT = 20000;
 const isStreamId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
 let streamPc = null;
+// Set once the DOM-ready scope defines the recording handlers (stopVideoStream lives outside it).
+let stopRecordingHandler = null;
 let streamSessionActive = false;
 
 function closeStreamPeer() {
@@ -746,7 +748,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
 function stopVideoStream() {
   // Stop any ongoing recording when video stream stops
   if (isRecording && mediaRecorder) {
-    stopRecording();
+    stopRecordingHandler?.();
   }
 
   // Invalidate any in-flight getUserMedia so a stream that resolves after this point
@@ -1476,6 +1478,8 @@ window.addEventListener("DOMContentLoaded", function () {
       window.electronAPI.send("recording-state-changed", isRecording);
     }
   }
+
+  stopRecordingHandler = handleStopRecording;
 
   function settleMcpRecording(error, filePath) {
     const resolve = mcpStopRecordingResolve;
