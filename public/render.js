@@ -51,6 +51,13 @@ function setScriptPlaybackIndicator(on) {
 }
 
 function showReconnectingOverlay() {
+  // The overlay serves both kinds of source; word it for whichever this window shows.
+  const label = document.getElementById("reconnecting-label");
+  if (label) {
+    label.textContent = isStreamId(myCaptureDeviceId)
+      ? "Connecting to stream..."
+      : "Reconnecting capture device...";
+  }
   reconnectingOverlay.style.display = "flex";
 }
 
@@ -629,6 +636,14 @@ function renderDisplay(constraints, isBlankRetry = false) {
   // so a getUserMedia that resolves after we've moved on can detect it's stale and self-release.
   const myGeneration = ++streamGeneration;
   videoState = "starting";
+  if (isStreamId(deviceId)) {
+    // A remote stream can take a while (or never come up): show progress and the stream's
+    // own name right away instead of a blank frame with a border and a stale label.
+    showReconnectingOverlay();
+    getCaptureDeviceLabel(deviceId).then((label) => {
+      if (myGeneration === streamGeneration) deviceLabel.textContent = label;
+    });
+  }
   acquireStream(constraints, deviceId)
     .then(async (stream) => {
       // Discard this stream if it's no longer wanted: a newer renderDisplay()/stopVideoStream()
@@ -973,8 +988,10 @@ window.addEventListener("DOMContentLoaded", function () {
         payload: JSON.stringify(capture),
       });
       // Set the initial device label
-      const initialDevice = capture[0];
-      deviceLabel.textContent = initialDevice.label || "";
+      if (!isStreamId(myCaptureDeviceId) && !deviceLabel.textContent) {
+        const initialDevice = capture[0];
+        deviceLabel.textContent = initialDevice.label || "";
+      }
     } else if (!isStreamId(myCaptureDeviceId)) {
       overlayImage.style.opacity = "1";
       overlayImage.src = "images/no-capture-device.png";
