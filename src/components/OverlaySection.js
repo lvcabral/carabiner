@@ -19,7 +19,7 @@ import Alert from "react-bootstrap/Alert";
 
 const { electronAPI } = window;
 
-function OverlaySection({ pairs = [], activePairId = "", onPairsChange, streamingDevices = [] }) {
+function OverlaySection({ pairs = [], activePairId = "", onPairsChange, streamingDevices = [], streamSources = [] }) {
   const [recentFiles, setRecentFiles] = useState([]);
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -44,7 +44,11 @@ function OverlaySection({ pairs = [], activePairId = "", onPairsChange, streamin
 
   // Label for the "Display Window" selector: capture card name + linked control (if any).
   const pairLabel = (pair) => {
-    const cap = captureDevices.find((d) => d.deviceId === pair.captureDeviceId);
+    const cap =
+      captureDevices.find((d) => d.deviceId === pair.captureDeviceId) ||
+      streamSources
+        .map((src) => ({ deviceId: `stream:${src.id}`, label: src.name }))
+        .find((d) => d.deviceId === pair.captureDeviceId);
     const capName = cap?.label || pair.captureDeviceId || "Capture device";
     const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
     return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;

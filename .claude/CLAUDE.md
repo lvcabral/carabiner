@@ -98,6 +98,12 @@ React 17 app using React Bootstrap tabs. `App.js` is the root; each tab is a com
 
 `App.js` holds `pairs`/`activePairId` state, loads them from settings, passes them to the General/Display/Automation tabs, persists edits via `set-pairs`, and listens for `pairs-updated`/`active-pair-changed` from main. The React app communicates with the main process via `window.electronAPI` (exposed by `preload.js` via `contextBridge`).
 
+### WebRTC Stream Sources
+
+A Display window can show a **WebRTC stream** instead of a capture card. Sources live in the global catalog `settings.streams.sources[]` (`{id, type, name, host, port}`; managed in the **Streams** tab → `StreamsSection.js`, persisted via `set-stream-sources`). A stream is bound to a pair exactly like a capture card, using the pseudo device id `stream:<sourceId>` as `pair.captureDeviceId`, so windows, menus and MCP keep working; `getAllSources()` in `main.js` merges hardware cards + streams for labels/menus/MCP (`kind: "stream"`). The General grid lists streams (with a **Stream** badge) under the capture cards.
+
+Signaling runs in **main** (`public/stream-signaling.js`, `ws` package) so credentials stay out of the renderer and the WebSocket carries no browser `Origin` header (the BrightScript Simulator rejects it). Sources are offerer-first: main relays `offer`/`candidate`/`failure`/`closed` to the window on `stream-signal`, and the window replies via `stream-signal-out` (`answer`/`candidate`). In `render.js`, `acquireStream()` is the single acquisition point (`getUserMedia` for cards, `acquireWebRtcStream()` for streams); everything after acquisition, and the retry loop, is shared. Supported types: `sim` (BrightScript Simulator, `ws://host:port/rtc-session`, default port 8090, no auth).
+
 ### Supporting Modules (`public/`)
 
 | File | Role |

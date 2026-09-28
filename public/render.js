@@ -431,6 +431,11 @@ async function updateAudioConstraints() {
 
 async function handleSetAudioEnabled(enabled) {
   audioEnabled = enabled;
+  // A stream source's audio is already in the remote stream; just (un)mute, no renegotiation.
+  if (isStreamId(myCaptureDeviceId)) {
+    videoPlayer.muted = !enabled;
+    return;
+  }
   // Update the current constraints with proper audio settings
   await updateAudioConstraints();
   if (videoState !== "stopped") {
@@ -451,6 +456,122 @@ const eventHandlers = {
   "set-show-keystrokes": (payload) => { showKeystrokes = payload; },
   "set-recording-format": (payload) => { preferredRecordingFormat = payload; },
 };
+
+// ---- WebRTC stream sources -------------------------------------------------------------
+// A stream source is bound like a capture card, using the pseudo device id "stream:<sourceId>".
+// Signaling runs in main (see stream-signaling.js); this window only answers the remote offer.
+const STREAM_PREFIX = "stream:";
+const STREAM_NEGOTIATION_TIMEOUT = 20000;
+const isStreamId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
+let streamPc = null;
+let streamSessionActive = false;
+
+function closeStreamPeer() {
+  if (streamPc) {
+    streamPc.onconnectionstatechange = null;
+    streamPc.ontrack = null;
+    streamPc.onicecandidate = null;
+    try {
+      streamPc.close();
+    } catch {
+      // already closed
+    }
+    streamPc = null;
+  }
+  if (streamSessionActive) {
+    streamSessionActive = false;
+    window.electronAPI.removeListener("stream-signal");
+    window.electronAPI.send("stream-stop");
+  }
+}
+
+// Resolve with the remote MediaStream once the peer connection delivers its tracks.
+async function acquireWebRtcStream(deviceId) {
+  closeStreamPeer();
+  streamSessionActive = true;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let remoteSet = false;
+    const pendingCandidates = [];
+    const done = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const fail = (message, noRetry = false) => {
+      const err = new Error(message);
+      err.name = "StreamError";
+      err.noRetry = noRetry;
+      closeStreamPeer();
+      done(reject, err);
+    };
+    const timer = setTimeout(() => fail("Timed out negotiating the stream"), STREAM_NEGOTIATION_TIMEOUT);
+
+    window.electronAPI.onMessageReceived("stream-signal", async (_, msg) => {
+      try {
+        if (msg.type === "offer") {
+          const pc = new RTCPeerConnection({ iceServers: msg.iceServers || [] });
+          streamPc = pc;
+          pc.ontrack = (e) => {
+            if (e.streams[0]) done(resolve, e.streams[0]);
+          };
+          pc.onicecandidate = (e) => {
+            if (e.candidate) {
+              window.electronAPI.send("stream-signal-out", {
+                type: "candidate",
+                candidate: e.candidate.toJSON(),
+              });
+            }
+          };
+          pc.onconnectionstatechange = () => {
+            if (pc !== streamPc) return;
+            if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+              if (!settled) return fail("Stream connection failed");
+              // Established stream dropped — behave like an unplugged device so retry kicks in.
+              if (videoState !== "stopped") {
+                window.electronAPI.log("debug", "[Carabiner] Stream peer connection lost");
+                stopVideoStream();
+                if (lastKnownDeviceId) showReconnectingOverlay();
+                scheduleStreamRetry();
+              }
+            }
+          };
+          if (/m=application [1-9]\d*/.test(msg.sdp?.sdp || "")) pc.createDataChannel("JanusDataChannel");
+          await pc.setRemoteDescription(msg.sdp);
+          remoteSet = true;
+          await pc.setLocalDescription(await pc.createAnswer());
+          window.electronAPI.send("stream-signal-out", {
+            type: "answer",
+            sdp: pc.localDescription.toJSON(),
+          });
+          pendingCandidates.splice(0).forEach((c) => pc.addIceCandidate(c).catch(() => {}));
+        } else if (msg.type === "candidate") {
+          if (streamPc && remoteSet) streamPc.addIceCandidate(msg.candidate).catch(() => {});
+          else pendingCandidates.push(msg.candidate);
+        } else if (msg.type === "failure") {
+          fail(msg.message || "Stream failed", msg.noRetry);
+        } else if (msg.type === "closed") {
+          // Remote closed signaling. Fine once media flows; a failure if we never got a stream.
+          if (!settled) fail("Stream closed before it started");
+        }
+      } catch (err) {
+        fail(err.message);
+      }
+    });
+
+    window.electronAPI.invoke("stream-start", deviceId).then((res) => {
+      if (!res?.ok) fail(res?.message || "Stream source not found", true);
+    });
+  });
+}
+
+// Single acquisition point: capture cards use getUserMedia, stream sources use WebRTC.
+function acquireStream(constraints, deviceId) {
+  return isStreamId(deviceId)
+    ? acquireWebRtcStream(deviceId)
+    : navigator.mediaDevices.getUserMedia(constraints);
+}
 
 function renderDisplay(constraints, isBlankRetry = false) {
   const deviceId = constraints.video?.deviceId?.exact || constraints.video?.deviceId;
@@ -477,8 +598,7 @@ function renderDisplay(constraints, isBlankRetry = false) {
   // so a getUserMedia that resolves after we've moved on can detect it's stale and self-release.
   const myGeneration = ++streamGeneration;
   videoState = "starting";
-  navigator.mediaDevices
-    .getUserMedia(constraints)
+  acquireStream(constraints, deviceId)
     .then(async (stream) => {
       // Discard this stream if it's no longer wanted: a newer renderDisplay()/stopVideoStream()
       // superseded it, or the window was hidden/minimized/locked while getUserMedia resolved.
@@ -488,7 +608,10 @@ function renderDisplay(constraints, isBlankRetry = false) {
       if (myGeneration !== streamGeneration || document.hidden) {
         window.electronAPI.log("debug","[Carabiner] getUserMedia resolved but stream no longer wanted - releasing");
         stream.getTracks().forEach((track) => track.stop());
-        if (myGeneration === streamGeneration) videoState = "stopped";
+        if (myGeneration === streamGeneration) {
+          videoState = "stopped";
+          closeStreamPeer();
+        }
         return;
       }
       // Replace any previous live stream, stopping its tracks so they can't leak.
@@ -508,11 +631,17 @@ function renderDisplay(constraints, isBlankRetry = false) {
         window.electronAPI.log("debug","[Carabiner] stream superseded while resolving label - releasing");
         stream.getTracks().forEach((track) => track.stop());
         if (activeStream === stream) activeStream = null;
-        if (myGeneration === streamGeneration) videoState = "stopped";
+        if (myGeneration === streamGeneration) {
+          videoState = "stopped";
+          closeStreamPeer();
+        }
         return;
       }
       videoPlayer.srcObject = null; // Release any previous stream before assigning new one
       videoPlayer.srcObject = stream;
+      // Capture cards only carry audio when requested via constraints; a remote stream always
+      // carries its audio track, so honor the audio toggle by muting the element.
+      videoPlayer.muted = isStreamId(deviceId) && !audioEnabled;
       const playPromise = videoPlayer.play();
       if (playPromise) {
         playPromise
@@ -568,19 +697,31 @@ function renderDisplay(constraints, isBlankRetry = false) {
       }, 3000);
     })
     .catch((err) => {
-      console.error(`[Carabiner] getUserMedia failed: ${err.name} - ${err.message}`);
+      console.error(`[Carabiner] Stream acquisition failed: ${err.name} - ${err.message}`);
       videoState = "stopped";
+      if (isStreamId(deviceId)) closeStreamPeer();
       // If we were already streaming a real device (lastKnownDeviceId set), this failure is
       // most likely transient — e.g. the capture device re-enumerated on wake but the USB hub
       // isn't ready yet. Keep the reconnecting overlay up and retry instead of giving up. Only
       // fall back to the error image once retries are exhausted (or there's no device to retry).
-      if (lastKnownDeviceId && !document.hidden && streamRetryAttempts < MAX_STREAM_RETRY_ATTEMPTS) {
+      if (
+        !err.noRetry &&
+        lastKnownDeviceId &&
+        !document.hidden &&
+        streamRetryAttempts < MAX_STREAM_RETRY_ATTEMPTS
+      ) {
         showReconnectingOverlay();
         scheduleStreamRetry();
       } else {
         cancelStreamRetry();
         hideReconnectingOverlay();
-        showToast(`Error loading capture device! ${err.message}`, 5000, true);
+        showToast(
+          isStreamId(deviceId)
+            ? `Error loading stream! ${err.message}`
+            : `Error loading capture device! ${err.message}`,
+          5000,
+          true
+        );
         // Show fallback image when capture device fails to load
         overlayImage.style.opacity = "1";
         overlayImage.src = "images/no-capture-device.png";
@@ -598,6 +739,7 @@ function stopVideoStream() {
   // Invalidate any in-flight getUserMedia so a stream that resolves after this point
   // releases itself instead of re-attaching a live camera track behind our backs.
   streamGeneration++;
+  closeStreamPeer();
 
   videoPlayer.pause();
   // Stop tracks from both the element and our tracked stream. They're normally the same
@@ -651,11 +793,18 @@ async function getCaptureDeviceLabel(deviceId) {
   // Handle both direct deviceId and deviceId.exact formats
   const actualDeviceId = typeof deviceId === "object" && deviceId.exact ? deviceId.exact : deviceId;
 
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const captureDevice = devices.find(
-    (device) => device.deviceId === actualDeviceId && device.kind === "videoinput"
-  );
-  let deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
+  let deviceLabel;
+  if (isStreamId(actualDeviceId)) {
+    const sources = await window.electronAPI.invoke("get-stream-sources");
+    deviceLabel =
+      sources.find((src) => STREAM_PREFIX + src.id === actualDeviceId)?.name || "Unknown Stream";
+  } else {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const captureDevice = devices.find(
+      (device) => device.deviceId === actualDeviceId && device.kind === "videoinput"
+    );
+    deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
+  }
   // This window owns one control device; show it (resolved from the window's own selection).
   const streamDevice = controlIp
     ? controlList.find((device) => device.id === `${controlIp}|${controlType}`)
@@ -795,7 +944,7 @@ window.addEventListener("DOMContentLoaded", function () {
       // Set the initial device label
       const initialDevice = capture[0];
       deviceLabel.textContent = initialDevice.label || "";
-    } else {
+    } else if (!isStreamId(myCaptureDeviceId)) {
       overlayImage.style.opacity = "1";
       overlayImage.src = "images/no-capture-device.png";
       overlayImage.style.display = "block";
@@ -1990,6 +2139,8 @@ function setupDeviceMonitoring() {
 }
 
 function updateCaptureDeviceList(captureDevices) {
+  // Hardware changes are irrelevant to a window showing a WebRTC stream.
+  if (isStreamId(myCaptureDeviceId)) return;
   const previousCount = currentDeviceList.length;
   const newCount = captureDevices.length;
   const currentDeviceId =

@@ -45,7 +45,13 @@ const getPredefinedSizes = (maxWidth, maxHeight) => {
     });
 };
 
-function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamingDevices = [] }) {
+function DisplaySection({
+  pairs = [],
+  activePairId = "",
+  onPairsChange,
+  streamingDevices = [],
+  streamSources = [],
+}) {
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const [selectedPairId, setSelectedPairId] = useState(activePairId);
   const [displaySize, setDisplaySize] = useState("custom");
@@ -59,7 +65,11 @@ function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamin
 
   // Label for the "Editing Window" selector: capture card name + linked control (if any).
   const pairLabel = (pair) => {
-    const cap = captureDevices.find((d) => d.deviceId === pair.captureDeviceId);
+    const cap =
+      captureDevices.find((d) => d.deviceId === pair.captureDeviceId) ||
+      streamSources
+        .map((src) => ({ deviceId: `stream:${src.id}`, label: src.name }))
+        .find((d) => d.deviceId === pair.captureDeviceId);
     const capName = cap?.label || pair.captureDeviceId || "Capture device";
     const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
     return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;

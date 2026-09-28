@@ -58,6 +58,7 @@ const {
   hideWindowSafely,
 } = require("./menu");
 const { checkForUpdates } = require("./updater");
+const streamSignaling = require("./stream-signaling");
 const { startMcpServer, stopMcpServer, isRunning: isMcpRunning, getPort: getMcpPort } = require("./mcp-server");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
@@ -98,6 +99,26 @@ const senderToPair = new Map(); // webContents.id -> pairId (route renderer → 
 let activePairId = settings.activePairId || settings.pairs?.[0]?.id || "";
 let isQuitting = false;
 let captureDevices;
+
+// WebRTC stream sources are exposed as pseudo capture devices (id "stream:<sourceId>") so a
+// pair binds to one exactly like a capture card and every captureDeviceId-keyed path (windows,
+// menus, MCP) keeps working. Hardware cards come from the renderers' enumeration.
+const STREAM_PREFIX = "stream:";
+const isStreamDeviceId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
+function getStreamSources() {
+  return settings?.streams?.sources || [];
+}
+function findStreamSource(deviceId) {
+  return getStreamSources().find((s) => STREAM_PREFIX + s.id === deviceId);
+}
+function getAllSources() {
+  const streams = getStreamSources().map((s) => ({
+    deviceId: STREAM_PREFIX + s.id,
+    label: s.name,
+    kind: "stream",
+  }));
+  return [...(captureDevices || []), ...streams];
+}
 const recordingPairs = new Set(); // pairIds whose Display window is currently recording video
 let isScriptRecording = false;
 let isScriptPlaying = false;
@@ -214,7 +235,7 @@ function setActivePair(pairId) {
 // Title for a Display window: capture card name + linked control (so the macOS Window
 // menu can tell multiple Display windows apart).
 function pairWindowTitle(pair) {
-  const cap = (captureDevices || []).find((d) => d.deviceId === pair.captureDeviceId);
+  const cap = getAllSources().find((d) => d.deviceId === pair.captureDeviceId);
   const capName = cap?.label || "Display Window";
   const ctl = pair.controlDeviceId
     ? settings.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
@@ -240,7 +261,7 @@ function rebuildMenus() {
   if (!mainWindow) return;
   const active = getActiveWindow();
   if (isMacOS) {
-    createMacOSMenu(mainWindow, active, packageInfo, settings, captureDevices);
+    createMacOSMenu(mainWindow, active, packageInfo, settings, getAllSources());
   }
   const tray = getTray();
   if (tray) {
@@ -248,7 +269,7 @@ function rebuildMenus() {
       mainWindow,
       active,
       packageInfo,
-      captureDevices,
+      getAllSources(),
       settings,
       isActiveRecording(),
       switchControlDevice
@@ -564,6 +585,7 @@ function createDisplayWindow(pair) {
     senderToPair.delete(win.webContents.id);
     pairWindows.delete(pair.id);
     recordingPairs.delete(pair.id);
+    streamSignaling.stopSession(pair.id);
     if (!isQuitting) disconnectPairControl(pair.id);
     pairState.delete(pair.id);
     resetFullscreenVars();
@@ -585,6 +607,7 @@ function openPair(pair) {
 function closePair(pairId) {
   const win = getWindow(pairId);
   if (win) win.close();
+  streamSignaling.stopSession(pairId);
 }
 
 // Enable/disable a pair (pair.visible is the "enabled" flag = whether a Display window
@@ -934,7 +957,7 @@ app.whenReady().then(async () => {
     } else if (isDev) {
       log.info("[allow-sleep] watcher not started — display.allowSleep is disabled");
     }
-    createMacOSMenu(mainWindow, getActiveWindow(), packageInfo, settings, captureDevices);
+    createMacOSMenu(mainWindow, getActiveWindow(), packageInfo, settings, getAllSources());
     // Ensure menu reflects the active pair's always on top / audio state from settings
     updateAlwaysOnTopMenuItem(getActivePair()?.alwaysOnTop !== false);
     updateEnableAudioMenuItem(getActivePair()?.audioEnabled === true);
@@ -1021,6 +1044,7 @@ app.whenReady().then(async () => {
       // If the sending pair's capture device was removed and its window is hidden, show it.
       if (
         pair?.captureDeviceId &&
+        !isStreamDeviceId(pair.captureDeviceId) &&
         !newDevices.find((device) => device.deviceId === pair.captureDeviceId) &&
         targetWin &&
         !targetWin.isVisible()
@@ -1050,7 +1074,7 @@ app.whenReady().then(async () => {
         saveFlag = true;
       }
 
-      if (deviceIdChanged && captureDevices?.length > 0) rebuildMenus();
+      if (deviceIdChanged) rebuildMenus();
 
       // Forward to the target window when visible; show it if explicitly requested.
       if (targetWin?.isVisible()) {
@@ -1097,6 +1121,21 @@ app.whenReady().then(async () => {
       });
       settings.control.deviceList = arg.payload;
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+    } else if (arg.type && arg.type === "set-stream-sources") {
+      // The stream-source catalog is global. Drop pairs bound to a deleted source.
+      settings.streams = { ...(settings.streams || {}), sources: arg.payload };
+      const remaining = new Set(arg.payload.map((src) => STREAM_PREFIX + src.id));
+      const removed = (settings.pairs || []).filter(
+        (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
+      );
+      removed.forEach((p) => closePair(p.id));
+      settings.pairs = (settings.pairs || []).filter((p) => !removed.includes(p));
+      if (removed.length) {
+        if (!getPair(activePairId)) activePairId = settings.pairs[0]?.id || "";
+        settings.activePairId = activePairId;
+        mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+      }
+      rebuildMenus();
     } else if (arg.type && arg.type === "set-control-selected") {
       if (pair) {
         const prev = pair.controlDeviceId;
@@ -1184,6 +1223,28 @@ app.whenReady().then(async () => {
   // late-mounting renderer (e.g. a pair's capture dropdown) can fetch it without waiting
   // for the next broadcast.
   ipcMain.handle("get-capture-devices", async () => captureDevices || []);
+
+  // WebRTC streams: catalog lookup + signaling relay (see stream-signaling.js).
+  ipcMain.handle("get-stream-sources", async () => getStreamSources());
+  ipcMain.handle("test-stream-source", async (_e, source) => streamSignaling.testSource(source));
+  ipcMain.handle("stream-start", async (event, deviceId) => {
+    const source = findStreamSource(deviceId);
+    const sender = event.sender;
+    const pairId = senderToPair.get(sender.id);
+    if (!source || !pairId) return { ok: false, message: "Stream source not found" };
+    streamSignaling.startSession(pairId, source, (msg) => {
+      if (!sender.isDestroyed()) sender.send("stream-signal", msg);
+    });
+    return { ok: true, name: source.name };
+  });
+  ipcMain.on("stream-signal-out", (event, msg) => {
+    const pairId = senderToPair.get(event.sender.id);
+    if (pairId) streamSignaling.relayFromWindow(pairId, msg);
+  });
+  ipcMain.on("stream-stop", (event) => {
+    const pairId = senderToPair.get(event.sender.id);
+    if (pairId) streamSignaling.stopSession(pairId);
+  });
 
   ipcMain.on("save-launch-app-at-login", (event, launchAppAtLogin) => {
     settings.display.launchAppAtLogin = launchAppAtLogin;
@@ -1341,7 +1402,7 @@ app.whenReady().then(async () => {
       win,
       packageInfo,
       recordingPairs.has(ctxPairId),
-      captureDevices,
+      getAllSources(),
       settings,
       isScriptRecording,
       isScriptPlaying,
@@ -1734,7 +1795,7 @@ app.whenReady().then(async () => {
     // List the live Display windows (pairs) so an MCP agent can target one explicitly.
     listWindows: () =>
       (settings.pairs || []).map((p) => {
-        const cap = (captureDevices || []).find((d) => d.deviceId === p.captureDeviceId);
+        const cap = getAllSources().find((d) => d.deviceId === p.captureDeviceId);
         const win = getWindow(p.id);
         return {
           pairId: p.id,
@@ -1820,9 +1881,9 @@ app.whenReady().then(async () => {
     },
     // Capture & recording
     listCaptureDevices: () =>
-      (captureDevices || []).map((d) => ({ deviceId: d.deviceId, label: d.label })),
+      getAllSources().map((d) => ({ deviceId: d.deviceId, label: d.label, kind: d.kind || "capture" })),
     selectCaptureDevice: (deviceId) => {
-      const found = (captureDevices || []).find((d) => d.deviceId === deviceId);
+      const found = getAllSources().find((d) => d.deviceId === deviceId);
       if (!found) throw new Error(`Unknown capture device id: ${deviceId}`);
       mainWindow?.webContents?.send("update-capture-device", deviceId);
       return { deviceId: found.deviceId, label: found.label };
@@ -1988,7 +2049,7 @@ app.whenReady().then(async () => {
     updateScriptsSubmenu(settings.scripts, mainWindow, getActiveWindow(), packageInfo, settings);
     const tray = getTray();
     if (tray) {
-      createTrayMenu(mainWindow, getActiveWindow(), packageInfo, captureDevices, settings, isActiveRecording(), switchControlDevice);
+      createTrayMenu(mainWindow, getActiveWindow(), packageInfo, getAllSources(), settings, isActiveRecording(), switchControlDevice);
     }
   });
 
@@ -2021,6 +2082,7 @@ app.whenReady().then(async () => {
     isQuitting = true;
     stopSleepWatcher();
     stopUpdateChecks();
+    streamSignaling.stopAll();
     if (isMcpRunning()) {
       stopMcpServer();
     }

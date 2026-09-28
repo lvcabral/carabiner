@@ -1,0 +1,226 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024-2026 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import { useState } from "react";
+import Card from "react-bootstrap/Card";
+import Form from "react-bootstrap/Form";
+import Button from "react-bootstrap/Button";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
+import Alert from "react-bootstrap/Alert";
+
+const { electronAPI } = window;
+
+const SIM_DEFAULT_PORT = "8090";
+const TYPE_LABELS = { sim: "BrightScript Simulator" };
+
+const describeSource = (src) =>
+  `${TYPE_LABELS[src.type] || src.type}: ${src.name} (${src.host}${src.port ? `:${src.port}` : ""})`;
+
+// Catalog of WebRTC stream sources. Sources are enabled and linked to a control device from the
+// General tab, next to the capture cards.
+function StreamsSection({ sources = [], onUpdateSources }) {
+  const [type, setType] = useState("sim");
+  const [name, setName] = useState("");
+  const [host, setHost] = useState("");
+  const [port, setPort] = useState(SIM_DEFAULT_PORT);
+  const [selected, setSelected] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [testStatus, setTestStatus] = useState("");
+
+  const showError = (msg) => {
+    setErrorMessage(msg);
+    setTimeout(() => setErrorMessage(""), 3000);
+  };
+
+  const isValidPort = (value) => {
+    const n = Number(value);
+    return Number.isInteger(n) && n > 0 && n <= 65535;
+  };
+
+  const buildSource = () => ({
+    id: `${type}-${Date.now().toString(36)}`,
+    type,
+    name: name.trim() || host.trim(),
+    host: host.trim(),
+    port: Number(port),
+  });
+
+  const handleAdd = () => {
+    if (!host.trim()) {
+      showError("Enter the host name or IP address.");
+      return;
+    }
+    if (!isValidPort(port)) {
+      showError("Invalid port (must be 1–65535).");
+      return;
+    }
+    const source = buildSource();
+    if (sources.some((s) => s.type === source.type && s.host === source.host && s.port === source.port)) {
+      showError("This stream source already exists.");
+      return;
+    }
+    onUpdateSources([...sources, source]);
+    setName("");
+    setHost("");
+    setPort(SIM_DEFAULT_PORT);
+    setTestStatus("");
+    setSelected(source.id);
+  };
+
+  const handleDelete = () => {
+    if (!selected) return;
+    onUpdateSources(sources.filter((s) => s.id !== selected));
+    setSelected("");
+  };
+
+  const handleTest = async () => {
+    if (!host.trim() || !isValidPort(port)) {
+      setTestStatus("Enter a valid host and port first.");
+      return;
+    }
+    setTestStatus("Testing…");
+    try {
+      const res = await electronAPI.invoke("test-stream-source", buildSource());
+      setTestStatus(res?.ok ? "Connected" : res?.message || "Connection failed");
+    } catch (error) {
+      setTestStatus(error.message || "Connection failed");
+    }
+  };
+
+  return (
+    <div className="p-2" style={{ position: "relative", fontSize: "0.85rem" }}>
+      <Card>
+        <Card.Body className="p-2">
+          <Form onSubmit={(e) => e.preventDefault()}>
+            <Form.Group controlId="formStreamType" className="form-group-spacing">
+              <Form.Label>Stream Source Type:</Form.Label>
+              <Form.Control
+                size="sm"
+                as="select"
+                value={type}
+                onChange={(e) => {
+                  setType(e.target.value);
+                  setTestStatus("");
+                }}
+              >
+                <option value="sim">BrightScript Simulator (WebRTC)</option>
+              </Form.Control>
+            </Form.Group>
+            <Form.Group controlId="formStreamHost" className="form-group-spacing">
+              <Row className="align-items-center">
+                <Col>
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    placeholder="Host or IP address"
+                    value={host}
+                    onChange={(e) => setHost(e.target.value)}
+                  />
+                </Col>
+                <Col xs={3}>
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    placeholder="Port"
+                    value={port}
+                    onChange={(e) => setPort(e.target.value)}
+                  />
+                </Col>
+              </Row>
+            </Form.Group>
+            <Form.Group controlId="formStreamName" className="form-group-spacing">
+              <Row className="align-items-center">
+                <Col>
+                  <Form.Control
+                    size="sm"
+                    type="text"
+                    placeholder="Enter Name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </Col>
+                <Col xs="auto">
+                  <Button size="sm" variant="outline-secondary" onClick={handleTest}>
+                    Test
+                  </Button>
+                </Col>
+                <Col xs="auto">
+                  <Button size="sm" title="Add Stream Source" variant="primary" onClick={handleAdd}>
+                    &#x271A;
+                  </Button>
+                </Col>
+              </Row>
+              {testStatus && (
+                <div
+                  style={{
+                    fontSize: "0.72rem",
+                    marginTop: "4px",
+                    color: testStatus === "Connected" ? "#198754" : "#b61717",
+                  }}
+                >
+                  {testStatus}
+                </div>
+              )}
+            </Form.Group>
+            {errorMessage && (
+              <Alert
+                variant="danger"
+                className="custom-alert"
+                style={{
+                  position: "absolute",
+                  top: "10px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  zIndex: 1050,
+                  minWidth: "300px",
+                  maxWidth: "90%",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                }}
+              >
+                {errorMessage}
+              </Alert>
+            )}
+            <Form.Group controlId="formStreamList" className="form-group-spacing">
+              <Form.Label>Stream Source List</Form.Label>
+              <Row>
+                <Col className="d-flex align-items-center flex-grow-1">
+                  <Form.Control
+                    size="sm"
+                    as="select"
+                    value={selected}
+                    onChange={(e) => setSelected(e.target.value)}
+                  >
+                    <option value="">Select a source to delete</option>
+                    {sources.map((src) => (
+                      <option key={src.id} value={src.id}>
+                        {describeSource(src)}
+                      </option>
+                    ))}
+                  </Form.Control>
+                </Col>
+                <Col xs="auto" className="d-flex align-items-center">
+                  <Button size="sm" title="Delete Stream Source" variant="primary" onClick={handleDelete}>
+                    &#x232B;
+                  </Button>
+                </Col>
+              </Row>
+            </Form.Group>
+            <p className="text-muted small mb-0">
+              Enable a stream source and link a control device on the General tab. Enable the
+              Simulator&apos;s remote screen (WebRTC) in BrightScript Simulator first.
+            </p>
+          </Form>
+        </Card.Body>
+      </Card>
+    </div>
+  );
+}
+
+export default StreamsSection;

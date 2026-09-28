@@ -71,7 +71,7 @@ function getModLabel(mod) {
   return "Press";
 }
 
-function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [] }) {
+function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [], streamSources = [] }) {
   const [scripts, setScripts] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -101,7 +101,11 @@ function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [
     : [];
 
   const pairLabel = (pair) => {
-    const cap = captureDevices.find((d) => d.deviceId === pair.captureDeviceId);
+    const cap =
+      captureDevices.find((d) => d.deviceId === pair.captureDeviceId) ||
+      streamSources
+        .map((src) => ({ deviceId: `stream:${src.id}`, label: src.name }))
+        .find((d) => d.deviceId === pair.captureDeviceId);
     const capName = cap?.label || pair.captureDeviceId || "Capture device";
     const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
     return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;

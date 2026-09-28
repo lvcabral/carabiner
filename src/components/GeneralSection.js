@@ -14,7 +14,13 @@ import ShortcutInput from "./select/ShortcutInput";
 
 const { electronAPI } = window;
 
-function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPairsChange }) {
+function GeneralSection({
+  streamingDevices,
+  onDeletedDeviceRef,
+  pairs = [],
+  onPairsChange,
+  streamSources = [],
+}) {
   const [captureDevices, setCaptureDevices] = useState([]);
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
@@ -23,6 +29,16 @@ function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPa
   const [darkMode, setDarkMode] = useState(false);
   const [checkForUpdates, setCheckForUpdates] = useState(true);
   const [singleWindowMode, setSingleWindowMode] = useState(true);
+
+  // Capture cards plus configured WebRTC stream sources (bound as "stream:<id>").
+  const sourceRows = [
+    ...captureDevices,
+    ...streamSources.map((src) => ({
+      deviceId: `stream:${src.id}`,
+      label: src.name,
+      isStream: true,
+    })),
+  ];
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
@@ -207,17 +223,19 @@ function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPa
           </div>
           {/* Column headers for the capture-device grid below. */}
           <Row className="g-2 mb-1 px-2 text-muted fw-semibold" style={{ fontSize: "0.72rem" }}>
-            <Col xs={6}>Capture Device</Col>
+            <Col xs={6}>Capture Device / Stream</Col>
             <Col xs={5}>Control Device</Col>
             <Col xs={1} className="text-end p-0">
               {singleWindowMode ? "Active" : "Enabled"}
             </Col>
           </Row>
-          {captureDevices.length === 0 ? (
-            <p className="text-muted small mb-0">No capture devices detected.</p>
+          {sourceRows.length === 0 ? (
+            <p className="text-muted small mb-0">
+              No capture devices detected. Add a WebRTC stream in the Streams tab.
+            </p>
           ) : (
             <div className="script-list-scroll" style={{ maxHeight: "30vh", overflowY: "auto" }}>
-              {captureDevices.map((device, index) => {
+              {sourceRows.map((device, index) => {
                 const pair = pairForDevice(device.deviceId);
                 return (
                   <Row
@@ -226,6 +244,11 @@ function GeneralSection({ streamingDevices, onDeletedDeviceRef, pairs = [], onPa
                     style={{ fontSize: "0.78rem" }}
                   >
                     <Col xs={6} className="text-truncate" title={device.label}>
+                      {device.isStream && (
+                        <span className="badge bg-secondary me-1" style={{ fontSize: "0.6rem" }}>
+                          Stream
+                        </span>
+                      )}
                       {device.label || `Device ${index + 1}`}
                     </Col>
                     <Col xs={5}>
