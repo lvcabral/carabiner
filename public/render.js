@@ -498,6 +498,11 @@ function closeStreamPeer() {
   }
 }
 
+// Name of the file the user actually saved (they may rename the suggested one in the dialog).
+function fileNameOf(filePath, fallback) {
+  return (filePath && filePath.split(/[\\/]/).pop()) || fallback;
+}
+
 // An established stream dropped — behave like an unplugged device so the retry loop kicks in.
 function handleStreamLost() {
   if (videoState === "stopped") return;
@@ -1543,7 +1548,7 @@ window.addEventListener("DOMContentLoaded", function () {
         const directResult = await window.electronAPI.invoke("save-video-direct", filename, bufferData);
         recordedChunks = [];
         if (directResult.success) {
-          showToast(`Recording saved as ${filename}.`, 5000, false, () => {
+          showToast(`Recording saved as ${fileNameOf(directResult.filePath, filename)}.`, 5000, false, () => {
             window.electronAPI.invoke("open-containing-folder", directResult.filePath);
           });
           settleMcpRecording(null, directResult.filePath);
@@ -1559,7 +1564,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
       if (result.success) {
         showToast(
-          `Recording saved as ${filename}. Click to open containing folder.`,
+          `Recording saved as ${fileNameOf(result.filePath, filename)}. Click to open containing folder.`,
           5000,
           false,
           () => {
