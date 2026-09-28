@@ -1,7 +1,7 @@
 <p align="center">
   <img src="images/carabiner-icon.png" height="125px" alt="Carabiner logo" />
   <br><br>
-  <a href="https://github.com/lvcabral/carabiner/releases/tag/2.3.0"><img src="https://img.shields.io/badge/Version-2.3.0-blue.svg" alt="Version 2.3.0" /></a>
+  <a href="https://github.com/lvcabral/carabiner/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/Version-3.0.0-blue.svg" alt="Version 3.0.0" /></a>
   <img src="https://img.shields.io/badge/Build-Passing-green.svg" alt="Build Passing" />
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square" alt="License MIT" /></a>
   <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20MacOS%20%7C%20Windows-blue?style=flat-square" alt="Platform Linux | MacOS | Windows" />
@@ -30,6 +30,7 @@ Perfect for developers and QA engineers who need to test streaming applications 
 - **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Comcast Xumo (experimental)
 - **Single or Multiple Windows**: Use one Display window and switch devices on the fly (default), or opt into multi-window mode to run several capture devices simultaneously — each capture card in its own floating window linked to its own streaming device
 - **Real-time Video Capture**: View your streaming device output directly on your computer
+- **WebRTC Streams**: Besides capture cards, show a remote WebRTC stream — a [BrightScript Simulator](https://github.com/lvcabral/brs-desktop) remote screen or a Roku Cloud Emulator device — in the same floating window, with the same control, screenshot, recording, overlay and automation features
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
 - **Text Pasting**: Paste clipboard content directly to streaming devices
 - **Video Recording**: Record streaming device sessions in MP4/WebM format — independently per window
@@ -94,6 +95,7 @@ We welcome contributions to make Carabiner better! Here's how you can help:
 - **[Electron Framework](https://www.electronjs.org/)**: Cross-platform desktop application framework
 - **[React](https://react.dev/)**: User interface library for the settings panel
 - **[Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)**: Roku device communication
+- **[WebRTC](https://webrtc.org/)**: Remote video streams from the BrightScript Simulator (custom signaling) and Roku Cloud Emulator (Janus signaling)
 - **[Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)**: Android device communication
 - **[pyatv](https://pyatv.dev/)**: Apple TV device communication via Media Remote Protocol (MRP)
 - **[RDK Services](https://rdkcentral.github.io/rdkservices/)**: Xumo Stream Box / RDK device communication via the `org.rdk.RDKShell` JSON-RPC API

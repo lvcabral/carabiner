@@ -6,7 +6,7 @@ This guide will help you get started with Carabiner and make the most of its fea
 
 After installing Carabiner, launch the application to access the settings window. Configure your preferences in the various tabs, then minimize or close the settings window to start using the floating display window(s). Carabiner runs as a **single instance** — launching it again brings the running instance forward (the active window, or the settings window when none is enabled).
 
-Carabiner supports **multiple capture devices at once**: each capture card you enable opens its own floating Display window, linked to its own streaming device. If no capture device is enabled (or none is connected), the settings window always opens at launch so you can configure one.
+Carabiner supports **multiple video sources at once**: each capture card or WebRTC stream you enable opens its own floating Display window, linked to its own streaming device. If no capture device is enabled (or none is connected), the settings window always opens at launch so you can configure one.
 
 ## Device Setup
 
@@ -30,17 +30,29 @@ Carabiner supports **multiple capture devices at once**: each capture card you e
 > 3. Select **Control by mobile apps**.
 > 4. Set to **Enabled** or **Permissive**.
 
-### 2. Choose a Window Mode
+### 2. Add WebRTC Streams *(optional)*
+
+Instead of (or besides) a capture card, a window can show a **WebRTC stream**. Open the **Streams** tab, pick the **Stream Source Type**, and click **+** to register it:
+
+- **BrightScript Simulator** — enable the *remote screen* (WebRTC) in [BrightScript Simulator](https://github.com/lvcabral/brs-desktop), then enter its **Host/IP** and **Port** (default `8090`). No authentication is needed. Use **Test** to verify it is reachable.
+- **Roku Cloud Emulator** — enter your Cloud Emulator **access token** (a personal access token from the Roku Cloud Emulator portal), click **Load devices** and pick the device to watch. The device must be running; if it is still starting, Carabiner waits for it. *Advanced* lets you override the management API URL. The token is encrypted with your operating system's keychain and is never exposed to the app's windows.
+
+Registered streams then show in the **General** tab grid (with a cloud icon) alongside your capture cards, and are enabled and linked to a control device the same way. A stream window shows a *Connecting to stream...* animation while it loads and reconnects automatically if the stream drops.
+
+> [!NOTE]
+> Stream windows are controlled through a linked control device (for example the Roku ECP address of the simulator or cloud device); the stream itself only carries video and audio.
+
+### 3. Choose a Window Mode
 
 At the top of the **General** tab, pick how Carabiner shows your capture devices:
 
 - **Single Window** (default) — one floating Display window at a time. Selecting another capture device simply switches that window to it. Best for testing one device at a time.
 - **Multiple Windows** — each enabled capture device gets its own floating window, so you can watch and control several devices side by side.
 
-### 3. Enable & Link Capture Devices
+### 4. Enable & Link Capture Devices and Streams
 
-1. The **General** tab lists every capture card detected on your computer in a grid.
-2. For each capture card you want to use:
+1. The **General** tab lists every capture card detected on your computer — and every WebRTC stream you added (with a cloud icon) — in a grid.
+2. For each capture card or stream you want to use:
    - Pick a **Control Device** from the dropdown to link a streaming device to that capture card.
    - In **Single Window** mode, check **Active** to make that card the one shown (checking another switches to it). In **Multiple Windows** mode, check **Enabled** to open that card's floating Display window.
 3. In Multiple Windows mode, repeat for additional capture cards to run several devices side by side — each gets its own window. (Using the same capture card for two windows isn't supported; some cards only allow a single stream.)
@@ -120,7 +132,7 @@ Record your streaming device sessions (in MP4/WebM) for documentation, tutorials
 
 **Recording Features:**
 
-- **High Quality**: Records at 2.5 Mbps for crisp video quality
+- **High Quality**: Records at 2.5 Mbps for crisp video quality (WebRTC streams record at 720p or 1080p, following the window's *Recording Resolution*, at 3.5 / 6 Mbps; the recording keeps a fixed size even if the stream's own quality changes mid-recording)
 - **Multiple Formats**: Supports MP4 (H.264) and WebM formats automatically
 - **Visual Indicator**: Red pulsing indicator shows when recording is active
 - **Auto-Naming**: Files are automatically named with timestamp (e.g., `carabiner-recording-2025-07-01-143052.mp4`)
@@ -217,7 +229,7 @@ These settings are **per window** — pick the window to edit with the **Editing
 - **Borders**: Add decorative borders to the display
 - **Always on Top**: Keep the display window above all others
 - **Display Size**: Choose from preset resolutions or use custom sizing
-- **Capture Resolution / Audio**: Configure the capture resolution and toggle audio capture for that window
+- **Capture Resolution / Audio**: Configure the capture resolution and toggle audio capture for that window (for a WebRTC stream the setting becomes **Recording Resolution**, limited to 720p/1080p, and audio simply un-mutes the stream)
 
 ### System Integration
 

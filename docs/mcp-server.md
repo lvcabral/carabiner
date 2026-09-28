@@ -105,8 +105,8 @@ field.
 ### Capture & recording
 | Tool | Description |
 |------|-------------|
-| `list_capture_devices` | Available HDMI capture cards |
-| `select_capture_device` | Switch the active capture source |
+| `list_capture_devices` | Available video sources: HDMI capture cards (`kind: "capture"`) and configured WebRTC streams (`kind: "stream"`, id `stream:<id>`) |
+| `select_capture_device` | Switch the active capture source (capture card or WebRTC stream) |
 | `take_screenshot` | Capture the current frame; returns a PNG image and (by default) saves it to the screenshots folder; optional `deviceId` |
 | `start_recording` | Begin recording (optional `filename_prefix`); optional `deviceId` |
 | `stop_recording` | Stop recording, save to the recordings folder, return the file path; optional `deviceId` |
