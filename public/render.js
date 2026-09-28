@@ -1321,6 +1321,53 @@ window.addEventListener("DOMContentLoaded", function () {
     return canvas;
   }
 
+  // WebRTC streams can change resolution mid-stream (low quality at connect, then ramping up).
+  // MediaRecorder's encoder (H.264/MP4 especially) is initialized at the first frame's size and
+  // freezes on a size change, producing a file that shows only the first frame. So streams are
+  // recorded through a fixed-size canvas: every video frame is letterboxed into it, and the
+  // encoder always sees the same dimensions. Capture cards have a fixed size and record directly.
+  const STREAM_RECORDING_WIDTH = 1920;
+  const STREAM_RECORDING_HEIGHT = 1080;
+  let stopRecordingCanvas = null;
+
+  function createFixedSizeRecordingStream(source) {
+    const canvas = document.createElement("canvas");
+    canvas.width = STREAM_RECORDING_WIDTH;
+    canvas.height = STREAM_RECORDING_HEIGHT;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    let running = true;
+    let rafId = null;
+    const draw = () => {
+      if (!running) return;
+      const vw = videoPlayer.videoWidth;
+      const vh = videoPlayer.videoHeight;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (vw && vh) {
+        const scale = Math.min(canvas.width / vw, canvas.height / vh);
+        const w = vw * scale;
+        const h = vh * scale;
+        ctx.drawImage(videoPlayer, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+      }
+      schedule();
+    };
+    const schedule = () => {
+      if (!running) return;
+      if (videoPlayer.requestVideoFrameCallback) videoPlayer.requestVideoFrameCallback(draw);
+      else rafId = requestAnimationFrame(draw);
+    };
+    draw();
+    const recordingStream = canvas.captureStream(30);
+    source.getAudioTracks().forEach((track) => recordingStream.addTrack(track));
+    stopRecordingCanvas = () => {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      recordingStream.getVideoTracks().forEach((track) => track.stop());
+      stopRecordingCanvas = null;
+    };
+    return recordingStream;
+  }
+
   // Video Recording Functions
   function handleStartRecording() {
     if (isRecording || !videoPlayer.srcObject) {
@@ -1329,12 +1376,15 @@ window.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
-      const stream = videoPlayer.srcObject;
+      const isStream = isStreamId(myCaptureDeviceId);
+      const stream = isStream
+        ? createFixedSizeRecordingStream(videoPlayer.srcObject)
+        : videoPlayer.srcObject;
       recordedChunks = [];
 
       // Configure recording options - Chromium 126+ supports MP4 recording
       const options = {
-        videoBitsPerSecond: 2500000, // 2.5 Mbps
+        videoBitsPerSecond: isStream ? 6000000 : 2500000, // streams are recorded at up to 1080p
       };
 
       // Select codec based on user preference with fallback
@@ -1379,11 +1429,13 @@ window.addEventListener("DOMContentLoaded", function () {
       };
 
       mediaRecorder.onstop = () => {
+        stopRecordingCanvas?.();
         saveRecording();
       };
 
       mediaRecorder.onerror = (event) => {
         console.error("[Carabiner] MediaRecorder error:", event.error);
+        stopRecordingCanvas?.();
         showToast("Recording error occurred!", 5000, true);
         isRecording = false;
         setVideoRecordingIndicator(false); // Hide recording indicator on error
@@ -1396,6 +1448,7 @@ window.addEventListener("DOMContentLoaded", function () {
       window.electronAPI.send("recording-state-changed", isRecording);
       showToast("Recording started...");
     } catch (error) {
+      stopRecordingCanvas?.();
       console.error("[Carabiner] Error starting recording:", error);
       showToast("Failed to start recording!", 5000, true);
       isRecording = false;
