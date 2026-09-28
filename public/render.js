@@ -354,6 +354,17 @@ function handleSetBorderColor(borderColor) {
 }
 
 async function handleSetVideoStream(constraints) {
+  const requestedId = constraints.video?.deviceId?.exact;
+  if (isStreamId(requestedId)) {
+    // A stream's resolution is chosen by the remote end; the capture resolution only sizes the
+    // recording canvas, so changing it must not renegotiate a stream that is already up.
+    myCaptureWidth = constraints.video.width || myCaptureWidth;
+    myCaptureHeight = constraints.video.height || myCaptureHeight;
+    if (videoState !== "stopped" && requestedId === myCaptureDeviceId) {
+      currentConstraints = constraints;
+      return;
+    }
+  }
   currentConstraints = constraints;
   await updateAudioConstraints();
   renderDisplay(currentConstraints);
@@ -1328,14 +1339,16 @@ window.addEventListener("DOMContentLoaded", function () {
   // freezes on a size change, producing a file that shows only the first frame. So streams are
   // recorded through a fixed-size canvas: every video frame is letterboxed into it, and the
   // encoder always sees the same dimensions. Capture cards have a fixed size and record directly.
-  const STREAM_RECORDING_WIDTH = 1920;
-  const STREAM_RECORDING_HEIGHT = 1080;
+  // The canvas follows the window's capture resolution, limited to 720p or 1080p for streams.
+  const streamRecordingSize = () =>
+    myCaptureHeight >= 1080 ? { width: 1920, height: 1080 } : { width: 1280, height: 720 };
   let stopRecordingCanvas = null;
 
   function createFixedSizeRecordingStream(source) {
     const canvas = document.createElement("canvas");
-    canvas.width = STREAM_RECORDING_WIDTH;
-    canvas.height = STREAM_RECORDING_HEIGHT;
+    const size = streamRecordingSize();
+    canvas.width = size.width;
+    canvas.height = size.height;
     const ctx = canvas.getContext("2d", { alpha: false });
     let running = true;
     let rafId = null;
@@ -1386,7 +1399,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
       // Configure recording options - Chromium 126+ supports MP4 recording
       const options = {
-        videoBitsPerSecond: isStream ? 6000000 : 2500000, // streams are recorded at up to 1080p
+        videoBitsPerSecond: isStream ? (myCaptureHeight >= 1080 ? 6000000 : 3500000) : 2500000,
       };
 
       // Select codec based on user preference with fallback

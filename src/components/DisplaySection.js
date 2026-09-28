@@ -87,7 +87,16 @@ function DisplaySection({
   const borderWidth = selectedPair?.border?.width || "0.1px";
   const borderStyle = selectedPair?.border?.style || "solid";
   const borderColor = selectedPair?.border?.color || "#662D91";
-  const resolution = `${selectedPair?.captureWidth || 1280}|${selectedPair?.captureHeight || 720}`;
+  // Streams choose their own resolution; the setting only sizes the recording, so 720p/1080p.
+  const isStreamPair = selectedPair?.captureDeviceId?.startsWith("stream:");
+  const streamResolutionOptions = resolutionOptions.filter((o) =>
+    ["1280|720", "1920|1080"].includes(o.value)
+  );
+  const resolution = isStreamPair
+    ? (selectedPair?.captureHeight || 720) >= 1080
+      ? "1920|1080"
+      : "1280|720"
+    : `${selectedPair?.captureWidth || 1280}|${selectedPair?.captureHeight || 720}`;
   const transparency = selectedPair?.transparency || 0;
   const alwaysOnTop = selectedPair?.alwaysOnTop !== false;
   const audioEnabled = selectedPair?.audioEnabled === true;
@@ -303,7 +312,14 @@ function DisplaySection({
           <hr className="my-2" />
           <Row>
             <Col>
-              <SelectResolution size="sm" value={resolution} onChange={handleResolutionChange} />
+              <SelectResolution
+                size="sm"
+                value={resolution}
+                onChange={handleResolutionChange}
+                {...(isStreamPair
+                  ? { options: streamResolutionOptions, label: "Recording Resolution" }
+                  : {})}
+              />
             </Col>
             <Col>
               <Form.Group>

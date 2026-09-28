@@ -34,13 +34,13 @@ export const resolutionOptions = [
   },
 ];
 
-function Resolution({ value, onChange, size }) {
+function Resolution({ value, onChange, size, options = resolutionOptions, label = "Capture Resolution" }) {
   return (
     <Card.Text as="div">
       <Form.Group controlId="formVideoResolution">
-        <Form.Label>Capture Resolution</Form.Label>
+        <Form.Label>{label}</Form.Label>
         <Form.Control as="select" size={size} value={value} onChange={onChange}>
-          {resolutionOptions.map((resolution) => (
+          {options.map((resolution) => (
             <option key={resolution.value} value={resolution.value}>
               {resolution.label}
             </option>
