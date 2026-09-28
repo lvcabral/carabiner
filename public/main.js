@@ -19,6 +19,7 @@ const {
   systemPreferences,
   globalShortcut,
   powerMonitor,
+  safeStorage,
   screen,
   shell,
 } = require("electron");
@@ -111,6 +112,31 @@ function getStreamSources() {
 function findStreamSource(deviceId) {
   return getStreamSources().find((s) => STREAM_PREFIX + s.id === deviceId);
 }
+// Access tokens (Cloud Emulator PATs) are stored encrypted with the OS keychain via
+// safeStorage ("enc:<base64>") and never sent to a renderer; the UI only sees `hasToken`.
+function sealToken(token) {
+  if (!token) return "";
+  try {
+    if (safeStorage.isEncryptionAvailable()) {
+      return "enc:" + safeStorage.encryptString(token).toString("base64");
+    }
+  } catch (error) {
+    log.warn("[streams] token encryption unavailable, storing as plain text:", error.message);
+  }
+  return token;
+}
+function unsealToken(token) {
+  if (!token) return "";
+  if (!token.startsWith("enc:")) return token;
+  try {
+    return safeStorage.decryptString(Buffer.from(token.slice(4), "base64"));
+  } catch {
+    return "";
+  }
+}
+const publicSource = ({ token, ...rest }) => ({ ...rest, hasToken: !!token });
+// Source with its token decrypted, for main-process use only.
+const withSecret = (source) => (source ? { ...source, token: unsealToken(source.token) } : source);
 function getAllSources() {
   const streams = getStreamSources().map((s) => ({
     deviceId: STREAM_PREFIX + s.id,
@@ -1123,7 +1149,12 @@ app.whenReady().then(async () => {
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
     } else if (arg.type && arg.type === "set-stream-sources") {
       // The stream-source catalog is global. Drop pairs bound to a deleted source.
-      settings.streams = { ...(settings.streams || {}), sources: arg.payload };
+      const existing = new Map(getStreamSources().map((src) => [src.id, src]));
+      const sources = arg.payload.map(({ hasToken, ...src }) => ({
+        ...src,
+        token: src.token ? sealToken(src.token) : existing.get(src.id)?.token || "",
+      }));
+      settings.streams = { ...(settings.streams || {}), sources };
       const remaining = new Set(arg.payload.map((src) => STREAM_PREFIX + src.id));
       const removed = (settings.pairs || []).filter(
         (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
@@ -1225,14 +1256,28 @@ app.whenReady().then(async () => {
   ipcMain.handle("get-capture-devices", async () => captureDevices || []);
 
   // WebRTC streams: catalog lookup + signaling relay (see stream-signaling.js).
-  ipcMain.handle("get-stream-sources", async () => getStreamSources());
-  ipcMain.handle("test-stream-source", async (_e, source) => streamSignaling.testSource(source));
+  ipcMain.handle("get-stream-sources", async () => getStreamSources().map(publicSource));
+  // Forms send a token only when the user typed one; otherwise reuse the stored one by id.
+  const resolveFormSource = (source) => {
+    const stored = getStreamSources().find((src) => src.id === source?.id);
+    return { ...source, token: source?.token || unsealToken(stored?.token) };
+  };
+  ipcMain.handle("test-stream-source", async (_e, source) =>
+    streamSignaling.testSource(resolveFormSource(source))
+  );
+  ipcMain.handle("list-rce-devices", async (_e, source) => {
+    try {
+      return { ok: true, devices: await streamSignaling.listRceDevices(resolveFormSource(source)) };
+    } catch (error) {
+      return { ok: false, message: error.message };
+    }
+  });
   ipcMain.handle("stream-start", async (event, deviceId) => {
     const source = findStreamSource(deviceId);
     const sender = event.sender;
     const pairId = senderToPair.get(sender.id);
     if (!source || !pairId) return { ok: false, message: "Stream source not found" };
-    streamSignaling.startSession(pairId, source, (msg) => {
+    streamSignaling.startSession(pairId, withSecret(source), (msg) => {
       if (!sender.isDestroyed()) sender.send("stream-signal", msg);
     });
     return { ok: true, name: source.name };
@@ -1521,7 +1566,11 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle("load-settings", async () => {
-    return settings;
+    // Never hand stream access tokens to a renderer.
+    return {
+      ...settings,
+      streams: { ...(settings.streams || {}), sources: getStreamSources().map(publicSource) },
+    };
   });
 
   ipcMain.handle("get-package-info", async () => {
@@ -1781,6 +1830,7 @@ app.whenReady().then(async () => {
     getAuthToken: () => settings.mcp?.token || "",
     getSettingsSnapshot: () => {
       const snap = JSON.parse(JSON.stringify(settings));
+      if (snap.streams?.sources) snap.streams.sources = snap.streams.sources.map(publicSource);
       if (snap.mcp && snap.mcp.token) snap.mcp.token = "***";
       return snap;
     },

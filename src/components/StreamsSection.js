@@ -18,10 +18,12 @@ import Alert from "react-bootstrap/Alert";
 const { electronAPI } = window;
 
 const SIM_DEFAULT_PORT = "8090";
-const TYPE_LABELS = { sim: "BrightScript Simulator" };
+const TYPE_LABELS = { sim: "BrightScript Simulator", rce: "Roku Cloud Emulator" };
 
 const describeSource = (src) =>
-  `${TYPE_LABELS[src.type] || src.type}: ${src.name} (${src.host}${src.port ? `:${src.port}` : ""})`;
+  src.type === "rce"
+    ? `${TYPE_LABELS.rce}: ${src.name}`
+    : `${TYPE_LABELS[src.type] || src.type}: ${src.name} (${src.host}${src.port ? `:${src.port}` : ""})`;
 
 // Catalog of WebRTC stream sources. Sources are enabled and linked to a control device from the
 // General tab, next to the capture cards.
@@ -30,6 +32,11 @@ function StreamsSection({ sources = [], onUpdateSources }) {
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
   const [port, setPort] = useState(SIM_DEFAULT_PORT);
+  const [token, setToken] = useState("");
+  const [apiUrl, setApiUrl] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [rceDevices, setRceDevices] = useState([]);
+  const [rceDeviceId, setRceDeviceId] = useState("");
   const [selected, setSelected] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [testStatus, setTestStatus] = useState("");
@@ -44,15 +51,59 @@ function StreamsSection({ sources = [], onUpdateSources }) {
     return Number.isInteger(n) && n > 0 && n <= 65535;
   };
 
-  const buildSource = () => ({
-    id: `${type}-${Date.now().toString(36)}`,
-    type,
-    name: name.trim() || host.trim(),
-    host: host.trim(),
-    port: Number(port),
-  });
+  const isRce = type === "rce";
+
+  const buildSource = () =>
+    isRce
+      ? {
+          id: `rce-${Date.now().toString(36)}`,
+          type,
+          name: name.trim() || rceDevices.find((d) => String(d.id) === rceDeviceId)?.name || "Cloud Emulator",
+          deviceId: Number(rceDeviceId),
+          token: token.trim(),
+          apiUrl: apiUrl.trim(),
+        }
+      : {
+          id: `${type}-${Date.now().toString(36)}`,
+          type,
+          name: name.trim() || host.trim(),
+          host: host.trim(),
+          port: Number(port),
+        };
+
+  const handleLoadDevices = async () => {
+    setTestStatus("Loading devices…");
+    const res = await electronAPI.invoke("list-rce-devices", { token: token.trim(), apiUrl: apiUrl.trim() });
+    if (res?.ok) {
+      setRceDevices(res.devices);
+      setRceDeviceId(res.devices[0] ? String(res.devices[0].id) : "");
+      setTestStatus(res.devices.length ? "" : "No Cloud Emulator devices found.");
+    } else {
+      setRceDevices([]);
+      setTestStatus(res?.message || "Failed to load devices");
+    }
+  };
 
   const handleAdd = () => {
+    if (isRce) {
+      if (!token.trim() || !rceDeviceId) {
+        showError("Enter your access token, load the devices and pick one.");
+        return;
+      }
+      const rceSource = buildSource();
+      if (sources.some((s) => s.type === "rce" && s.deviceId === rceSource.deviceId)) {
+        showError("This stream source already exists.");
+        return;
+      }
+      onUpdateSources([...sources, rceSource]);
+      setName("");
+      setToken("");
+      setRceDevices([]);
+      setRceDeviceId("");
+      setTestStatus("");
+      setSelected(rceSource.id);
+      return;
+    }
     if (!host.trim()) {
       showError("Enter the host name or IP address.");
       return;
@@ -81,7 +132,7 @@ function StreamsSection({ sources = [], onUpdateSources }) {
   };
 
   const handleTest = async () => {
-    if (!host.trim() || !isValidPort(port)) {
+    if (isRce ? !token.trim() || !rceDeviceId : !host.trim() || !isValidPort(port)) {
       setTestStatus("Enter a valid host and port first.");
       return;
     }
@@ -111,8 +162,69 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                 }}
               >
                 <option value="sim">BrightScript Simulator (WebRTC)</option>
+                <option value="rce">Roku Cloud Emulator (WebRTC)</option>
               </Form.Control>
             </Form.Group>
+            {isRce ? (
+              <>
+            <Form.Group controlId="formStreamToken" className="form-group-spacing">
+              <Row className="align-items-center">
+                <Col>
+                  <Form.Control
+                    size="sm"
+                    type="password"
+                    autoComplete="off"
+                    placeholder="Cloud Emulator access token"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                  />
+                </Col>
+                <Col xs="auto">
+                  <Button size="sm" variant="outline-secondary" onClick={handleLoadDevices}>
+                    Load devices
+                  </Button>
+                </Col>
+              </Row>
+              {rceDevices.length > 0 && (
+                <Form.Control
+                  size="sm"
+                  as="select"
+                  className="mt-2"
+                  value={rceDeviceId}
+                  onChange={(e) => setRceDeviceId(e.target.value)}
+                >
+                  {rceDevices.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.status})
+                    </option>
+                  ))}
+                </Form.Control>
+              )}
+              <div className="mt-1">
+                <Button
+                  size="sm"
+                  variant="link"
+                  className="p-0"
+                  style={{ fontSize: "0.72rem" }}
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                >
+                  {showAdvanced ? "Hide advanced" : "Advanced"}
+                </Button>
+              </div>
+              {showAdvanced && (
+                <Form.Control
+                  size="sm"
+                  type="text"
+                  className="mt-1"
+                  placeholder="Management API URL (default: https://api.rce.roku.com/api/v1)"
+                  value={apiUrl}
+                  onChange={(e) => setApiUrl(e.target.value)}
+                />
+              )}
+            </Form.Group>
+              </>
+            ) : (
+              <>
             <Form.Group controlId="formStreamHost" className="form-group-spacing">
               <Row className="align-items-center">
                 <Col>
@@ -135,6 +247,8 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                 </Col>
               </Row>
             </Form.Group>
+              </>
+            )}
             <Form.Group controlId="formStreamName" className="form-group-spacing">
               <Row className="align-items-center">
                 <Col>
@@ -162,7 +276,7 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                   style={{
                     fontSize: "0.72rem",
                     marginTop: "4px",
-                    color: testStatus === "Connected" ? "#198754" : "#b61717",
+                    color: testStatus.startsWith("Connected") || testStatus.endsWith("…") ? "#198754" : "#b61717",
                   }}
                 >
                   {testStatus}
@@ -214,7 +328,8 @@ function StreamsSection({ sources = [], onUpdateSources }) {
             </Form.Group>
             <p className="text-muted small mb-0">
               Enable a stream source and link a control device on the General tab. Enable the
-              Simulator&apos;s remote screen (WebRTC) in BrightScript Simulator first.
+              remote screen (WebRTC) in BrightScript Simulator first, or create a personal access token in the
+              Roku Cloud Emulator portal for Cloud Emulator devices.
             </p>
           </Form>
         </Card.Body>

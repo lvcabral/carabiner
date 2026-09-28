@@ -19,6 +19,11 @@ const http = require("http");
 const WebSocket = require("ws");
 
 const SIM_DEFAULT_PORT = 8090;
+const RCE_DEFAULT_API = "https://api.rce.roku.com/api/v1";
+const RCE_KEEPALIVE_MS = 25000; // Janus sessions time out at 60s
+const RCE_NEGOTIATION_TIMEOUT = 20000;
+const RCE_PENDING_POLL_MS = 5000;
+const RCE_PENDING_POLL_LIMIT = 36;
 const CONNECT_TIMEOUT = 10000;
 
 // pairId -> { close() , send(msg) }
@@ -67,6 +72,7 @@ function startSimulator(source, emit) {
 
   return {
     send(msg) {
+      if (msg.type === "candidates-complete") return; // trickle end marker is Janus-only
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
     },
     close() {
@@ -80,8 +86,255 @@ function startSimulator(source, emit) {
   };
 }
 
+
+// ---- Roku Cloud Emulator -----------------------------------------------------------------
+// The management API (bearer PAT) resolves a device to its live Janus stream details, then the
+// Janus streaming plugin negotiates over a WebSocket that needs an Authorization header on the
+// handshake (which only a Node client can set). Details change on every device restart, so they
+// are re-resolved each time a session starts (the window's retry loop restarts the session).
+const pick = (obj, snake, camel) => obj?.[snake] ?? obj?.[camel];
+
+function rceApiBase(source) {
+  return (source.apiUrl || RCE_DEFAULT_API).replace(/\/+$/, "");
+}
+
+async function rceGet(source, path) {
+  const res = await fetch(rceApiBase(source) + path, {
+    headers: { Authorization: `Bearer ${source.token}`, Accept: "application/json" },
+  });
+  if (res.status === 401 || res.status === 403) throw new Error("Cloud Emulator token was rejected");
+  if (!res.ok) throw new Error(`Cloud Emulator API error (HTTP ${res.status})`);
+  return res.json();
+}
+
+async function listRceDevices(source) {
+  if (!source?.token) throw new Error("Enter your Cloud Emulator access token first");
+  const devices = await rceGet(source, "/devices?items=0");
+  return (Array.isArray(devices) ? devices : []).map((d) => ({
+    id: d.id,
+    name: d.name || `Device ${d.id}`,
+    status: d.status,
+    deviceType: pick(d, "device_type", "deviceType"),
+  }));
+}
+
+class RceNotRunning extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function resolveRceStream(source) {
+  const devices = await rceGet(source, "/devices?items=0");
+  const device = (Array.isArray(devices) ? devices : []).find((d) => String(d.id) === String(source.deviceId));
+  if (!device) throw new Error(`Cloud Emulator device ${source.deviceId} was not found`);
+  const name = device.name || `Device ${device.id}`;
+  if (device.status !== "running") throw new RceNotRunning(`Device '${name}' is not running`, device.status);
+  const rd = pick(device, "running_device", "runningDevice");
+  const streamId = pick(rd, "janus_id", "janusId");
+  const url = pick(rd, "janus_websocket_url", "janusWebsocketUrl");
+  // janus id 0 is a valid stream id, so check for null/undefined rather than falsiness
+  if (!url || streamId === undefined || streamId === null) {
+    throw new RceNotRunning(`Device '${name}' must be running and expose a video stream`, device.status);
+  }
+  return {
+    name,
+    url,
+    streamId,
+    pin: pick(rd, "janus_pin", "janusPin") || undefined,
+    janusToken: pick(rd, "janus_token", "janusToken") || undefined,
+    iceServers: pick(rd, "janus_ice_servers", "janusIceServers") || [],
+  };
+}
+
+function startRce(source, emit) {
+  let cancelled = false;
+  let failed = false;
+  let established = false;
+  let ws = null;
+  let keepalive = null;
+  let sessionId;
+  let handleId;
+  let transactions = 0;
+  let janusToken;
+  const pending = new Map();
+
+  const fail = (message, noRetry = false) => {
+    if (failed || cancelled) return;
+    failed = true;
+    teardown();
+    emit({ type: "failure", message, noRetry });
+  };
+
+  const rejectAll = (err) => {
+    for (const p of pending.values()) p.reject(err);
+    pending.clear();
+  };
+
+  function teardown() {
+    if (keepalive) clearInterval(keepalive);
+    keepalive = null;
+    if (ws) {
+      const sock = ws;
+      ws = null;
+      try {
+        if (sessionId !== undefined && sock.readyState === WebSocket.OPEN) {
+          sock.send(JSON.stringify(withTxn({ janus: "destroy", session_id: sessionId })));
+        }
+        sock.removeAllListeners();
+        sock.on("error", () => {});
+        if (sock.readyState === WebSocket.CONNECTING) sock.terminate();
+        else sock.close();
+      } catch {
+        // discarded anyway
+      }
+    }
+    rejectAll(new Error("Janus session stopped"));
+    sessionId = undefined;
+    handleId = undefined;
+  }
+
+  const withTxn = (req) => ({
+    ...req,
+    transaction: `rce-video-${++transactions}`,
+    ...(janusToken !== undefined ? { apisecret: janusToken } : {}),
+  });
+
+  const request = (req) =>
+    new Promise((resolve, reject) => {
+      if (!ws) return reject(new Error("Janus session is not connected"));
+      const msg = withTxn(req);
+      pending.set(msg.transaction, { resolve, reject });
+      ws.send(JSON.stringify(msg));
+    });
+
+  const onMessage = (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+    if (msg.janus === "ack") return; // real response follows as success/event with same transaction
+    if (msg.janus === "success" || msg.janus === "event") {
+      const p = pending.get(msg.transaction);
+      if (!p) return;
+      pending.delete(msg.transaction);
+      const pluginErr = msg.plugindata?.data?.error;
+      if (pluginErr !== undefined) {
+        p.reject(new Error(`Janus plugin error${msg.plugindata.data.error_code ? ` (code ${msg.plugindata.data.error_code})` : ""}: ${pluginErr}`));
+      } else {
+        p.resolve(msg);
+      }
+    } else if (msg.janus === "error") {
+      const text = `Janus error${msg.error?.code !== undefined ? ` (code ${msg.error.code})` : ""}: ${msg.error?.reason || "unknown error"}`;
+      const p = pending.get(msg.transaction);
+      if (p) {
+        pending.delete(msg.transaction);
+        p.reject(new Error(text));
+      } else if (established) {
+        emit({ type: "closed" });
+      }
+    } else if (msg.janus === "hangup" && established) {
+      emit({ type: "closed" });
+    }
+  };
+
+  async function run() {
+    let stream;
+    for (let polls = 0; ; polls++) {
+      try {
+        stream = await resolveRceStream(source);
+        break;
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof RceNotRunning && err.status === "pending" && polls < RCE_PENDING_POLL_LIMIT) {
+          emit({ type: "status", message: "Waiting for the Cloud Emulator device to start…" });
+          await new Promise((r) => setTimeout(r, RCE_PENDING_POLL_MS));
+          if (cancelled) return;
+          continue;
+        }
+        return fail(err.message, err instanceof RceNotRunning || /token was rejected/.test(err.message));
+      }
+    }
+    janusToken = stream.janusToken;
+    const negotiation = setTimeout(
+      () => fail("Timed out negotiating the Cloud Emulator stream"),
+      RCE_NEGOTIATION_TIMEOUT
+    );
+    try {
+      ws = new WebSocket(stream.url, "janus-protocol", {
+        headers: { Authorization: `Bearer ${source.token}` },
+        handshakeTimeout: CONNECT_TIMEOUT,
+      });
+      const sock = ws;
+      await new Promise((resolve, reject) => {
+        sock.once("open", resolve);
+        sock.once("error", (e) => reject(new Error(`Failed to connect to the Janus WebSocket: ${e.message}`)));
+      });
+      sock.removeAllListeners("error");
+      sock.on("error", (e) => {
+        if (established) emit({ type: "closed" });
+        else fail(`Janus WebSocket error: ${e.message}`);
+      });
+      sock.on("message", onMessage);
+      sock.on("close", () => {
+        if (cancelled || failed || ws !== sock) return;
+        const err = new Error("The Janus WebSocket closed unexpectedly");
+        rejectAll(err);
+        if (established) emit({ type: "closed" });
+        else fail(err.message);
+      });
+
+      const created = await request({ janus: "create" });
+      sessionId = created.data?.id;
+      keepalive = setInterval(() => {
+        if (ws && sessionId !== undefined) ws.send(JSON.stringify(withTxn({ janus: "keepalive", session_id: sessionId })));
+      }, RCE_KEEPALIVE_MS);
+      const attached = await request({ janus: "attach", session_id: sessionId, plugin: "janus.plugin.streaming" });
+      handleId = attached.data?.id;
+      const watched = await request({
+        janus: "message",
+        session_id: sessionId,
+        handle_id: handleId,
+        body: { request: "watch", id: stream.streamId, ...(stream.pin ? { pin: stream.pin } : {}) },
+      });
+      if (!watched.jsep?.sdp) throw new Error("Janus did not return an SDP offer");
+      established = true;
+      clearTimeout(negotiation);
+      emit({ type: "offer", sdp: watched.jsep, iceServers: stream.iceServers });
+    } catch (err) {
+      clearTimeout(negotiation);
+      if (!cancelled) fail(err.message);
+    }
+  }
+  run();
+
+  return {
+    send(msg) {
+      if (!ws || sessionId === undefined) return;
+      const base = { session_id: sessionId, handle_id: handleId };
+      if (msg.type === "answer") {
+        request({ janus: "message", ...base, body: { request: "start" }, jsep: msg.sdp }).catch((e) =>
+          fail(e.message)
+        );
+      } else if (msg.type === "candidate") {
+        ws.send(JSON.stringify(withTxn({ janus: "trickle", ...base, candidate: msg.candidate })));
+      } else if (msg.type === "candidates-complete") {
+        ws.send(JSON.stringify(withTxn({ janus: "trickle", ...base, candidate: { completed: true } })));
+      }
+    },
+    close() {
+      cancelled = true;
+      teardown();
+    },
+  };
+}
+
 const STARTERS = {
   sim: startSimulator,
+  rce: startRce,
 };
 
 function stopSession(pairId) {
@@ -111,6 +364,18 @@ function relayFromWindow(pairId, msg) {
 // Reachability check used by the Streams tab "Test" button.
 function testSource(source) {
   return new Promise((resolve) => {
+    if (source?.type === "rce") {
+      return resolveRceStream(source)
+        .then(() => resolve({ ok: true, message: "Connected" }))
+        .catch((err) =>
+          // A device that is stopped/pending still proves the token and device are valid.
+          resolve(
+            err instanceof RceNotRunning
+              ? { ok: true, message: `${err.message} (status: ${err.status})` }
+              : { ok: false, message: err.message }
+          )
+        );
+    }
     if (source?.type !== "sim") return resolve({ ok: false, message: "Unsupported source type" });
     const { host, port } = simBase(source);
     const req = http.get({ host, port, path: "/config", timeout: 4000 }, (res) => {
@@ -137,4 +402,4 @@ function stopAll() {
   for (const id of [...sessions.keys()]) stopSession(id);
 }
 
-module.exports = { startSession, stopSession, relayFromWindow, testSource, stopAll, SIM_DEFAULT_PORT };
+module.exports = { listRceDevices, startSession, stopSession, relayFromWindow, testSource, stopAll, SIM_DEFAULT_PORT };

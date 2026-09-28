@@ -485,6 +485,15 @@ function closeStreamPeer() {
   }
 }
 
+// An established stream dropped — behave like an unplugged device so the retry loop kicks in.
+function handleStreamLost() {
+  if (videoState === "stopped") return;
+  window.electronAPI.log("debug", "[Carabiner] Stream connection lost");
+  stopVideoStream();
+  if (lastKnownDeviceId) showReconnectingOverlay();
+  scheduleStreamRetry();
+}
+
 // Resolve with the remote MediaStream once the peer connection delivers its tracks.
 async function acquireWebRtcStream(deviceId) {
   closeStreamPeer();
@@ -506,7 +515,12 @@ async function acquireWebRtcStream(deviceId) {
       closeStreamPeer();
       done(reject, err);
     };
-    const timer = setTimeout(() => fail("Timed out negotiating the stream"), STREAM_NEGOTIATION_TIMEOUT);
+    let timer;
+    const armTimeout = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fail("Timed out negotiating the stream"), STREAM_NEGOTIATION_TIMEOUT);
+    };
+    armTimeout();
 
     window.electronAPI.onMessageReceived("stream-signal", async (_, msg) => {
       try {
@@ -517,24 +531,18 @@ async function acquireWebRtcStream(deviceId) {
             if (e.streams[0]) done(resolve, e.streams[0]);
           };
           pc.onicecandidate = (e) => {
-            if (e.candidate) {
-              window.electronAPI.send("stream-signal-out", {
-                type: "candidate",
-                candidate: e.candidate.toJSON(),
-              });
-            }
+            window.electronAPI.send(
+              "stream-signal-out",
+              e.candidate
+                ? { type: "candidate", candidate: e.candidate.toJSON() }
+                : { type: "candidates-complete" }
+            );
           };
           pc.onconnectionstatechange = () => {
             if (pc !== streamPc) return;
             if (pc.connectionState === "failed" || pc.connectionState === "closed") {
               if (!settled) return fail("Stream connection failed");
-              // Established stream dropped — behave like an unplugged device so retry kicks in.
-              if (videoState !== "stopped") {
-                window.electronAPI.log("debug", "[Carabiner] Stream peer connection lost");
-                stopVideoStream();
-                if (lastKnownDeviceId) showReconnectingOverlay();
-                scheduleStreamRetry();
-              }
+              handleStreamLost();
             }
           };
           if (/m=application [1-9]\d*/.test(msg.sdp?.sdp || "")) pc.createDataChannel("JanusDataChannel");
@@ -549,11 +557,16 @@ async function acquireWebRtcStream(deviceId) {
         } else if (msg.type === "candidate") {
           if (streamPc && remoteSet) streamPc.addIceCandidate(msg.candidate).catch(() => {});
           else pendingCandidates.push(msg.candidate);
+        } else if (msg.type === "status") {
+          // e.g. waiting for a cloud device to start: keep the negotiation alive.
+          if (!settled) armTimeout();
         } else if (msg.type === "failure") {
           fail(msg.message || "Stream failed", msg.noRetry);
         } else if (msg.type === "closed") {
-          // Remote closed signaling. Fine once media flows; a failure if we never got a stream.
+          // Remote signaling ended. Before media flows that is a failure; afterwards the
+          // stream is gone (device stopped, simulator quit) so recover like a lost connection.
           if (!settled) fail("Stream closed before it started");
+          else handleStreamLost();
         }
       } catch (err) {
         fail(err.message);
