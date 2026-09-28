@@ -291,6 +291,12 @@ function updateOverlayPosition() {
   overlayImage.style.left = `${rect.left + borderWidth}px`;
   overlayImage.style.width = `${rect.width - 2 * borderWidth}px`;
   overlayImage.style.height = `${rect.height - 2 * borderWidth}px`;
+  // The connecting/reconnecting overlay covers only the area inside the display border.
+  reconnectingOverlay.style.position = "absolute";
+  reconnectingOverlay.style.top = overlayImage.style.top;
+  reconnectingOverlay.style.left = overlayImage.style.left;
+  reconnectingOverlay.style.width = overlayImage.style.width;
+  reconnectingOverlay.style.height = overlayImage.style.height;
 }
 
 function adjustVideoLayout() {
