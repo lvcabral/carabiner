@@ -141,6 +141,11 @@ function App() {
               />
             </div>
           </Tab>
+          <Tab eventKey="streams" title="Streams">
+            <div className="tab-content-container">
+              <StreamsSection sources={streamSources} onUpdateSources={handleUpdateStreamSources} />
+            </div>
+          </Tab>
           <Tab eventKey="control" title="Control">
             <div className="tab-content-container">
               <ControlSection
@@ -148,11 +153,6 @@ function App() {
                 onUpdateStreamingDevices={handleUpdateStreamingDevices}
                 onDeletedDevice={handleDeletedDevice}
               />
-            </div>
-          </Tab>
-          <Tab eventKey="streams" title="Streams">
-            <div className="tab-content-container">
-              <StreamsSection sources={streamSources} onUpdateSources={handleUpdateStreamSources} />
             </div>
           </Tab>
           <Tab eventKey="automation" title="Automation">
