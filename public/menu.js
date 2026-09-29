@@ -756,20 +756,27 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
   const activePair = getActivePair(settings);
   if (!activePair) return;
 
-  const cap = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId);
-  const headerSuffix = cap?.label ? ` (${cap.label})` : "";
   const activeControlId = activePair.controlDeviceId;
+  // The header names the currently linked control device (not the capture card / stream).
+  const activeControl = deviceList.find((d) => d.id === activeControlId);
+  const headerSuffix = ` (${activeControl ? activeControl.alias || activeControl.type : "None"})`;
+  // A stream has its own built-in control, so its link can't be changed from the menu.
+  const isStream = String(activePair.captureDeviceId || "").startsWith("stream:");
 
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(
     new MenuItem({
       label: `Linked Device${headerSuffix}`,
-      submenu: deviceList.map((device) => ({
-        label: controlLabel(device),
-        type: "radio",
-        checked: activeControlId === device.id,
-        click: () => onDeviceSelected?.(device.id),
-      })),
+      enabled: !isStream,
+      // Stream controls are managed by their source; never offer them for a capture card.
+      submenu: deviceList
+        .filter((device) => !device.managedBy)
+        .map((device) => ({
+          label: controlLabel(device),
+          type: "radio",
+          checked: activeControlId === device.id,
+          click: () => onDeviceSelected?.(device.id),
+        })),
     })
   );
 }
