@@ -94,6 +94,8 @@ function DisplaySection({
   const transparency = selectedPair?.transparency || 0;
   const alwaysOnTop = selectedPair?.alwaysOnTop !== false;
   const audioEnabled = selectedPair?.audioEnabled === true;
+  // Regular window: native title bar/border, so the custom border settings do not apply.
+  const regularWindow = selectedPair?.regularWindow === true;
 
   // Follow the active window when the user focuses a different Display window.
   useEffect(() => {
@@ -219,6 +221,11 @@ function DisplaySection({
     });
   };
 
+  // Switching the window style re-creates the Display window (main handles it on set-pairs).
+  const handleRegularWindowChange = (e) => {
+    patchSelectedPair({ regularWindow: e.target.checked });
+  };
+
   const handleAllowSleepChange = (e) => {
     setAllowSleep(e.target.checked);
     electronAPI.sendSync("shared-window-channel", {
@@ -283,6 +290,11 @@ function DisplaySection({
                 ))}
               </Form.Control>
             </Form.Group> )}
+          <fieldset
+            disabled={regularWindow}
+            title={regularWindow ? "Not applicable to a regular window" : undefined}
+            style={{ opacity: regularWindow ? 0.5 : 1, border: 0, margin: 0, padding: 0, minWidth: 0 }}
+          >
           <Row>
             <Col>
               <SelectBorderWidth size="sm" value={borderWidth} onChange={handleWidthChange} />
@@ -303,6 +315,7 @@ function DisplaySection({
               </Form.Group>
             </Col>
           </Row>
+          </fieldset>
           <hr className="my-2" />
           <Row>
             <Col>
@@ -348,10 +361,18 @@ function DisplaySection({
                 <div>
                   <Form.Check
                     type="checkbox"
+                    label="Regular Window"
+                    title="Show the window with a title bar and native border (resizable). The border settings above don't apply."
+                    checked={regularWindow}
+                    onChange={handleRegularWindowChange}
+                    className="text-nowrap"
+                  />
+                  <Form.Check
+                    type="checkbox"
                     label="Always on Top"
                     checked={alwaysOnTop}
                     onChange={handleAlwaysOnTopChange}
-                    className="text-nowrap"
+                    className="text-nowrap mt-2"
                   />
                   <Form.Check
                     type="checkbox"

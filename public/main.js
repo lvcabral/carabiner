@@ -97,6 +97,9 @@ const settings = loadSettings();
 let mainWindow = null; // settings (React) window; hoisted so helpers can reach it
 const pairWindows = new Map(); // pairId -> BrowserWindow
 const pairState = new Map(); // pairId -> { controlIp, controlType }
+// Pairs whose window is being closed only to be re-created (e.g. frameless <-> regular window)
+// and must therefore not be marked hidden by the close handler.
+const recreatingPairs = new Set();
 const senderToPair = new Map(); // webContents.id -> pairId (route renderer → main messages)
 let activePairId = settings.activePairId || settings.pairs?.[0]?.id || "";
 let isQuitting = false;
@@ -530,17 +533,12 @@ function createDisplayWindow(pair) {
     sizeFromRes = pair.resolution.split("|").map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
   }
 
-  // Windows 11 specific configuration to remove the 1-pixel border
+  const regular = pair.regularWindow === true;
   const windowOptions = {
-    width: sizeFromRes?.[0] ?? 500,
-    height: sizeFromRes?.[1] ?? 290,
+    width: sizeFromRes?.[0] ?? 820,
+    height: sizeFromRes?.[1] ?? 461,
     minWidth: 500,
     minHeight: 290,
-    titleBarStyle: "hidden",
-    transparent: true,
-    darkTheme: false,
-    hasShadow: false,
-    frame: false,
     alwaysOnTop: pair.alwaysOnTop !== false,
     skipTaskbar: false,
     webPreferences: {
@@ -548,10 +546,21 @@ function createDisplayWindow(pair) {
       nodeIntegration: true,
       backgroundThrottling: false,
     },
+    ...(regular
+      ? // Regular window: native title bar, border, shadow and resizing.
+        { title: pairWindowTitle(pair), backgroundColor: "#000000" }
+      : // Frameless transparent overlay (Windows 11: also remove the 1-pixel border, below).
+        {
+          titleBarStyle: "hidden",
+          transparent: true,
+          darkTheme: false,
+          hasShadow: false,
+          frame: false,
+        }),
   };
 
   // Additional Windows-specific options to remove the border completely
-  if (isWindows) {
+  if (isWindows && !regular) {
     windowOptions.thickFrame = false;
     windowOptions.titleBarOverlay = false;
     // Windows 11 specific options
@@ -579,17 +588,25 @@ function createDisplayWindow(pair) {
     show: false, // Always start hidden for Windows 11 fix
   });
 
-  if (isMacOS) win.setWindowButtonVisibility(false);
+  if (isMacOS && !regular) win.setWindowButtonVisibility(false);
   // Pass the pair id to the renderer so it knows which capture/control it owns.
   win.loadFile("public/display.html", { query: { pairId: pair.id } });
   win.setResizable(true);
-  win.setAspectRatio(16 / 9);
+  if (regular) {
+    // Keep the video area 16:9: the title bar / frame is extra size outside the content.
+    const [winW, winH] = win.getSize();
+    const [contentW, contentH] = win.getContentSize();
+    win.setAspectRatio(16 / 9, { width: winW - contentW, height: winH - contentH });
+  } else {
+    win.setAspectRatio(16 / 9);
+  }
 
   // Keep our pair-based title (capture + control) instead of the page's <title>, so the
   // macOS Window menu can distinguish multiple Display windows.
   win.on("page-title-updated", (e) => e.preventDefault());
   win.setTitle(pairWindowTitle(pair));
 
+  win.isRegularWindow = regular;
   pairWindows.set(pair.id, win);
   senderToPair.set(win.webContents.id, pair.id);
 
@@ -603,7 +620,7 @@ function createDisplayWindow(pair) {
     }
   };
 
-  if (isWindows) {
+  if (isWindows && !regular) {
     // Apply Windows 11 specific fixes after the window is ready
     win.once("ready-to-show", () => {
       win.setBackgroundColor("#00000000");
@@ -620,11 +637,11 @@ function createDisplayWindow(pair) {
   }
 
   win.on("focus", () => {
-    if (isWindows) win.setBackgroundColor("#00000000");
+    if (isWindows && !regular) win.setBackgroundColor("#00000000");
     setActivePair(pair.id);
   });
 
-  if (!isMacOS) {
+  if (!isMacOS && !regular) {
     win.on("system-context-menu", (event) => event.preventDefault());
   }
 
@@ -685,7 +702,7 @@ function createDisplayWindow(pair) {
     const target = getPair(pair.id);
     // Only a user-initiated close marks the pair hidden; on app quit we preserve the
     // last visibility so windows reopen as they were on the next launch.
-    if (target && !isQuitting) {
+    if (target && !isQuitting && !recreatingPairs.has(pair.id)) {
       target.visible = false;
       saveSettings(settings);
     }
@@ -919,6 +936,18 @@ function reconcilePairs(newPairs) {
       openPair(pair);
       continue;
     }
+    // The window style (frameless overlay <-> regular window) can't change on a live window, so
+    // re-create it, keeping the pair enabled.
+    if (prev && prev.regularWindow !== pair.regularWindow) {
+      recreatingPairs.add(pair.id);
+      try {
+        closePair(pair.id);
+      } finally {
+        recreatingPairs.delete(pair.id);
+      }
+      openPair(pair);
+      continue;
+    }
     // Enabled with an existing window: apply only control-device changes.
     if (!prev || prev.controlDeviceId !== pair.controlDeviceId) {
       if (prev?.controlDeviceId) disconnectPairControl(pair.id, prev.controlDeviceId);
@@ -1076,7 +1105,9 @@ app.whenReady().then(async () => {
   function resetFramelessWindow() {
     if (isWindows) {
       setTimeout(() => {
-        getDisplayWindows().forEach((win) => win.setBackgroundColor("#00000000"));
+        getDisplayWindows().forEach((win) => {
+          if (!win.isRegularWindow) win.setBackgroundColor("#00000000");
+        });
       }, 1000);
     }
   }

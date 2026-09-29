@@ -25,6 +25,13 @@
                 box-sizing: border-box;
             }
 
+            /* Regular (framed) window: opaque, and the title bar is the drag handle. */
+            html.regular-window,
+            html.regular-window body {
+                background: #000;
+                -webkit-app-region: no-drag;
+            }
+
             .interactive {
                 -webkit-app-region: no-drag;
             }

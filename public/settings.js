@@ -16,7 +16,11 @@ const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
 
 // Default per-window appearance, used when seeding/migrating a pair.
 const DEFAULT_PAIR_BORDER = { width: "0.1px", style: "solid", color: "#662D91" };
-const DEFAULT_PAIR_RESOLUTION = "480px|270px";
+// New Display windows open 820px wide at 16:9. The video area is inset by 16x9px from the
+// window (see widthOff/heightOff in render.js), so the window is 820x461 and the video 804x452.
+const DEFAULT_WINDOW_WIDTH = 820;
+const DEFAULT_WINDOW_HEIGHT = 461;
+const DEFAULT_PAIR_RESOLUTION = "804px|452px";
 
 function saveSettings(settings) {
   fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
@@ -34,13 +38,20 @@ function makePair(partial = {}) {
     captureDeviceId: partial.captureDeviceId || "",
     controlDeviceId: partial.controlDeviceId || "",
     visible: partial.visible !== false,
-    bounds: partial.bounds || { x: undefined, y: undefined, width: 500, height: 290 },
+    bounds: partial.bounds || {
+      x: undefined,
+      y: undefined,
+      width: DEFAULT_WINDOW_WIDTH,
+      height: DEFAULT_WINDOW_HEIGHT,
+    },
     border: partial.border || { ...DEFAULT_PAIR_BORDER },
     transparency: typeof partial.transparency === "number" ? partial.transparency : 0,
     resolution: partial.resolution || DEFAULT_PAIR_RESOLUTION,
     captureWidth: partial.captureWidth || 1280,
     captureHeight: partial.captureHeight || 720,
     alwaysOnTop: partial.alwaysOnTop !== false,
+    // Regular window: title bar, native border and resizing instead of the frameless overlay.
+    regularWindow: partial.regularWindow === true,
     audioEnabled: partial.audioEnabled === true,
     // Per-window overlay reference image (applied on top of this window's capture).
     overlayImagePath: partial.overlayImagePath || "",

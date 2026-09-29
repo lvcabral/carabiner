@@ -45,7 +45,7 @@ The app has two separate renderer processes — one React, one plain HTML/JS —
 Manages the settings window plus a registry of Display windows. All persistent state flows through here:
 
 - **`mainWindow`**: Settings panel. Loads `build/index.html` (the compiled React app). Hides on close instead of quitting. Module-scoped.
-- **Display windows**: One frameless, transparent, `alwaysOnTop` window **per pair**, loading `public/display.html?pairId=<id>`. Tracked in a registry:
+- **Display windows**: One frameless, transparent, `alwaysOnTop` window **per pair** (or, when `pair.regularWindow` is set from the Display tab, a regular framed/resizable opaque window — toggling it re-creates the window via `recreatingPairs` in `reconcilePairs`; the renderer then uses no video inset and ignores the border settings). New pairs default to 820x461 bounds (`makePair`), loading `public/display.html?pairId=<id>`. Tracked in a registry:
   - `pairWindows` — `Map<pairId, BrowserWindow>`
   - `pairState` — `Map<pairId, { controlDeviceId, controlIp, controlType }>` (per-pair control connection target)
   - `senderToPair` — `Map<webContents.id, pairId>` (reverse lookup so renderer→main messages route to the right pair)

@@ -65,8 +65,12 @@ function hideReconnectingOverlay() {
   reconnectingOverlay.style.display = "none";
 }
 
-const widthOff = 16;
-const heightOff = 9;
+// Inset of the video from the (frameless) window edge. A regular window has no such margin.
+let widthOff = 16;
+let heightOff = 9;
+// Regular (framed, resizable) window: native title bar and border, so the custom border settings
+// don't apply.
+let regularWindow = false;
 const margin = 5;
 let currentColor = "#662D91";
 let currentConstraints = { video: true, audio: false };
@@ -250,8 +254,9 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
       handleControlSelected(pair.controlDeviceId);
     }
     audioEnabled = pair.audioEnabled === true;
+    if (pair.regularWindow === true) enterRegularWindowMode();
     // Restore this window's appearance.
-    if (pair.border) {
+    if (pair.border && !regularWindow) {
       if (pair.border.color) handleSetBorderColor(pair.border.color);
       if (pair.border.style) handleSetBorderStyle(pair.border.style);
       if (pair.border.width) handleSetBorderWidth(pair.border.width);
@@ -282,6 +287,17 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
     preferredRecordingFormat = settings.files.recordingFormat;
   }
 });
+
+// A regular window fills its content area edge to edge, with no custom border or drag region.
+function enterRegularWindowMode() {
+  regularWindow = true;
+  widthOff = 0;
+  heightOff = 0;
+  document.documentElement.classList.add("regular-window");
+  videoPlayer.style.border = "none";
+  videoPlayer.style.borderRadius = "0";
+  handleSetResolution({ width: `${window.innerWidth}px`, height: `${window.innerHeight}px` });
+}
 
 function updateOverlayPosition() {
   const rect = videoPlayer.getBoundingClientRect();
@@ -345,6 +361,7 @@ window.addEventListener("resize", () => {
 });
 
 function handleSetBorderWidth(borderWidth) {
+  if (regularWindow) return;
   if (borderWidth === "0.1px") {
     videoPlayer.style.borderColor = "rgba(0, 0, 0, 0.1)";
   } else {
@@ -356,10 +373,12 @@ function handleSetBorderWidth(borderWidth) {
 }
 
 function handleSetBorderStyle(borderStyle) {
+  if (regularWindow) return;
   videoPlayer.style.borderStyle = borderStyle;
 }
 
 function handleSetBorderColor(borderColor) {
+  if (regularWindow) return;
   currentColor = borderColor;
   if (videoPlayer.style.borderWidth !== "0.1px") {
     videoPlayer.style.borderColor = borderColor;

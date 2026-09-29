@@ -237,7 +237,8 @@ The **Files** tab in settings allows you to configure default save locations for
 These settings are **per window** — pick the window to edit with the **Editing Window** selector at the top of the **Display** tab (it defaults to the active window):
 
 - **Transparency**: Adjust window transparency (0-90%)
-- **Borders**: Add decorative borders to the display
+- **Borders**: Add decorative borders to the display (not available for a regular window)
+- **Regular Window**: Show the window like a normal application window — with a title bar and native border, resizable — instead of the default frameless overlay. Toggling it re-opens the window; the border settings don't apply to a regular window. New windows open 820 pixels wide (16:9) by default
 - **Always on Top**: Keep the display window above all others
 - **Display Size**: Choose from preset resolutions or use custom sizing
 - **Capture Resolution / Audio**: Configure the capture resolution and toggle audio capture for that window (for a WebRTC stream the setting becomes **Recording Resolution**, limited to 720p/1080p, and audio simply un-mutes the stream)
