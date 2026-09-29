@@ -599,8 +599,11 @@ function createDisplayWindow(pair) {
     savedWidth,
     regular ? Math.round((savedWidth * 9) / 16) : Math.round(((savedWidth - 16) * 9) / 16) + 9
   );
-  if (regular) {
-    // Keep the video area 16:9: the title bar / frame is extra size outside the content.
+  if (regular && !isMacOS) {
+    // Windows/Linux apply the ratio to the whole window, so keep the video area 16:9 by telling
+    // Electron the title bar / frame is extra size outside the content. (On macOS the ratio
+    // already applies to the content area; adding the extra size there over-compensates and
+    // leaves black bars above and below the video after a resize.)
     const [winW, winH] = win.getSize();
     const [contentW, contentH] = win.getContentSize();
     win.setAspectRatio(16 / 9, { width: winW - contentW, height: winH - contentH });
