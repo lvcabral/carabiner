@@ -592,12 +592,19 @@ function createDisplayWindow(pair) {
   // Pass the pair id to the renderer so it knows which capture/control it owns.
   win.loadFile("public/display.html", { query: { pairId: pair.id } });
   win.setResizable(true);
+  // A regular window on Windows/Linux would show Electron's default menu bar (which also changes
+  // the frame size); this app has no per-window menu, so remove it BEFORE measuring the frame.
+  if (regular && !isMacOS) win.removeMenu();
   // Saved bounds may come from the other window style (frameless <-> regular differ by the title
-  // bar and the video inset), so fit the content area back to 16:9 for this style, keeping the width.
-  const [savedWidth] = win.getSize();
+  // bar / frame and the video inset), so fit the content area back to 16:9 for this style,
+  // keeping the outer width.
+  const [outerWidth] = win.getSize();
+  const [contentWidth0] = win.getContentSize();
+  const frameWidth = regular ? outerWidth - contentWidth0 : 0; // 0 on macOS
+  const contentWidth = outerWidth - frameWidth;
   win.setContentSize(
-    savedWidth,
-    regular ? Math.round((savedWidth * 9) / 16) : Math.round(((savedWidth - 16) * 9) / 16) + 9
+    contentWidth,
+    regular ? Math.round((contentWidth * 9) / 16) : Math.round(((contentWidth - 16) * 9) / 16) + 9
   );
   if (regular && !isMacOS) {
     // Windows/Linux apply the ratio to the whole window, so keep the video area 16:9 by telling
