@@ -83,7 +83,7 @@ See the complete [keyboard control mappings](./key-mappings.md) for advanced con
 
 You manage windows from the **menu bar / system tray** menu, the macOS **View** menu, and the right-click context menu. What appears depends on the window mode (set in the General tab):
 
-- **Single Window mode** — the capture devices are listed **directly on the menu** for quick switching: pick one to switch the single window to that capture device (and its linked control).
+- **Single Window mode** — the capture devices and WebRTC streams are listed **directly on the menu** for quick switching: pick one to switch the single window to it (and its linked control). Streams appear as `<name> (RCE)` or `<name> (Simulator)`; capture cards as `<card> → <linked control>`.
 - **Multiple Windows mode** — a **Display Windows** submenu with, per capture device:
   - **Enabled** — open or close that capture device's window (same as the General tab checkbox).
   - **Visible** — show or hide an enabled window without closing it. This is how you bring back a window you previously hid (via the global shortcut or the Close Window command).
@@ -92,11 +92,13 @@ Other tips:
 
 - The **global shortcut** (set in the General tab) shows/hides **all** display windows together.
 - In **Multiple Windows** mode, the **active window** (the one menu/recording/script actions target) is whichever Display window you last focused. A disabled **"Active Window: …"** item at the top of the app/tray menus shows which window that is; window-specific actions are disabled when no window is enabled. This indicator is hidden in **Single Window** mode, where there is only one window.
-- The right-click context menu includes a **Linked Device** submenu to relink the active window's control device on the fly.
-- On macOS, the **Window** menu lists each Display window by its capture card + linked control name.
+- The menus include a **Linked Device** submenu to relink the active window's control device on the fly. Its title shows the currently linked control device; it is disabled for stream windows, which always use their built-in control.
+- On macOS, the **Window** menu lists each Display window by its capture card + linked control name (streams by `<name> (RCE|Simulator)`).
+- Each window can optionally be a **Regular Window** (title bar, native border, resizable) — see [Display Customization](#display-customization).
 
 #### Automatic capture pausing & reconnection
 
+- **WebRTC streams behave the same way.** A stream window shows a *Connecting to stream...* animation (inside the display border) while it connects, disconnects when the window isn't visible, and reconnects automatically if the stream drops.
 - **Capture stops when a window isn't visible.** A Display window only holds its capture device while it's actually on screen. Hiding, minimizing, moving it to another Space, fully covering it with another window, or locking the computer releases the capture device — so the macOS camera/recording indicator turns off and the device is freed (letting the Mac sleep). Capture resumes automatically when the window becomes visible again.
 - **Automatic reconnection after sleep.** When your computer wakes and a capture device (e.g. on a monitor's USB hub) takes a few seconds to come back, the window shows a **"reconnecting"** overlay and keeps retrying for about 30 seconds until the device is ready, then resumes streaming on its own. The "no capture device" image only appears if the device never returns.
 
