@@ -286,6 +286,9 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
   if (settings.files && settings.files.recordingFormat) {
     preferredRecordingFormat = settings.files.recordingFormat;
   }
+  // Lay the video out for the window's actual size exactly as a manual resize would (this also
+  // matters when the window was just re-created in the other style, e.g. Regular Window on/off).
+  window.dispatchEvent(new Event("resize"));
 });
 
 // A regular window fills its content area edge to edge, with no custom border or drag region.

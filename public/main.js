@@ -592,6 +592,13 @@ function createDisplayWindow(pair) {
   // Pass the pair id to the renderer so it knows which capture/control it owns.
   win.loadFile("public/display.html", { query: { pairId: pair.id } });
   win.setResizable(true);
+  // Saved bounds may come from the other window style (frameless <-> regular differ by the title
+  // bar and the video inset), so fit the content area back to 16:9 for this style, keeping the width.
+  const [savedWidth] = win.getSize();
+  win.setContentSize(
+    savedWidth,
+    regular ? Math.round((savedWidth * 9) / 16) : Math.round(((savedWidth - 16) * 9) / 16) + 9
+  );
   if (regular) {
     // Keep the video area 16:9: the title bar / frame is extra size outside the content.
     const [winW, winH] = win.getSize();
