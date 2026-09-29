@@ -278,7 +278,16 @@ function GeneralSection({
                         as="select"
                         size="sm"
                         style={{ fontSize: "0.75rem" }}
-                        value={pair ? pair.controlDeviceId || "" : device.controlId || ""}
+                        // A stream's control is built in and managed by its source: not editable.
+                        disabled={device.isStream}
+                        title={device.isStream ? "This stream has its own built-in control" : undefined}
+                        value={
+                          device.isStream
+                            ? device.controlId || ""
+                            : pair
+                              ? pair.controlDeviceId || ""
+                              : ""
+                        }
                         onChange={(e) =>
                           setPairForDevice(device.deviceId, { controlDeviceId: e.target.value })
                         }

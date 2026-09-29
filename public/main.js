@@ -155,14 +155,13 @@ function managedControlFor(src) {
   };
 }
 // Reconcile the managed control devices with the stream-source catalog. Returns whether anything
-// changed. Pairs bound to a removed control are unbound; stream pairs that had no control yet are
-// linked to their newly created one.
+// changed. Pairs bound to a removed control are unbound; stream pairs are always linked to their
+// source's control.
 function syncManagedControls() {
   if (!settings.control) settings.control = { deviceList: [] };
   const sources = getStreamSources();
   const wanted = new Map(sources.map((src) => [streamControlId(src), src]));
   const before = JSON.stringify(settings.control.deviceList || []);
-  const existingIds = new Set((settings.control.deviceList || []).map((d) => d.id));
   const removedIds = (settings.control.deviceList || [])
     .filter((d) => d.managedBy && !wanted.has(d.id))
     .map((d) => d.id);
@@ -180,8 +179,10 @@ function syncManagedControls() {
       getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: "" });
     }
     const src = sources.find((x) => STREAM_PREFIX + x.id === p.captureDeviceId);
-    if (src && !p.controlDeviceId && !existingIds.has(streamControlId(src))) {
+    // A stream's control is built in and can't be changed, so keep its pair locked to it.
+    if (src && p.controlDeviceId !== streamControlId(src)) {
       p.controlDeviceId = streamControlId(src);
+      connectPairControl(p.id);
       getWindow(p.id)?.webContents?.send("shared-window-channel", {
         type: "set-control-selected",
         payload: p.controlDeviceId,

@@ -122,6 +122,27 @@ body {
   color: #fff !important;
 }
 
+/* Dropdowns are rendered as <select class="form-control">, which Bootstrap 5 draws like a plain
+   text input. Give them the same chevron as .form-select so they read as dropdowns. */
+select.form-control {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 14px 10px;
+}
+
+select.form-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+[data-bs-theme="dark"] select.form-control {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23dee2e6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
 [data-bs-theme="dark"] .form-control {
   background-color: #495057 !important;
   border-color: #6c757d !important;
