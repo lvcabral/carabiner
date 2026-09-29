@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This App Does
 
-Carabiner is an Electron desktop app for streaming device development and QA. It shows live video from capture cards (HDMI capture devices) **or WebRTC streams** (BrightScript Simulator remote screen, Roku Cloud Emulator) in floating overlay windows, while letting users control Roku devices via ECP (HTTP), Android/Fire TV/Google TV devices via ADB, Apple TV via `atvremote` (pyatv), or Xumo Stream Box / RDK devices via the RDK Services JSON-RPC API (`org.rdk.RDKShell`). Primary users are developers testing streaming apps without a physical TV.
+Carabiner is an Electron desktop app for streaming device development and QA. It shows live video from capture cards (HDMI capture devices) **or WebRTC streams** (BrightScript Simulator remote screen, [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce)) in floating overlay windows, while letting users control Roku devices via ECP (HTTP), Android/Fire TV/Google TV devices via ADB, Apple TV via `atvremote` (pyatv), or Xumo Stream Box / RDK devices via the RDK Services JSON-RPC API (`org.rdk.RDKShell`). Primary users are developers testing streaming apps without a physical TV.
 
 The app supports **multiple capture+control "pairs" simultaneously** — one floating Display window per capture device, each linked to its own control device (issue #74). It is also **single-instance**: only one Carabiner process runs at a time.
 

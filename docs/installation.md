@@ -9,7 +9,7 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 ## System Requirements
 
 - **Operating System**: macOS 10.14+, Windows 10+, or Linux (Ubuntu 18.04+)
-- **Video Source**: Video capture device (USB capture card, webcam, etc.) and/or a WebRTC stream (BrightScript Simulator remote screen or Roku Cloud Emulator device)
+- **Video Source**: Video capture device (USB capture card, webcam, etc.) and/or a WebRTC stream (BrightScript Simulator remote screen or [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) device)
 - **Streaming Devices**: Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, Xumo Stream Box (RDK, experimental)
 
 ## Setup Prerequisites

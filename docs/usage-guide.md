@@ -35,7 +35,7 @@ Carabiner supports **multiple video sources at once**: each capture card or WebR
 Instead of (or besides) a capture card, a window can show a **WebRTC stream**. Open the **Streams** tab, pick the **Stream Source Type**, and click **+** to register it:
 
 - **BrightScript Simulator** — enable the *remote screen* (WebRTC) in [BrightScript Simulator](https://github.com/lvcabral/brs-desktop), then enter its **Host/IP** and **Port** (default `8090`). No authentication is needed. Use **Test** to verify it is reachable.
-- **Roku Cloud Emulator** — enter your Cloud Emulator **access token** (a personal access token from the Roku Cloud Emulator portal), click **Load devices** and pick the device to watch. The device must be running; if it is still starting, Carabiner waits for it. *Advanced* lets you override the management API URL. The token is encrypted with your operating system's keychain and is never exposed to the app's windows.
+- **[Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce)** — enter your Cloud Emulator **access token** (a personal access token from the Roku Cloud Emulator portal), click **Load devices** and pick the device to watch. The device must be running; if it is still starting, Carabiner waits for it. *Advanced* lets you override the management API URL. The token is encrypted with your operating system's keychain and is never exposed to the app's windows.
 
 Registered streams then show in the **General** tab grid (with a cloud icon) alongside your capture cards, and are enabled and linked to a control device the same way. A stream window shows a *Connecting to stream...* animation while it loads and reconnects automatically if the stream drops.
 
