@@ -440,6 +440,7 @@ function createWindow(name, options, showOnStart = true) {
     if (name === "mainWindow" && !isQuitting) {
       event.preventDefault();
       win?.hide();
+      quitIfNoWindowsLeft();
     }
   });
 
@@ -518,6 +519,22 @@ function disconnectPairControl(pairId, deviceId) {
     const cfg = findRDKDeviceConfig(id);
     if (cfg) disconnectRDK(cfg.host, cfg.port);
   }
+}
+
+// Windows/Linux without the tray icon (taskbar mode): once the settings window is closed and no
+// Display window exists, nothing on screen or in the taskbar can bring the app back, so quit
+// instead of lingering invisibly. Tray mode keeps running (the tray restores the windows), and so
+// does an app whose Display windows are merely hidden (the global shortcut shows them again).
+// Deferred a moment so flows that close one window and open another (switching windows,
+// re-creating a window) don't trigger it.
+function quitIfNoWindowsLeft() {
+  if (isMacOS) return;
+  setTimeout(() => {
+    if (isQuitting || settings.display?.showInDock === false || recreatingPairs.size > 0) return;
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) return;
+    if (pairWindows.size > 0) return;
+    app.quit();
+  }, 300);
 }
 
 // True once both the settings window and every Display window are hidden — used on
@@ -751,6 +768,7 @@ function createDisplayWindow(pair) {
     if (!isQuitting) disconnectPairControl(pair.id);
     pairState.delete(pair.id);
     resetFullscreenVars();
+    if (!isQuitting) quitIfNoWindowsLeft();
   });
 
   return win;

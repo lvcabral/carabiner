@@ -250,6 +250,7 @@ These settings are **per window** — pick the window to edit with the **Editing
 - **Global Shortcut**: Set a hotkey for quick show/hide of all display windows
 - **Launch on Login**: Start Carabiner automatically with your system
 - **Settings at Start**: Control whether settings window opens on launch
+- **Closing the last window (Windows/Linux)**: with the tray icon option off, closing the settings window when no Display window is open quits Carabiner, since nothing would be left to bring it back. With the tray icon on, the app keeps running and the tray restores the windows.
 
 ### Android Device Configuration
 

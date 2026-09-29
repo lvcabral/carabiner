@@ -44,7 +44,7 @@ The app has two separate renderer processes — one React, one plain HTML/JS —
 
 Manages the settings window plus a registry of Display windows. All persistent state flows through here:
 
-- **`mainWindow`**: Settings panel. Loads `build/index.html` (the compiled React app). Hides on close instead of quitting. Module-scoped.
+- **`mainWindow`**: Settings panel. Loads `build/index.html` (the compiled React app). Hides on close instead of quitting (on Windows/Linux without the tray icon, `quitIfNoWindowsLeft()` quits once the settings window is closed and no Display window exists, as nothing could restore them). Module-scoped.
 - **Display windows**: One frameless, transparent, `alwaysOnTop` window **per pair** (or, when `pair.regularWindow` is set from the Display tab, a regular framed/resizable opaque window — toggling it re-creates the window via `recreatingPairs` in `reconcilePairs`; the renderer then uses no video inset and ignores the border settings; on creation the content is re-fitted to 16:9 and the renderer dispatches a `resize` after loading its settings so the layout matches a manual resize; the aspect ratio is passed with the frame's extra size only on Windows/Linux, since on macOS it already applies to the content). New pairs default to 820x461 bounds (`makePair`), loading `public/display.html?pairId=<id>`. Tracked in a registry:
   - `pairWindows` — `Map<pairId, BrowserWindow>`
   - `pairState` — `Map<pairId, { controlDeviceId, controlIp, controlType }>` (per-pair control connection target)
