@@ -21,6 +21,7 @@ Carabiner supports **multiple video sources at once**: each capture card or WebR
    - For **Roku (ECP)** you can click the **🔍 search** button next to the IP field to discover devices automatically
    - For **Xumo (RDK)** also set the **RDK JSON-RPC** port (default `9998`) and an optional auth **token**; use the **Test** button to verify the connection
 4. Click **+** to register the device
+5. To change a device's name later, select it in the *Streaming Device List*, click **✎** (Rename) and enter the new alias; **⌫** deletes it
 
 > [!NOTE]
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
@@ -36,6 +37,8 @@ Instead of (or besides) a capture card, a window can show a **WebRTC stream**. O
 
 - **BrightScript Simulator** — enable the *remote screen* (WebRTC) in [BrightScript Simulator](https://github.com/lvcabral/brs-desktop), then enter its **Host/IP** and **Port** (default `8090`). No authentication is needed. Use **Test** to verify it is reachable.
 - **[Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce)** — enter your Cloud Emulator **access token** (a personal access token from the Roku Cloud Emulator portal), click **Load devices** and pick the device to watch. The device must be running; if it is still starting, Carabiner waits for it. *Advanced* lets you override the management API URL. The token is encrypted with your operating system's keychain and is never exposed to the app's windows.
+
+To rename or remove a stream later, select it in the *Stream Source List* and use **✎** (Rename) or **⌫** (Delete); renaming a stream also renames its built-in control.
 
 Registered streams then show in the **General** tab grid (with a cloud icon) alongside your capture cards, and are enabled the same way (their control is linked automatically). A stream window shows a *Connecting to stream...* animation while it loads and reconnects automatically if the stream drops.
 

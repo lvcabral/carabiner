@@ -1873,6 +1873,13 @@ function handleControlList(data) {
     controlType = "ecp";
   }
   controlList = data;
+  // A rename of the control (or its stream) changes what the window's label should say.
+  const shownDeviceId = currentConstraints?.video?.deviceId?.exact;
+  if (shownDeviceId && videoState !== "stopped") {
+    getCaptureDeviceLabel(shownDeviceId).then((label) => {
+      deviceLabel.textContent = label;
+    });
+  }
 }
 
 // ECP Keyboard Mapping

@@ -25,6 +25,8 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [alias, setAlias] = useState("");
   const [deviceType, setDeviceType] = useState("roku");
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
   const [adbPath, setAdbPath] = useState("");
   const [atvremotePath, setAtvremotePath] = useState("");
   const [rdkPort, setRdkPort] = useState("9998");
@@ -203,6 +205,22 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
 
   const handleDeviceSelect = (e) => {
     setSelectedDevice(e.target.value);
+  };
+
+  const handleRenameOpen = () => {
+    const device = streamingDevices.find((d) => d.id === selectedDevice);
+    if (!device) return;
+    setRenameValue(device.alias || "");
+    setRenameOpen(true);
+  };
+
+  const handleRenameConfirm = () => {
+    const name = renameValue.trim();
+    if (!name) return;
+    onUpdateStreamingDevices(
+      streamingDevices.map((d) => (d.id === selectedDevice ? { ...d, alias: name } : d))
+    );
+    setRenameOpen(false);
   };
 
   const handleDeleteDevice = () => {
@@ -415,6 +433,16 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                   </Form.Control>
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
+                  <Button
+                    size="sm"
+                    title="Rename Device"
+                    variant="primary"
+                    className="me-1"
+                    onClick={handleRenameOpen}
+                    disabled={!selectedDevice}
+                  >
+                    &#x270E;
+                  </Button>
                   <Button size="sm" title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
                     &#x232B;
                   </Button>
@@ -479,6 +507,36 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         </Alert>
       )}
 
+      <Modal show={renameOpen} onHide={() => setRenameOpen(false)} centered size="sm">
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: "1rem" }}>Rename Device</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleRenameConfirm();
+            }}
+          >
+            <Form.Control
+              size="sm"
+              type="text"
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Enter new name"
+            />
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button size="sm" variant="secondary" onClick={() => setRenameOpen(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" variant="primary" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
+            Rename
+          </Button>
+        </Modal.Footer>
+      </Modal>
       <Modal
         show={showDiscoverModal}
         onHide={() => setShowDiscoverModal(false)}

@@ -14,6 +14,7 @@ import Button from "react-bootstrap/Button";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Alert from "react-bootstrap/Alert";
+import Modal from "react-bootstrap/Modal";
 
 const { electronAPI } = window;
 
@@ -41,6 +42,8 @@ function StreamsSection({ sources = [], onUpdateSources }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [testStatus, setTestStatus] = useState("");
   const [notice, setNotice] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   const showError = (msg) => {
     setErrorMessage(msg);
@@ -140,6 +143,21 @@ function StreamsSection({ sources = [], onUpdateSources }) {
     setPort(SIM_DEFAULT_PORT);
     setTestStatus("");
     setSelected(source.id);
+  };
+
+  const handleRenameOpen = () => {
+    const source = sources.find((s) => s.id === selected);
+    if (!source) return;
+    setRenameValue(source.name || "");
+    setRenameOpen(true);
+  };
+
+  // Renaming a stream also renames its built-in control (main keeps them in sync).
+  const handleRenameConfirm = () => {
+    const newName = renameValue.trim();
+    if (!newName) return;
+    onUpdateSources(sources.map((s) => (s.id === selected ? { ...s, name: newName } : s)));
+    setRenameOpen(false);
   };
 
   const handleDelete = () => {
@@ -337,6 +355,16 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                   </Form.Control>
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
+                  <Button
+                    size="sm"
+                    title="Rename Stream Source"
+                    variant="primary"
+                    className="me-1"
+                    onClick={handleRenameOpen}
+                    disabled={!selected}
+                  >
+                    &#x270E;
+                  </Button>
                   <Button size="sm" title="Delete Stream Source" variant="primary" onClick={handleDelete}>
                     &#x232B;
                   </Button>
@@ -356,6 +384,36 @@ function StreamsSection({ sources = [], onUpdateSources }) {
           </Form>
         </Card.Body>
       </Card>
+      <Modal show={renameOpen} onHide={() => setRenameOpen(false)} centered size="sm">
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: "1rem" }}>Rename Stream Source</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleRenameConfirm();
+            }}
+          >
+            <Form.Control
+              size="sm"
+              type="text"
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Enter new name"
+            />
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button size="sm" variant="secondary" onClick={() => setRenameOpen(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" variant="primary" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
+            Rename
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }

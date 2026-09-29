@@ -1221,6 +1221,7 @@ app.whenReady().then(async () => {
         }
       });
       settings.control.deviceList = arg.payload;
+      rebuildMenus(); // aliases may have changed (window titles, Linked Device labels)
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
     } else if (arg.type && arg.type === "set-stream-sources") {
       // The stream-source catalog is global. Drop pairs bound to a deleted source.
