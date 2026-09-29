@@ -606,15 +606,36 @@ function createDisplayWindow(pair) {
     contentWidth,
     regular ? Math.round((contentWidth * 9) / 16) : Math.round(((contentWidth - 16) * 9) / 16) + 9
   );
-  if (regular && !isMacOS) {
-    // Windows/Linux apply the ratio to the whole window, so keep the video area 16:9 by telling
-    // Electron the title bar / frame is extra size outside the content. (On macOS the ratio
-    // already applies to the content area; adding the extra size there over-compensates and
-    // leaves black bars above and below the video after a resize.)
+  if (regular && isWindows) {
+    // Windows' native aspect-ratio handling does not account for the title bar / frame reliably
+    // (black bars left and right), so keep the CONTENT area 16:9 ourselves while the user drags.
+    win.on("will-resize", (event, newBounds, details) => {
+      const [outerW, outerH] = win.getSize();
+      const [contentW, contentH] = win.getContentSize();
+      const frameW = outerW - contentW;
+      const frameH = outerH - contentH;
+      const edge = details?.edge || "";
+      let w = newBounds.width - frameW;
+      let h = newBounds.height - frameH;
+      // Dragging only the top/bottom edge is height-driven; anything else follows the width.
+      if (/top|bottom/.test(edge) && !/left|right/.test(edge)) w = Math.round((h * 16) / 9);
+      else h = Math.round((w * 9) / 16);
+      const width = w + frameW;
+      const height = h + frameH;
+      // Keep the edge opposite to the one being dragged anchored.
+      const x = edge.includes("left") ? newBounds.x + newBounds.width - width : newBounds.x;
+      const y = edge.includes("top") ? newBounds.y + newBounds.height - height : newBounds.y;
+      event.preventDefault();
+      win.setBounds({ x, y, width, height });
+    });
+  } else if (regular && !isMacOS) {
+    // Linux: the ratio applies to the whole window, so tell Electron the frame is extra size.
     const [winW, winH] = win.getSize();
     const [contentW, contentH] = win.getContentSize();
     win.setAspectRatio(16 / 9, { width: winW - contentW, height: winH - contentH });
   } else {
+    // Frameless overlay, or macOS where the ratio already applies to the content area (adding the
+    // extra size there over-compensates and leaves black bars above and below the video).
     win.setAspectRatio(16 / 9);
   }
 
