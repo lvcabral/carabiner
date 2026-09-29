@@ -52,10 +52,16 @@ function getActivePair(settings) {
 
 // Friendly name of the active window (capture card + linked control) — shown as a disabled
 // indicator so the user knows which window the (non-context) menu actions target.
+// Short kind shown after a stream's name in menus (a stream's control is built in and shares its
+// name, so streams show "<name> (RCE)" instead of "<name> → <control>").
+const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator" };
+const streamLabel = (device) => `${device.label} (${STREAM_KIND_LABELS[device.streamType] || "Stream"})`;
+
 function activeWindowLabel(settings, captureDevices) {
   const pair = getActivePair(settings);
   if (!pair) return "No active window";
   const cap = (captureDevices || []).find((d) => d.deviceId === pair.captureDeviceId);
+  if (cap?.kind === "stream") return streamLabel(cap);
   const capName = cap?.label || pair.captureDeviceId || "Capture device";
   const ctl = pair.controlDeviceId
     ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
@@ -669,6 +675,7 @@ function windowEntryLabel(device, index, pairs, settings) {
   const control = pair?.controlDeviceId
     ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
     : null;
+  if (device.kind === "stream") return streamLabel(device);
   const capLabel = device.label || `Device ${index + 1}`;
   // Show only the control device's alias/type here (no IP / MAC) to keep the label readable.
   const controlName = control ? (control.alias ? `${control.type}: ${control.alias}` : control.type) : null;

@@ -105,6 +105,7 @@ let captureDevices;
 // pair binds to one exactly like a capture card and every captureDeviceId-keyed path (windows,
 // menus, MCP) keeps working. Hardware cards come from the renderers' enumeration.
 const STREAM_PREFIX = "stream:";
+const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator" };
 const isStreamDeviceId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
 function getStreamSources() {
   return settings?.streams?.sources || [];
@@ -209,6 +210,7 @@ function getAllSources() {
     deviceId: STREAM_PREFIX + s.id,
     label: s.name,
     kind: "stream",
+    streamType: s.type,
   }));
   return [...(captureDevices || []), ...streams];
 }
@@ -330,6 +332,8 @@ function setActivePair(pairId) {
 function pairWindowTitle(pair) {
   const cap = getAllSources().find((d) => d.deviceId === pair.captureDeviceId);
   const capName = cap?.label || "Display Window";
+  // A stream's control is built in (same name), so just label the stream with its kind.
+  if (cap?.kind === "stream") return `${capName} (${STREAM_KIND_LABELS[cap.streamType] || "Stream"})`;
   const ctl = pair.controlDeviceId
     ? settings.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
     : null;
