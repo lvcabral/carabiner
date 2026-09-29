@@ -622,9 +622,12 @@ async function acquireWebRtcStream(deviceId) {
       }
     });
 
-    window.electronAPI.invoke("stream-start", deviceId).then((res) => {
-      if (!res?.ok) fail(res?.message || "Stream source not found", true);
-    });
+    window.electronAPI
+      .invoke("stream-start", deviceId)
+      .then((res) => {
+        if (!res?.ok) fail(res?.message || "Stream source not found", true);
+      })
+      .catch((err) => fail(err.message, true));
   });
 }
 
@@ -1405,17 +1408,23 @@ window.addEventListener("DOMContentLoaded", function () {
     const ctx = canvas.getContext("2d", { alpha: false });
     let running = true;
     let rafId = null;
+    // The letterboxed rectangle only changes when the stream's own size does (e.g. quality ramping
+    // up), so compute it then and clear the canvas once instead of redoing both every frame.
+    let layout = null; // { vw, vh, x, y, w, h }
     const draw = () => {
       if (!running) return;
       const vw = videoPlayer.videoWidth;
       const vh = videoPlayer.videoHeight;
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
       if (vw && vh) {
-        const scale = Math.min(canvas.width / vw, canvas.height / vh);
-        const w = vw * scale;
-        const h = vh * scale;
-        ctx.drawImage(videoPlayer, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+        if (!layout || layout.vw !== vw || layout.vh !== vh) {
+          const scale = Math.min(canvas.width / vw, canvas.height / vh);
+          const w = vw * scale;
+          const h = vh * scale;
+          layout = { vw, vh, x: (canvas.width - w) / 2, y: (canvas.height - h) / 2, w, h };
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        ctx.drawImage(videoPlayer, layout.x, layout.y, layout.w, layout.h);
       }
       schedule();
     };

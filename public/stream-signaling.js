@@ -15,7 +15,6 @@
 // window answers. A session relays that exchange to the window over `stream-signal` messages:
 //   main -> window: { type: "offer"|"candidate"|"failure"|"closed", ... }
 //   window -> main: `stream-signal-answer` / `stream-signal-candidate` (see main.js)
-const http = require("http");
 const WebSocket = require("ws");
 
 const SIM_DEFAULT_PORT = 8090;
@@ -345,9 +344,9 @@ function startRce(source, emit) {
 const INSTANCE_CACHE_MS = 60000;
 const instanceCache = new Map(); // source id -> { base, at }
 
-async function resolveRceInstanceBase(source, force = false) {
+async function resolveRceInstanceBase(source) {
   const cached = instanceCache.get(source.id);
-  if (!force && cached && Date.now() - cached.at < INSTANCE_CACHE_MS) return cached.base;
+  if (cached && Date.now() - cached.at < INSTANCE_CACHE_MS) return cached.base;
   const devices = await rceGet(source, "/devices?items=0");
   const device = (Array.isArray(devices) ? devices : []).find((d) => String(d.id) === String(source.deviceId));
   if (!device) throw new Error(`Cloud Emulator device ${source.deviceId} was not found`);
@@ -366,7 +365,7 @@ async function postKey(url, headers) {
   // Bounded so an unreachable host can't leave every key press hanging on the OS TCP timeout.
   const res = await fetch(url, { method: "POST", headers, signal: AbortSignal.timeout(KEY_REQUEST_TIMEOUT) });
   if (res.status === 401 || res.status === 403) throw Object.assign(new Error("Cloud Emulator token was rejected"), { auth: true });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
 }
 
 // Send one ECP key. `mod`: -1 = keypress, 0 = keydown, 1 = keyup (same as the Display window).
@@ -380,12 +379,15 @@ async function sendControlKey(source, key, mod = -1) {
   const headers = { Authorization: `Bearer ${source.token}` };
   for (let attempt = 0; ; attempt++) {
     try {
-      const base = await resolveRceInstanceBase(source, attempt > 0);
+      const base = await resolveRceInstanceBase(source);
       await postKey(`${base}/api/v0/input/${command}/${key}`, headers);
       return;
     } catch (err) {
-      instanceCache.delete(source.id);
-      // A rejected token won't get better; anything else (restarted instance, stale URL) gets one retry.
+      // Only a URL that looks stale (gone, or unreachable) is worth looking up again; a timeout,
+      // a 5xx or a rejected token says nothing about the cached URL.
+      const staleUrl = err.status === 404 || err.status === 410 || (!err.status && !err.auth && err.name !== "TimeoutError");
+      if (staleUrl) instanceCache.delete(source.id);
+      // A rejected token won't get better; anything else gets one retry.
       if (err.auth || attempt > 0) throw err;
     }
   }
@@ -421,44 +423,32 @@ function relayFromWindow(pairId, msg) {
 }
 
 // Reachability check used by the Streams tab "Test" button.
-function testSource(source) {
-  return new Promise((resolve) => {
-    if (source?.type === "rce") {
-      return resolveRceStream(source)
-        .then(() => resolve({ ok: true, message: "Connected" }))
-        .catch((err) =>
-          // A device that is stopped/pending still proves the token and device are valid.
-          resolve(
-            err instanceof RceNotRunning
-              ? { ok: true, message: `${err.message} (status: ${err.status})` }
-              : { ok: false, message: err.message }
-          )
-        );
+async function testSource(source) {
+  if (source?.type === "rce") {
+    try {
+      await resolveRceStream(source);
+      return { ok: true, message: "Connected" };
+    } catch (err) {
+      // A device that is stopped/pending still proves the token and device are valid.
+      return err instanceof RceNotRunning
+        ? { ok: true, message: `${err.message} (status: ${err.status})` }
+        : { ok: false, message: err.message };
     }
-    if (source?.type !== "sim") return resolve({ ok: false, message: "Unsupported source type" });
-    const { host, port } = simBase(source);
-    const req = http.get({ host, port, path: "/config", timeout: 4000 }, (res) => {
-      let body = "";
-      res.on("data", (c) => (body += c));
-      res.on("end", () => {
-        try {
-          const cfg = JSON.parse(body);
-          resolve({ ok: true, message: "Connected", config: cfg });
-        } catch {
-          resolve({ ok: false, message: "Not a BrightScript Simulator remote screen" });
-        }
-      });
-    });
-    req.on("timeout", () => {
-      req.destroy();
-      resolve({ ok: false, message: "Connection timed out" });
-    });
-    req.on("error", (err) => resolve({ ok: false, message: err.message }));
-  });
+  }
+  if (source?.type !== "sim") return { ok: false, message: "Unsupported source type" };
+  const { host, port } = simBase(source);
+  try {
+    const res = await fetch(`http://${host}:${port}/config`, { signal: AbortSignal.timeout(4000) });
+    return { ok: true, message: "Connected", config: await res.json() };
+  } catch (err) {
+    if (err.name === "TimeoutError") return { ok: false, message: "Connection timed out" };
+    if (err instanceof SyntaxError) return { ok: false, message: "Not a BrightScript Simulator remote screen" };
+    return { ok: false, message: err.cause?.message || err.message };
+  }
 }
 
 function stopAll() {
   for (const id of [...sessions.keys()]) stopSession(id);
 }
 
-module.exports = { sendControlKey, listRceDevices, startSession, stopSession, relayFromWindow, testSource, stopAll, SIM_DEFAULT_PORT };
+module.exports = { sendControlKey, listRceDevices, startSession, stopSession, relayFromWindow, testSource, stopAll };

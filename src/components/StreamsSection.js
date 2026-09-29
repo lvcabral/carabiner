@@ -14,7 +14,7 @@ import Button from "react-bootstrap/Button";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Alert from "react-bootstrap/Alert";
-import Modal from "react-bootstrap/Modal";
+import RenameModal from "./RenameModal";
 
 const { electronAPI } = window;
 
@@ -43,7 +43,6 @@ function StreamsSection({ sources = [], onUpdateSources }) {
   const [testStatus, setTestStatus] = useState("");
   const [notice, setNotice] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
 
   const showError = (msg) => {
     setErrorMessage(msg);
@@ -135,15 +134,11 @@ function StreamsSection({ sources = [], onUpdateSources }) {
     }
     // The simulator's ECP port is reported by its remote screen; fall back to the default.
     let warning = "";
-    try {
-      const probe = await electronAPI.invoke("test-stream-source", source);
-      if (probe?.ok && probe.config?.ecpPort) source.ecpPort = Number(probe.config.ecpPort);
-      if (probe?.ok && probe.config?.ecpEnabled === false) {
-        warning = " Note: ECP is disabled in the simulator, so keys will not work until you enable it.";
-      } else if (!probe?.ok) {
-        warning = " Note: the simulator could not be reached; the default ECP port 8060 is assumed.";
-      }
-    } catch {
+    const probe = await electronAPI.invoke("test-stream-source", source).catch(() => null);
+    if (probe?.ok && probe.config?.ecpPort) source.ecpPort = Number(probe.config.ecpPort);
+    if (probe?.ok && probe.config?.ecpEnabled === false) {
+      warning = " Note: ECP is disabled in the simulator, so keys will not work until you enable it.";
+    } else if (!probe?.ok) {
       warning = " Note: the simulator could not be reached; the default ECP port 8060 is assumed.";
     }
     onUpdateSources([...sources, source]);
@@ -155,17 +150,10 @@ function StreamsSection({ sources = [], onUpdateSources }) {
     setSelected(source.id);
   };
 
-  const handleRenameOpen = () => {
-    const source = sources.find((s) => s.id === selected);
-    if (!source) return;
-    setRenameValue(source.name || "");
-    setRenameOpen(true);
-  };
+  const selectedSource = sources.find((s) => s.id === selected);
 
   // Renaming a stream also renames its built-in control (main keeps them in sync).
-  const handleRenameConfirm = () => {
-    const newName = renameValue.trim();
-    if (!newName) return;
+  const handleRenameConfirm = (newName) => {
     onUpdateSources(sources.map((s) => (s.id === selected ? { ...s, name: newName } : s)));
     setRenameOpen(false);
   };
@@ -370,7 +358,7 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                     title="Rename Stream Source"
                     variant="primary"
                     className="me-1"
-                    onClick={handleRenameOpen}
+                    onClick={() => setRenameOpen(true)}
                     disabled={!selected}
                   >
                     &#x270E;
@@ -400,36 +388,13 @@ function StreamsSection({ sources = [], onUpdateSources }) {
           </Form>
         </Card.Body>
       </Card>
-      <Modal show={renameOpen} onHide={() => setRenameOpen(false)} centered size="sm">
-        <Modal.Header closeButton>
-          <Modal.Title style={{ fontSize: "1rem" }}>Rename Stream Source</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleRenameConfirm();
-            }}
-          >
-            <Form.Control
-              size="sm"
-              type="text"
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              placeholder="Enter new name"
-            />
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button size="sm" variant="secondary" onClick={() => setRenameOpen(false)}>
-            Cancel
-          </Button>
-          <Button size="sm" variant="primary" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
-            Rename
-          </Button>
-        </Modal.Footer>
-      </Modal>
+      <RenameModal
+        show={renameOpen}
+        title="Rename Stream Source"
+        initialValue={selectedSource?.name || ""}
+        onConfirm={handleRenameConfirm}
+        onHide={() => setRenameOpen(false)}
+      />
     </div>
   );
 }

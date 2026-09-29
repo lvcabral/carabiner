@@ -10,6 +10,7 @@
 const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
+const { isStreamDeviceId, streamDeviceId } = require("./stream-utils");
 
 const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
 
@@ -57,9 +58,9 @@ function migrateSettings(settings) {
     // Normalize existing pairs and drop any orphans without a capture device.
     settings.pairs = settings.pairs.filter((p) => p && p.captureDeviceId).map((p) => makePair(p));
     // Drop pairs bound to a WebRTC stream source ("stream:<id>") that no longer exists.
-    const streamIds = new Set((settings.streams?.sources || []).map((s) => `stream:${s.id}`));
+    const streamIds = new Set((settings.streams?.sources || []).map(streamDeviceId));
     settings.pairs = settings.pairs.filter(
-      (p) => !p.captureDeviceId.startsWith("stream:") || streamIds.has(p.captureDeviceId)
+      (p) => !isStreamDeviceId(p.captureDeviceId) || streamIds.has(p.captureDeviceId)
     );
     if (
       settings.pairs.length > 0 &&

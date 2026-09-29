@@ -218,7 +218,7 @@ function registerCaptureTools(server, ctx) {
     {
       title: "List capture devices",
       description:
-        "List available video sources: HDMI capture cards / video input devices (kind \"capture\") and configured WebRTC stream sources (kind \"stream\", id \"stream:<id>\").",
+        "List available video sources: HDMI capture cards / video input devices (kind \"capture\") and configured WebRTC stream sources (kind \"stream\"). Use the deviceId returned here with select_capture_device.",
     },
     handler(async () => textResult(ctx.listCaptureDevices()))
   );

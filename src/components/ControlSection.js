@@ -17,6 +17,7 @@ import Alert from "react-bootstrap/Alert";
 import Modal from "react-bootstrap/Modal";
 import ListGroup from "react-bootstrap/ListGroup";
 import Spinner from "react-bootstrap/Spinner";
+import RenameModal from "./RenameModal";
 
 const { electronAPI } = window;
 
@@ -26,7 +27,6 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [deviceType, setDeviceType] = useState("roku");
   const [selectedDevice, setSelectedDevice] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
   const [adbPath, setAdbPath] = useState("");
   const [atvremotePath, setAtvremotePath] = useState("");
   const [rdkPort, setRdkPort] = useState("9998");
@@ -207,16 +207,9 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
     setSelectedDevice(e.target.value);
   };
 
-  const handleRenameOpen = () => {
-    const device = streamingDevices.find((d) => d.id === selectedDevice);
-    if (!device) return;
-    setRenameValue(device.alias || "");
-    setRenameOpen(true);
-  };
+  const selectedDeviceObj = streamingDevices.find((d) => d.id === selectedDevice);
 
-  const handleRenameConfirm = () => {
-    const name = renameValue.trim();
-    if (!name) return;
+  const handleRenameConfirm = (name) => {
     onUpdateStreamingDevices(
       streamingDevices.map((d) => (d.id === selectedDevice ? { ...d, alias: name } : d))
     );
@@ -438,7 +431,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                     title="Rename Device"
                     variant="primary"
                     className="me-1"
-                    onClick={handleRenameOpen}
+                    onClick={() => setRenameOpen(true)}
                     disabled={!selectedDevice}
                   >
                     &#x270E;
@@ -513,36 +506,13 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         </Alert>
       )}
 
-      <Modal show={renameOpen} onHide={() => setRenameOpen(false)} centered size="sm">
-        <Modal.Header closeButton>
-          <Modal.Title style={{ fontSize: "1rem" }}>Rename Device</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleRenameConfirm();
-            }}
-          >
-            <Form.Control
-              size="sm"
-              type="text"
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              placeholder="Enter new name"
-            />
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button size="sm" variant="secondary" onClick={() => setRenameOpen(false)}>
-            Cancel
-          </Button>
-          <Button size="sm" variant="primary" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
-            Rename
-          </Button>
-        </Modal.Footer>
-      </Modal>
+      <RenameModal
+        show={renameOpen}
+        title="Rename Device"
+        initialValue={selectedDeviceObj?.alias || ""}
+        onConfirm={handleRenameConfirm}
+        onHide={() => setRenameOpen(false)}
+      />
       <Modal
         show={showDiscoverModal}
         onHide={() => setShowDiscoverModal(false)}

@@ -9,6 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 const { Menu, BrowserWindow, app, shell, Tray, MenuItem } = require("electron");
 const path = require("path");
+const { streamLabel } = require("./stream-utils");
 
 let alwaysOnTopMenuItem;
 let copyScreenshotMenuItem;
@@ -52,15 +53,11 @@ function getActivePair(settings) {
 
 // Friendly name of the active window (capture card + linked control) — shown as a disabled
 // indicator so the user knows which window the (non-context) menu actions target.
-// Short kind shown after a stream's name in menus (a stream's control is built in and shares its
-// name, so streams show "<name> (RCE)" instead of "<name> → <control>").
-const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator" };
-const streamLabel = (device) => `${device.label} (${STREAM_KIND_LABELS[device.streamType] || "Stream"})`;
-
 function activeWindowLabel(settings, captureDevices) {
   const pair = getActivePair(settings);
   if (!pair) return "No active window";
   const cap = (captureDevices || []).find((d) => d.deviceId === pair.captureDeviceId);
+  // A stream shows "<name> (RCE)": its control is built in and shares the name.
   if (cap?.kind === "stream") return streamLabel(cap);
   const capName = cap?.label || pair.captureDeviceId || "Capture device";
   const ctl = pair.controlDeviceId
@@ -768,7 +765,7 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
   const activeControl = deviceList.find((d) => d.id === activeControlId);
   const headerSuffix = ` (${activeControl ? activeControl.alias || activeControl.type : "None"})`;
   // A stream has its own built-in control, so its link can't be changed from the menu.
-  const isStream = String(activePair.captureDeviceId || "").startsWith("stream:");
+  const isStream = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId)?.kind === "stream";
 
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(

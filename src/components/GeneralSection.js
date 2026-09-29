@@ -11,8 +11,41 @@ import { useEffect, useState, useRef } from "react";
 import { Container, Form, Row, Col, Card } from "react-bootstrap";
 
 import ShortcutInput from "./select/ShortcutInput";
+import { streamDeviceId } from "./pairLabel";
 
 const { electronAPI } = window;
+
+// Cloud for a WebRTC stream, video camera for a capture card.
+const SOURCE_ICONS = {
+  stream: {
+    title: "WebRTC stream",
+    path: "M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383",
+  },
+  capture: {
+    title: "Capture card",
+    path: "M0 5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.983 1.738l3.11-1.382A1 1 0 0 1 16 4.269v7.462a1 1 0 0 1-1.406.913l-3.111-1.382A2 2 0 0 1 9.5 13H2a2 2 0 0 1-2-2z",
+  },
+};
+
+function SourceIcon({ stream }) {
+  const { title, path } = SOURCE_ICONS[stream ? "stream" : "capture"];
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="1em"
+      height="1em"
+      fill="currentColor"
+      viewBox="0 0 16 16"
+      className="me-1"
+      style={{ verticalAlign: "-0.125em" }}
+      role="img"
+      aria-label={title}
+    >
+      <title>{title}</title>
+      <path d={path} />
+    </svg>
+  );
+}
 
 function GeneralSection({
   streamingDevices,
@@ -34,7 +67,7 @@ function GeneralSection({
   const sourceRows = [
     ...captureDevices,
     ...streamSources.map((src) => ({
-      deviceId: `stream:${src.id}`,
+      deviceId: streamDeviceId(src),
       label: src.name,
       isStream: true,
       controlId: src.controlId || "",
@@ -150,7 +183,7 @@ function GeneralSection({
     const list = pairsRef.current;
     const existing = list.find((p) => p.captureDeviceId === deviceId);
     // A stream comes with its own control device, linked automatically the first time.
-    const autoControl = streamSources.find((src) => `stream:${src.id}` === deviceId)?.controlId || "";
+    const autoControl = streamSources.find((src) => streamDeviceId(src) === deviceId)?.controlId || "";
     let next;
     if (existing) {
       next = list.map((p) => (p.captureDeviceId === deviceId ? { ...p, ...patch } : p));
@@ -253,24 +286,7 @@ function GeneralSection({
                     style={{ fontSize: "0.78rem" }}
                   >
                     <Col xs={6} className="text-truncate" title={device.label}>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="1em"
-                        height="1em"
-                        fill="currentColor"
-                        viewBox="0 0 16 16"
-                        className="me-1"
-                        style={{ verticalAlign: "-0.125em" }}
-                        role="img"
-                        aria-label={device.isStream ? "Stream" : "Capture card"}
-                      >
-                        <title>{device.isStream ? "WebRTC stream" : "Capture card"}</title>
-                        {device.isStream ? (
-                          <path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383" />
-                        ) : (
-                          <path d="M0 5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.983 1.738l3.11-1.382A1 1 0 0 1 16 4.269v7.462a1 1 0 0 1-1.406.913l-3.111-1.382A2 2 0 0 1 9.5 13H2a2 2 0 0 1-2-2z" />
-                        )}
-                      </svg>
+                      <SourceIcon stream={device.isStream} />
                       {device.label || `Device ${index + 1}`}
                     </Col>
                     <Col xs={5}>

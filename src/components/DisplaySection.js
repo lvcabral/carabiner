@@ -7,7 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { pairLabel } from "./pairLabel";
+import { pairLabel, isStreamDeviceId } from "./pairLabel";
 import { useEffect, useState, useRef } from "react";
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
@@ -20,6 +20,11 @@ import SelectResolution, { resolutionOptions } from "./select/Resolution";
 import { notifyCaptureChange } from "./GeneralSection";
 
 const { electronAPI } = window;
+
+// A stream picks its own resolution; the setting only sizes the recording, so 720p/1080p.
+const STREAM_RESOLUTION_OPTIONS = resolutionOptions.filter((o) =>
+  ["1280|720", "1920|1080"].includes(o.value)
+);
 
 // Convert resolution options to display size format, filtered by monitor size
 const getDisplaySizeOptions = (maxWidth, maxHeight) => {
@@ -80,10 +85,7 @@ function DisplaySection({
   const borderStyle = selectedPair?.border?.style || "solid";
   const borderColor = selectedPair?.border?.color || "#662D91";
   // Streams choose their own resolution; the setting only sizes the recording, so 720p/1080p.
-  const isStreamPair = selectedPair?.captureDeviceId?.startsWith("stream:");
-  const streamResolutionOptions = resolutionOptions.filter((o) =>
-    ["1280|720", "1920|1080"].includes(o.value)
-  );
+  const isStreamPair = isStreamDeviceId(selectedPair?.captureDeviceId);
   const resolution = isStreamPair
     ? (selectedPair?.captureHeight || 720) >= 1080
       ? "1920|1080"
@@ -308,9 +310,8 @@ function DisplaySection({
                 size="sm"
                 value={resolution}
                 onChange={handleResolutionChange}
-                {...(isStreamPair
-                  ? { options: streamResolutionOptions, label: "Recording Resolution" }
-                  : {})}
+                options={isStreamPair ? STREAM_RESOLUTION_OPTIONS : undefined}
+                label={isStreamPair ? "Recording Resolution" : undefined}
               />
             </Col>
             <Col>

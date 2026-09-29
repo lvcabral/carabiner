@@ -60,6 +60,7 @@ const {
 } = require("./menu");
 const { checkForUpdates } = require("./updater");
 const streamSignaling = require("./stream-signaling");
+const { isStreamDeviceId, streamDeviceId, streamLabel } = require("./stream-utils");
 const { startMcpServer, stopMcpServer, isRunning: isMcpRunning, getPort: getMcpPort } = require("./mcp-server");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
@@ -104,14 +105,11 @@ let captureDevices;
 // WebRTC stream sources are exposed as pseudo capture devices (id "stream:<sourceId>") so a
 // pair binds to one exactly like a capture card and every captureDeviceId-keyed path (windows,
 // menus, MCP) keeps working. Hardware cards come from the renderers' enumeration.
-const STREAM_PREFIX = "stream:";
-const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator" };
-const isStreamDeviceId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
 function getStreamSources() {
   return settings?.streams?.sources || [];
 }
 function findStreamSource(deviceId) {
-  return getStreamSources().find((s) => STREAM_PREFIX + s.id === deviceId);
+  return getStreamSources().find((s) => streamDeviceId(s) === deviceId);
 }
 // Access tokens (Cloud Emulator PATs) are stored encrypted with the OS keychain via
 // safeStorage ("enc:<base64>") and never sent to a renderer; the UI only sees `hasToken`.
@@ -131,11 +129,17 @@ function trySealToken(token) {
   }
   return null;
 }
+// Decrypting hits the OS keychain, so remember results (keyed by the sealed value) instead of
+// decrypting on every control key press.
+const unsealedTokens = new Map();
 function unsealToken(token) {
   if (!token) return "";
   if (!token.startsWith("enc:")) return token;
+  if (unsealedTokens.has(token)) return unsealedTokens.get(token);
   try {
-    return safeStorage.decryptString(Buffer.from(token.slice(4), "base64"));
+    const plain = safeStorage.decryptString(Buffer.from(token.slice(4), "base64"));
+    unsealedTokens.set(token, plain);
+    return plain;
   } catch {
     return "";
   }
@@ -184,7 +188,7 @@ function syncManagedControls() {
       p.controlDeviceId = "";
       getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: "" });
     }
-    const src = sources.find((x) => STREAM_PREFIX + x.id === p.captureDeviceId);
+    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId);
     // A stream's control is built in and can't be changed, so keep its pair locked to it.
     if (src && p.controlDeviceId !== streamControlId(src)) {
       p.controlDeviceId = streamControlId(src);
@@ -212,7 +216,7 @@ function broadcastControlList() {
 
 function getAllSources() {
   const streams = getStreamSources().map((s) => ({
-    deviceId: STREAM_PREFIX + s.id,
+    deviceId: streamDeviceId(s),
     label: s.name,
     kind: "stream",
     streamType: s.type,
@@ -338,7 +342,7 @@ function pairWindowTitle(pair) {
   const cap = getAllSources().find((d) => d.deviceId === pair.captureDeviceId);
   const capName = cap?.label || "Display Window";
   // A stream's control is built in (same name), so just label the stream with its kind.
-  if (cap?.kind === "stream") return `${capName} (${STREAM_KIND_LABELS[cap.streamType] || "Stream"})`;
+  if (cap?.kind === "stream") return streamLabel(cap);
   const ctl = pair.controlDeviceId
     ? settings.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
     : null;
@@ -362,8 +366,9 @@ function rebuildMenus() {
   updateWindowTitles();
   if (!mainWindow) return;
   const active = getActiveWindow();
+  const sources = getAllSources();
   if (isMacOS) {
-    createMacOSMenu(mainWindow, active, packageInfo, settings, getAllSources());
+    createMacOSMenu(mainWindow, active, packageInfo, settings, sources);
   }
   const tray = getTray();
   if (tray) {
@@ -371,7 +376,7 @@ function rebuildMenus() {
       mainWindow,
       active,
       packageInfo,
-      getAllSources(),
+      sources,
       settings,
       isActiveRecording(),
       switchControlDevice
@@ -1229,8 +1234,10 @@ app.whenReady().then(async () => {
           });
         }
       });
+      const listChanged = JSON.stringify(settings.control.deviceList) !== JSON.stringify(arg.payload);
       settings.control.deviceList = arg.payload;
-      rebuildMenus(); // aliases may have changed (window titles, Linked Device labels)
+      // Aliases may have changed (window titles, Linked Device labels); skip when it's a resend.
+      if (listChanged) rebuildMenus();
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
     } else if (arg.type && arg.type === "set-stream-sources") {
       // The stream-source catalog is global. Drop pairs bound to a deleted source.
@@ -1277,7 +1284,7 @@ app.whenReady().then(async () => {
           : existing.get(src.id)?.token || "",
       }));
       settings.streams = { ...(settings.streams || {}), sources };
-      const remaining = new Set(payload.map((src) => STREAM_PREFIX + src.id));
+      const remaining = new Set(payload.map(streamDeviceId));
       const removed = (settings.pairs || []).filter(
         (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
       );
@@ -1425,7 +1432,7 @@ app.whenReady().then(async () => {
     queue.pending++;
     const result = queue.tail.then(async () => {
       try {
-        await streamSignaling.sendControlKey(withSecret(getStreamSources().find((s) => s.id === sourceId) || source), key, mod);
+        await streamSignaling.sendControlKey(withSecret(source), key, mod);
         return { ok: true };
       } catch (error) {
         return { ok: false, message: error.message };
