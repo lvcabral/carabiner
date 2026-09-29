@@ -99,7 +99,7 @@ brew upgrade --cask carabiner
 
 ## Cloud Emulator Token & Keychain Prompt
 
-If you use a Roku Cloud Emulator stream, Carabiner stores its access token in your operating system's secure storage. On **macOS** you will be asked for your login (Keychain) password the first time — choose **Always Allow** to avoid repeated prompts. On **Linux**, make sure a keyring service (GNOME Keyring or KWallet) is running and unlocked. See [Add WebRTC Streams](./usage-guide.md#2-add-webrtc-streams-optional) for details.
+If you use a Roku Cloud Emulator stream, Carabiner stores its access token in your operating system's secure storage. On **macOS** you may be asked for your login (Keychain) password — typically the first time after installing or upgrading — to allow access to the *Carabiner Safe Storage* item; choose **Always Allow** to avoid repeated prompts. On **Linux**, make sure a keyring service (GNOME Keyring or KWallet) is running and unlocked. See [Add WebRTC Streams](./usage-guide.md#2-add-webrtc-streams-optional) for details.
 
 ## Important Security Notes
 
