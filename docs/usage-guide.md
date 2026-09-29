@@ -40,6 +40,9 @@ Instead of (or besides) a capture card, a window can show a **WebRTC stream**. O
 Registered streams then show in the **General** tab grid (with a cloud icon) alongside your capture cards, and are enabled and linked to a control device the same way. A stream window shows a *Connecting to stream...* animation while it loads and reconnects automatically if the stream drops.
 
 > [!NOTE]
+> **Password prompt (Cloud Emulator token):** to store the access token securely, Carabiner uses your operating system's secure storage. The first time you save (or use) a Cloud Emulator source, **macOS asks for your login (Keychain) password** to allow access to the *Carabiner Safe Storage* item — enter it and choose **Always Allow** so you aren't asked again. On Windows the token is protected with your user account and no prompt appears. On Linux a keyring service (GNOME Keyring or KWallet) must be available and unlocked; without one the token may be stored without encryption. If you decline the macOS prompt, the token can't be saved or read and the Cloud Emulator stream won't connect — re-enter the token and allow access. BrightScript Simulator sources have no credentials and never trigger this prompt.
+
+> [!NOTE]
 > Stream windows are controlled through a linked control device (for example the Roku ECP address of the simulator or cloud device); the stream itself only carries video and audio.
 
 ### 3. Choose a Window Mode
@@ -133,7 +136,7 @@ Record your streaming device sessions (in MP4/WebM) for documentation, tutorials
 **Recording Features:**
 
 - **High Quality**: Records at 2.5 Mbps for crisp video quality (WebRTC streams record at 720p or 1080p, following the window's *Recording Resolution*, at 3.5 / 6 Mbps; the recording keeps a fixed size even if the stream's own quality changes mid-recording)
-- **Multiple Formats**: Supports MP4 (H.264) and WebM formats automatically
+- **Multiple Formats**: Records in MP4 (H.264) or WebM (VP9/VP8) — choose your preference under **Files → Video Recording Format** (default MP4; if the preferred format isn't supported, Carabiner falls back to the other one). The save dialog only offers the format the recording actually uses, so the file extension always matches its content
 - **Visual Indicator**: Red pulsing indicator shows when recording is active
 - **Auto-Naming**: Files are automatically named with timestamp (e.g., `carabiner-recording-2025-07-01-143052.mp4`)
 - **Smart Saving**: Choose save location through system dialog
@@ -212,7 +215,12 @@ The **Files** tab in settings allows you to configure default save locations for
    - Use the "⋯" button to browse and select a folder
    - Use the "↺" button to reset to default location
 
-3. **Path Management**:
+3. **Video Recording Format**:
+   - Choose **MP4 (H.264)** (default, best compatibility) or **WebM (VP9/VP8)** in the *Video Recording Format* dropdown
+   - The choice applies to new recordings and is remembered between sessions
+   - Screenshots are saved as PNG or JPEG depending on the extension you pick in the save dialog
+
+4. **Path Management**:
    - Both paths are optional - leaving them empty uses system defaults
    - Custom paths are remembered between application sessions
    - Folders must be accessible and writable for successful saves

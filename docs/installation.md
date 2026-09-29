@@ -97,6 +97,10 @@ brew upgrade --cask carabiner
    - **Red Hat/Fedora**: `sudo rpm -i carabiner_*.rpm`
 3. Launch Carabiner from your applications menu
 
+## Cloud Emulator Token & Keychain Prompt
+
+If you use a Roku Cloud Emulator stream, Carabiner stores its access token in your operating system's secure storage. On **macOS** you will be asked for your login (Keychain) password the first time — choose **Always Allow** to avoid repeated prompts. On **Linux**, make sure a keyring service (GNOME Keyring or KWallet) is running and unlocked. See [Add WebRTC Streams](./usage-guide.md#2-add-webrtc-streams-optional) for details.
+
 ## Important Security Notes
 
 - **⚠️ Platform Security**: On Windows and Linux, you may need to approve the app in your security settings. Only macOS builds are currently code-signed.
