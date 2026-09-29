@@ -422,7 +422,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
                   <Form.Control size="sm" as="select" value={selectedDevice} onChange={handleDeviceSelect}>
-                    <option value="">Select a device to delete</option>
+                    <option value="">Select a device to rename or delete</option>
                     {streamingDevices.filter((device) => !device.managedBy).map((device, index) => (
                       <option key={index} value={device.id}>
                         {device.type}: {device.alias ? device.alias + " - " : ""}
@@ -443,7 +443,13 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                   >
                     &#x270E;
                   </Button>
-                  <Button size="sm" title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
+                  <Button
+                    size="sm"
+                    title="Delete Device"
+                    variant="primary"
+                    onClick={handleDeleteDevice}
+                    disabled={!selectedDevice}
+                  >
                     &#x232B;
                   </Button>
                 </Col>

@@ -346,7 +346,7 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                     value={selected}
                     onChange={(e) => setSelected(e.target.value)}
                   >
-                    <option value="">Select a source to delete (also removes its control)</option>
+                    <option value="">Select a source to rename or delete (delete also removes its control)</option>
                     {sources.map((src) => (
                       <option key={src.id} value={src.id}>
                         {describeSource(src)}
@@ -365,7 +365,13 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                   >
                     &#x270E;
                   </Button>
-                  <Button size="sm" title="Delete Stream Source" variant="primary" onClick={handleDelete}>
+                  <Button
+                    size="sm"
+                    title="Delete Stream Source"
+                    variant="primary"
+                    onClick={handleDelete}
+                    disabled={!selected}
+                  >
                     &#x232B;
                   </Button>
                 </Col>
