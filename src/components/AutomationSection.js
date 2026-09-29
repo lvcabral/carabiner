@@ -7,6 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { pairLabel } from "./pairLabel";
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Form, Badge, Alert } from "react-bootstrap";
 
@@ -100,16 +101,7 @@ function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [
     ? scripts.filter((s) => s.controlType === selectedProtocol)
     : [];
 
-  const pairLabel = (pair) => {
-    const cap =
-      captureDevices.find((d) => d.deviceId === pair.captureDeviceId) ||
-      streamSources
-        .map((src) => ({ deviceId: `stream:${src.id}`, label: src.name }))
-        .find((d) => d.deviceId === pair.captureDeviceId);
-    const capName = cap?.label || pair.captureDeviceId || "Capture device";
-    const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
-    return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;
-  };
+  const labelFor = (pair) => pairLabel(pair, { captureDevices, streamSources, streamingDevices });
 
   // Follow the active window when it changes elsewhere.
   useEffect(() => {
@@ -300,7 +292,7 @@ function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [
           ) : (
             visiblePairs.map((pair) => (
               <option key={pair.id} value={pair.id}>
-                {pairLabel(pair)}
+                {labelFor(pair)}
               </option>
             ))
           )}

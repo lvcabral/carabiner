@@ -7,6 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { pairLabel } from "./pairLabel";
 import { useEffect, useState, useRef } from "react";
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
@@ -64,16 +65,7 @@ function DisplaySection({
   const visiblePairs = pairs.filter((p) => p.visible !== false);
 
   // Label for the "Editing Window" selector: capture card name + linked control (if any).
-  const pairLabel = (pair) => {
-    const cap =
-      captureDevices.find((d) => d.deviceId === pair.captureDeviceId) ||
-      streamSources
-        .map((src) => ({ deviceId: `stream:${src.id}`, label: src.name }))
-        .find((d) => d.deviceId === pair.captureDeviceId);
-    const capName = cap?.label || pair.captureDeviceId || "Capture device";
-    const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
-    return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;
-  };
+  const labelFor = (pair) => pairLabel(pair, { captureDevices, streamSources, streamingDevices });
 
   // The pair whose appearance is being edited (defaults to / follows the active window).
   const selectedPair =
@@ -284,7 +276,7 @@ function DisplaySection({
               >
                 {visiblePairs.map((pair) => (
                   <option key={pair.id} value={pair.id}>
-                    {pairLabel(pair)}
+                    {labelFor(pair)}
                   </option>
                 ))}
               </Form.Control>

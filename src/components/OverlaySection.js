@@ -7,6 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { pairLabel } from "./pairLabel";
 import { useState, useEffect } from "react";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
@@ -43,16 +44,7 @@ function OverlaySection({ pairs = [], activePairId = "", onPairsChange, streamin
   const opacity = typeof selectedPair?.overlayOpacity === "number" ? selectedPair.overlayOpacity : 0;
 
   // Label for the "Display Window" selector: capture card name + linked control (if any).
-  const pairLabel = (pair) => {
-    const cap =
-      captureDevices.find((d) => d.deviceId === pair.captureDeviceId) ||
-      streamSources
-        .map((src) => ({ deviceId: `stream:${src.id}`, label: src.name }))
-        .find((d) => d.deviceId === pair.captureDeviceId);
-    const capName = cap?.label || pair.captureDeviceId || "Capture device";
-    const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
-    return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;
-  };
+  const labelFor = (pair) => pairLabel(pair, { captureDevices, streamSources, streamingDevices });
 
   // Follow the active window when the user focuses a different Display window.
   useEffect(() => {
@@ -303,7 +295,7 @@ function OverlaySection({ pairs = [], activePairId = "", onPairsChange, streamin
                 >
                   {visiblePairs.map((pair) => (
                     <option key={pair.id} value={pair.id}>
-                      {pairLabel(pair)}
+                      {labelFor(pair)}
                     </option>
                   ))}
                 </Form.Control>
