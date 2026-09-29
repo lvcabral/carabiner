@@ -7,7 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "react-bootstrap/Card";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
@@ -49,6 +49,16 @@ function StreamsSection({ sources = [], onUpdateSources }) {
     setErrorMessage(msg);
     setTimeout(() => setErrorMessage(""), 3000);
   };
+
+  // Main asks before storing an access token unencrypted (no secure storage available); if the
+  // user declines, the change is discarded and this window reverts to the saved list.
+  useEffect(() => {
+    electronAPI.onMessageReceived("stream-sources-rejected", () => {
+      setNotice("");
+      showError("Not saved: the access token can't be stored securely on this computer.");
+    });
+    return () => electronAPI.removeListener("stream-sources-rejected");
+  }, []);
 
   const isValidPort = (value) => {
     const n = Number(value);

@@ -492,7 +492,17 @@ let streamPc = null;
 let stopRecordingHandler = null;
 let streamSessionActive = false;
 
+// Bumped whenever the peer is closed, so callbacks of a superseded negotiation can tell they are
+// stale and must not close/fail the session that replaced them.
+let streamAttempt = 0;
+let abortStreamNegotiation = null;
+
 function closeStreamPeer() {
+  streamAttempt++;
+  // Settle (and stop the 20s timer of) any negotiation still in flight instead of leaving it
+  // pending, where its timeout would later fire against the newer session.
+  abortStreamNegotiation?.();
+  abortStreamNegotiation = null;
   if (streamPc) {
     streamPc.onconnectionstatechange = null;
     streamPc.ontrack = null;
@@ -529,6 +539,7 @@ function handleStreamLost() {
 async function acquireWebRtcStream(deviceId) {
   closeStreamPeer();
   streamSessionActive = true;
+  const attempt = streamAttempt;
   return new Promise((resolve, reject) => {
     let settled = false;
     let remoteSet = false;
@@ -540,10 +551,17 @@ async function acquireWebRtcStream(deviceId) {
       fn(value);
     };
     const fail = (message, noRetry = false) => {
+      if (attempt !== streamAttempt) return; // superseded: not ours to fail or close
       const err = new Error(message);
       err.name = "StreamError";
       err.noRetry = noRetry;
+      done(reject, err);
       closeStreamPeer();
+    };
+    // Called by closeStreamPeer() when this negotiation is torn down or replaced.
+    abortStreamNegotiation = () => {
+      const err = new Error("Stream negotiation superseded");
+      err.name = "StreamSuperseded";
       done(reject, err);
     };
     let timer;
@@ -749,6 +767,13 @@ function renderDisplay(constraints, isBlankRetry = false) {
       }, 3000);
     })
     .catch((err) => {
+      // A newer renderDisplay()/stopVideoStream() superseded this attempt (e.g. a stream still
+      // negotiating when the window restarted it): its failure is stale and must not touch the
+      // state, retry loop or peer connection of the attempt that replaced it.
+      if (myGeneration !== streamGeneration) {
+        window.electronAPI.log("debug", `[Carabiner] Ignoring stale acquisition failure: ${err.message}`);
+        return;
+      }
       console.error(`[Carabiner] Stream acquisition failed: ${err.name} - ${err.message}`);
       videoState = "stopped";
       if (isStreamId(deviceId)) closeStreamPeer();

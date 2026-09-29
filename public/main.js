@@ -115,16 +115,21 @@ function findStreamSource(deviceId) {
 }
 // Access tokens (Cloud Emulator PATs) are stored encrypted with the OS keychain via
 // safeStorage ("enc:<base64>") and never sent to a renderer; the UI only sees `hasToken`.
-function sealToken(token) {
-  if (!token) return "";
+// Returns the encrypted form, or null when secure storage can't be used (e.g. Linux without a
+// keyring, or access denied). Callers must get the user's consent before storing a token as
+// plain text instead — see the set-stream-sources handler.
+function trySealToken(token) {
   try {
-    if (safeStorage.isEncryptionAvailable()) {
+    const weakBackend =
+      typeof safeStorage.getSelectedStorageBackend === "function" &&
+      safeStorage.getSelectedStorageBackend() === "basic_text";
+    if (safeStorage.isEncryptionAvailable() && !weakBackend) {
       return "enc:" + safeStorage.encryptString(token).toString("base64");
     }
   } catch (error) {
-    log.warn("[streams] token encryption unavailable, storing as plain text:", error.message);
+    log.warn("[streams] token encryption unavailable:", error.message);
   }
-  return token;
+  return null;
 }
 function unsealToken(token) {
   if (!token) return "";
@@ -1230,12 +1235,49 @@ app.whenReady().then(async () => {
     } else if (arg.type && arg.type === "set-stream-sources") {
       // The stream-source catalog is global. Drop pairs bound to a deleted source.
       const existing = new Map(getStreamSources().map((src) => [src.id, src]));
-      const sources = arg.payload.map(({ hasToken, ...src }) => ({
+      // Encrypt any newly entered token. If secure storage isn't available, storing it as plain
+      // text needs the user's explicit consent (remembered once given).
+      const sealed = new Map();
+      let needsPlainText = false;
+      let payload = arg.payload;
+      for (const src of payload) {
+        if (!src.token) continue;
+        const enc = trySealToken(src.token);
+        if (enc) sealed.set(src.id, enc);
+        else needsPlainText = true;
+      }
+      if (needsPlainText && !settings.streams?.allowPlainTextTokens) {
+        const choice = dialog.showMessageBoxSync(mainWindow || undefined, {
+          type: "warning",
+          title: "Secure storage unavailable",
+          message: "The access token can't be stored securely.",
+          detail:
+            "Secure storage (the system keychain / keyring) is not available on this computer, so the " +
+            "Cloud Emulator access token cannot be encrypted. Do you want to store it unencrypted in " +
+            "Carabiner's settings file? Anyone who can read your user files would be able to use it. " +
+            "You can revoke the token at any time in the Roku Cloud Emulator portal.",
+          buttons: ["Don't Save", "Save Unencrypted"],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        });
+        if (choice !== 1) {
+          // Declined: discard the change and tell the settings window to revert to what is saved.
+          // (Downstream then just re-applies the saved catalog, which is a no-op.)
+          payload = getStreamSources().map(publicSource);
+          mainWindow?.webContents?.send("stream-sources-rejected");
+        } else {
+          settings.streams = { ...(settings.streams || {}), allowPlainTextTokens: true };
+        }
+      }
+      const sources = payload.map(({ hasToken, ...src }) => ({
         ...src,
-        token: src.token ? sealToken(src.token) : existing.get(src.id)?.token || "",
+        token: src.token
+          ? sealed.get(src.id) || src.token
+          : existing.get(src.id)?.token || "",
       }));
       settings.streams = { ...(settings.streams || {}), sources };
-      const remaining = new Set(arg.payload.map((src) => STREAM_PREFIX + src.id));
+      const remaining = new Set(payload.map((src) => STREAM_PREFIX + src.id));
       const removed = (settings.pairs || []).filter(
         (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
       );
@@ -1366,16 +1408,33 @@ app.whenReady().then(async () => {
   });
   // Keys for a stream's built-in control (see syncManagedControls); sent from main because a
   // Cloud Emulator needs its authenticated Device API and the token never reaches a renderer.
-  ipcMain.handle("send-stream-key", async (_e, controlIp, key, mod) => {
+  // Keys are sent strictly in order per source (a key-up must never overtake its key-down, and a
+  // cold Cloud Emulator lookup is then done once). The backlog is capped so an unreachable
+  // device can't build an ever-growing queue of pending requests.
+  const MAX_PENDING_STREAM_KEYS = 20;
+  const streamKeyQueues = new Map(); // source id -> { tail: Promise, pending: number }
+  ipcMain.handle("send-stream-key", (_e, controlIp, key, mod) => {
     const sourceId = String(controlIp || "").slice(STREAM_CONTROL_PREFIX.length);
     const source = getStreamSources().find((src) => src.id === sourceId);
     if (!source) return { ok: false, message: "Stream source not found" };
-    try {
-      await streamSignaling.sendControlKey(withSecret(source), key, mod);
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, message: error.message };
+    const queue = streamKeyQueues.get(sourceId) || { tail: Promise.resolve(), pending: 0 };
+    streamKeyQueues.set(sourceId, queue);
+    if (queue.pending >= MAX_PENDING_STREAM_KEYS) {
+      return { ok: false, message: "The device is not responding" };
     }
+    queue.pending++;
+    const result = queue.tail.then(async () => {
+      try {
+        await streamSignaling.sendControlKey(withSecret(getStreamSources().find((s) => s.id === sourceId) || source), key, mod);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, message: error.message };
+      } finally {
+        queue.pending--;
+      }
+    });
+    queue.tail = result;
+    return result;
   });
   ipcMain.on("stream-signal-out", (event, msg) => {
     const pairId = senderToPair.get(event.sender.id);

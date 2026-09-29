@@ -20,6 +20,8 @@ const WebSocket = require("ws");
 
 const SIM_DEFAULT_PORT = 8090;
 const RCE_DEFAULT_API = "https://api.rce.roku.com/api/v1";
+const KEY_REQUEST_TIMEOUT = 4000;
+const API_REQUEST_TIMEOUT = 10000;
 const RCE_KEEPALIVE_MS = 25000; // Janus sessions time out at 60s
 const RCE_NEGOTIATION_TIMEOUT = 20000;
 const RCE_PENDING_POLL_MS = 5000;
@@ -101,6 +103,7 @@ function rceApiBase(source) {
 async function rceGet(source, path) {
   const res = await fetch(rceApiBase(source) + path, {
     headers: { Authorization: `Bearer ${source.token}`, Accept: "application/json" },
+    signal: AbortSignal.timeout(API_REQUEST_TIMEOUT),
   });
   if (res.status === 401 || res.status === 403) throw new Error("Cloud Emulator token was rejected");
   if (!res.ok) throw new Error(`Cloud Emulator API error (HTTP ${res.status})`);
@@ -360,7 +363,8 @@ async function resolveRceInstanceBase(source, force = false) {
 }
 
 async function postKey(url, headers) {
-  const res = await fetch(url, { method: "POST", headers });
+  // Bounded so an unreachable host can't leave every key press hanging on the OS TCP timeout.
+  const res = await fetch(url, { method: "POST", headers, signal: AbortSignal.timeout(KEY_REQUEST_TIMEOUT) });
   if (res.status === 401 || res.status === 403) throw Object.assign(new Error("Cloud Emulator token was rejected"), { auth: true });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
