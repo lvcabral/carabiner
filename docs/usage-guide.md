@@ -42,8 +42,8 @@ Registered streams then show in the **General** tab grid (with a cloud icon) alo
 > [!NOTE]
 > **macOS Keychain password prompt:** Carabiner stores the Roku Cloud Emulator access token encrypted with your operating system's secure storage (on macOS, the *Carabiner Safe Storage* item in your Keychain). macOS may therefore ask for your **login (Keychain) password** to let Carabiner read or save that item — this typically happens the first time after installing or upgrading to a new version, because macOS asks again for each new build of the app. Enter your password and choose **Always Allow** so you aren't asked again. If you click *Deny*, the token can't be read or saved and the Cloud Emulator stream won't connect; re-enter the token in the **Streams** tab and allow access. On Windows the token is protected with your user account (no prompt). On Linux a keyring service (GNOME Keyring or KWallet) must be running and unlocked, otherwise the token may be stored without encryption. BrightScript Simulator sources have no credentials and are not affected.
 
-> [!NOTE]
-> Stream windows are controlled through a linked control device (for example the Roku ECP address of the simulator or cloud device); the stream itself only carries video and audio.
+> [!TIP]
+> **Built-in control:** every stream comes with its own control device, created automatically when you add the stream — there is nothing to add in the **Control** tab and nothing to link. In the **General** tab the stream's *Control Device* is preset to **Built-in control (automatic)**; keys, text, screenshots and automation scripts work right away. For a **Cloud Emulator** the keys are sent through the Cloud Emulator's authenticated Device API using the same access token as the stream, so no developer-mode ECP setup is needed on the emulated device; for the **BrightScript Simulator** they are sent to its ECP port (make sure ECP is enabled in the simulator). The built-in control is removed together with the stream. If you prefer, you can still pick another control device (or none) for a stream in the General tab.
 
 ### 3. Choose a Window Mode
 

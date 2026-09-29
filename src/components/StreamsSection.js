@@ -40,6 +40,7 @@ function StreamsSection({ sources = [], onUpdateSources }) {
   const [selected, setSelected] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [testStatus, setTestStatus] = useState("");
+  const [notice, setNotice] = useState("");
 
   const showError = (msg) => {
     setErrorMessage(msg);
@@ -84,7 +85,8 @@ function StreamsSection({ sources = [], onUpdateSources }) {
     }
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
+    setNotice("");
     if (isRce) {
       if (!token.trim() || !rceDeviceId) {
         showError("Enter your access token, load the devices and pick one.");
@@ -96,6 +98,7 @@ function StreamsSection({ sources = [], onUpdateSources }) {
         return;
       }
       onUpdateSources([...sources, rceSource]);
+      setNotice(`"${rceSource.name}" added. Its control is set up automatically.`);
       setName("");
       setToken("");
       setRceDevices([]);
@@ -117,7 +120,21 @@ function StreamsSection({ sources = [], onUpdateSources }) {
       showError("This stream source already exists.");
       return;
     }
+    // The simulator's ECP port is reported by its remote screen; fall back to the default.
+    let warning = "";
+    try {
+      const probe = await electronAPI.invoke("test-stream-source", source);
+      if (probe?.ok && probe.config?.ecpPort) source.ecpPort = Number(probe.config.ecpPort);
+      if (probe?.ok && probe.config?.ecpEnabled === false) {
+        warning = " Note: ECP is disabled in the simulator, so keys will not work until you enable it.";
+      } else if (!probe?.ok) {
+        warning = " Note: the simulator could not be reached; the default ECP port 8060 is assumed.";
+      }
+    } catch {
+      warning = " Note: the simulator could not be reached; the default ECP port 8060 is assumed.";
+    }
     onUpdateSources([...sources, source]);
+    setNotice(`"${source.name}" added. Its control is set up automatically.${warning}`);
     setName("");
     setHost("");
     setPort(SIM_DEFAULT_PORT);
@@ -311,7 +328,7 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                     value={selected}
                     onChange={(e) => setSelected(e.target.value)}
                   >
-                    <option value="">Select a source to delete</option>
+                    <option value="">Select a source to delete (also removes its control)</option>
                     {sources.map((src) => (
                       <option key={src.id} value={src.id}>
                         {describeSource(src)}
@@ -326,8 +343,13 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                 </Col>
               </Row>
             </Form.Group>
+            {notice && (
+              <div style={{ fontSize: "0.75rem", color: "#198754", marginBottom: "8px" }}>{notice}</div>
+            )}
             <p className="text-muted small mb-0">
-              Enable a stream source and link a control device on the General tab. Enable the
+              Every stream comes with its own built-in control, so there is nothing to set up in the
+              Control tab: keys are sent to the stream&apos;s device using the same connection details.
+              Just enable the stream on the General tab. Enable the
               remote screen (WebRTC) in BrightScript Simulator first, or create a personal access token in the
               Roku Cloud Emulator portal for Cloud Emulator devices.
             </p>

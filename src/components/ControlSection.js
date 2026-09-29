@@ -405,7 +405,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                 <Col className="d-flex align-items-center flex-grow-1">
                   <Form.Control size="sm" as="select" value={selectedDevice} onChange={handleDeviceSelect}>
                     <option value="">Select a device to delete</option>
-                    {streamingDevices.map((device, index) => (
+                    {streamingDevices.filter((device) => !device.managedBy).map((device, index) => (
                       <option key={index} value={device.id}>
                         {device.type}: {device.alias ? device.alias + " - " : ""}
                         {device.ipAddress}

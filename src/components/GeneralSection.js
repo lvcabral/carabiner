@@ -37,6 +37,7 @@ function GeneralSection({
       deviceId: `stream:${src.id}`,
       label: src.name,
       isStream: true,
+      controlId: src.controlId || "",
     })),
   ];
 
@@ -148,13 +149,21 @@ function GeneralSection({
   const setPairForDevice = (deviceId, patch) => {
     const list = pairsRef.current;
     const existing = list.find((p) => p.captureDeviceId === deviceId);
+    // A stream comes with its own control device, linked automatically the first time.
+    const autoControl = streamSources.find((src) => `stream:${src.id}` === deviceId)?.controlId || "";
     let next;
     if (existing) {
       next = list.map((p) => (p.captureDeviceId === deviceId ? { ...p, ...patch } : p));
     } else {
       next = [
         ...list,
-        { id: deviceId, captureDeviceId: deviceId, controlDeviceId: "", visible: false, ...patch },
+        {
+          id: deviceId,
+          captureDeviceId: deviceId,
+          controlDeviceId: autoControl,
+          visible: false,
+          ...patch,
+        },
       ];
     }
     // Single-window mode: enabling a device is a switch — hide every other window.
@@ -269,13 +278,18 @@ function GeneralSection({
                         as="select"
                         size="sm"
                         style={{ fontSize: "0.75rem" }}
-                        value={pair?.controlDeviceId || ""}
+                        value={pair ? pair.controlDeviceId || "" : device.controlId || ""}
                         onChange={(e) =>
                           setPairForDevice(device.deviceId, { controlDeviceId: e.target.value })
                         }
                       >
+                        {device.isStream && device.controlId && (
+                          <option value={device.controlId}>Built-in control (automatic)</option>
+                        )}
                         <option value="">No control device</option>
-                        {streamingDevices.map((d, i) => (
+                        {streamingDevices
+                          .filter((d) => !d.managedBy)
+                          .map((d, i) => (
                           <option key={i} value={d.id}>
                             {d.type}: {d.alias ? d.alias + " - " : ""}
                             {d.ipAddress}

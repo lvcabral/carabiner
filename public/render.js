@@ -2127,8 +2127,27 @@ async function playScript(steps, scriptControlType) {
   }
 }
 
+// Throttle error toasts so a dead connection doesn't flood the screen while keys keep coming.
+let lastStreamControlToast = 0;
+
+// A stream source's built-in control: main sends the key (authenticated Device API for a Cloud
+// Emulator, plain ECP for the Simulator) so the token never reaches this window.
+async function sendStreamKey(key, mod) {
+  try {
+    const result = await window.electronAPI.invoke("send-stream-key", controlIp, key, mod);
+    if (!result?.ok && Date.now() - lastStreamControlToast > 5000) {
+      lastStreamControlToast = Date.now();
+      showToast(`Control failed: ${result?.message || "unknown error"}`, 4000, true);
+    }
+  } catch (e) {
+    console.error("Error sending stream control key: ", e.message);
+  }
+}
+
 function sendKey(key, mod) {
-  if (isValidIP(controlIp) && controlType === "ecp") {
+  if (controlType === "ecp" && controlIp.startsWith("streamctl:")) {
+    sendStreamKey(key, mod);
+  } else if (isValidIP(controlIp) && controlType === "ecp") {
     sendEcpKey(controlIp, key, mod);
   } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
     window.electronAPI.sendSync("shared-window-channel", {

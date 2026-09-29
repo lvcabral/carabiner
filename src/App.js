@@ -39,6 +39,11 @@ function App() {
         setStreamingDevices(data.deviceList);
       }
     });
+    electronAPI.onMessageReceived("stream-sources-updated", (event, sources) => {
+      if (Array.isArray(sources)) {
+        setStreamSources(sources);
+      }
+    });
     electronAPI.onMessageReceived("pairs-updated", (event, updated) => {
       if (Array.isArray(updated)) {
         setPairs(updated);

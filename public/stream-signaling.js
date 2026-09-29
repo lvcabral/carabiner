@@ -332,6 +332,61 @@ function startRce(source, emit) {
   };
 }
 
+
+// ---- Control (ECP) for stream sources ----------------------------------------------------
+// A stream source doubles as its own control device. The BrightScript Simulator exposes plain
+// ECP on its `ecpPort`; a Cloud Emulator device only accepts keys through its authenticated
+// Device API (`POST {instance}/api/v0/input/keypress|keydown|keyup/{key}` with the same bearer
+// token used for the stream). The instance base URL changes per run, so it is cached briefly
+// and re-resolved when a request fails.
+const INSTANCE_CACHE_MS = 60000;
+const instanceCache = new Map(); // source id -> { base, at }
+
+async function resolveRceInstanceBase(source, force = false) {
+  const cached = instanceCache.get(source.id);
+  if (!force && cached && Date.now() - cached.at < INSTANCE_CACHE_MS) return cached.base;
+  const devices = await rceGet(source, "/devices?items=0");
+  const device = (Array.isArray(devices) ? devices : []).find((d) => String(d.id) === String(source.deviceId));
+  if (!device) throw new Error(`Cloud Emulator device ${source.deviceId} was not found`);
+  const name = device.name || `Device ${device.id}`;
+  if (device.status !== "running") throw new Error(`Device '${name}' is not running`);
+  const rd = pick(device, "running_device", "runningDevice");
+  const uuid = pick(rd, "instance_uuid", "instanceUuid");
+  const base = (pick(rd, "instance_api_url", "instanceApiUrl") ||
+    (uuid ? `https://device.rce.roku.com/instance/${uuid}` : "")).replace(/\/+$/, "");
+  if (!base) throw new Error(`Device '${name}' does not expose a Device API URL`);
+  instanceCache.set(source.id, { base, at: Date.now() });
+  return base;
+}
+
+async function postKey(url, headers) {
+  const res = await fetch(url, { method: "POST", headers });
+  if (res.status === 401 || res.status === 403) throw Object.assign(new Error("Cloud Emulator token was rejected"), { auth: true });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// Send one ECP key. `mod`: -1 = keypress, 0 = keydown, 1 = keyup (same as the Display window).
+async function sendControlKey(source, key, mod = -1) {
+  const command = mod === -1 ? "keypress" : mod === 0 ? "keydown" : "keyup";
+  if (source?.type === "sim") {
+    await postKey(`http://${source.host}:${Number(source.ecpPort) || 8060}/${command}/${key}`);
+    return;
+  }
+  if (source?.type !== "rce") throw new Error("Unsupported stream source type");
+  const headers = { Authorization: `Bearer ${source.token}` };
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const base = await resolveRceInstanceBase(source, attempt > 0);
+      await postKey(`${base}/api/v0/input/${command}/${key}`, headers);
+      return;
+    } catch (err) {
+      instanceCache.delete(source.id);
+      // A rejected token won't get better; anything else (restarted instance, stale URL) gets one retry.
+      if (err.auth || attempt > 0) throw err;
+    }
+  }
+}
+
 const STARTERS = {
   sim: startSimulator,
   rce: startRce,
@@ -402,4 +457,4 @@ function stopAll() {
   for (const id of [...sessions.keys()]) stopSession(id);
 }
 
-module.exports = { listRceDevices, startSession, stopSession, relayFromWindow, testSource, stopAll, SIM_DEFAULT_PORT };
+module.exports = { sendControlKey, listRceDevices, startSession, stopSession, relayFromWindow, testSource, stopAll, SIM_DEFAULT_PORT };

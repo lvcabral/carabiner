@@ -137,6 +137,72 @@ function unsealToken(token) {
 const publicSource = ({ token, ...rest }) => ({ ...rest, hasToken: !!token });
 // Source with its token decrypted, for main-process use only.
 const withSecret = (source) => (source ? { ...source, token: unsealToken(source.token) } : source);
+
+// Every stream source brings its own control device (ECP): keys for a Cloud Emulator go through
+// its authenticated Device API and a Simulator's through its ECP port, both sent from main. The
+// device lives in the control catalog flagged `managedBy: <sourceId>` so it appears in the
+// pickers, but is created/updated/removed together with its stream source instead of by hand.
+const STREAM_CONTROL_PREFIX = "streamctl:";
+const streamControlId = (src) => `${STREAM_CONTROL_PREFIX}${src.id}|ecp`;
+function managedControlFor(src) {
+  return {
+    id: streamControlId(src),
+    ipAddress: src.type === "rce" ? `Cloud Emulator #${src.deviceId}` : `${src.host}:${src.ecpPort || 8060}`,
+    alias: src.name,
+    type: src.type === "rce" ? "Roku Cloud Emulator" : "Roku",
+    linked: "",
+    managedBy: src.id,
+  };
+}
+// Reconcile the managed control devices with the stream-source catalog. Returns whether anything
+// changed. Pairs bound to a removed control are unbound; stream pairs that had no control yet are
+// linked to their newly created one.
+function syncManagedControls() {
+  if (!settings.control) settings.control = { deviceList: [] };
+  const sources = getStreamSources();
+  const wanted = new Map(sources.map((src) => [streamControlId(src), src]));
+  const before = JSON.stringify(settings.control.deviceList || []);
+  const existingIds = new Set((settings.control.deviceList || []).map((d) => d.id));
+  const removedIds = (settings.control.deviceList || [])
+    .filter((d) => d.managedBy && !wanted.has(d.id))
+    .map((d) => d.id);
+  const kept = (settings.control.deviceList || []).filter((d) => !d.managedBy || wanted.has(d.id));
+  const list = kept.filter((d) => !d.managedBy);
+  const managed = [];
+  for (const [id, src] of wanted) {
+    src.controlId = id;
+    managed.push(managedControlFor(src));
+  }
+  settings.control.deviceList = [...list, ...managed];
+  for (const p of settings.pairs || []) {
+    if (removedIds.includes(p.controlDeviceId)) {
+      p.controlDeviceId = "";
+      getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: "" });
+    }
+    const src = sources.find((x) => STREAM_PREFIX + x.id === p.captureDeviceId);
+    if (src && !p.controlDeviceId && !existingIds.has(streamControlId(src))) {
+      p.controlDeviceId = streamControlId(src);
+      getWindow(p.id)?.webContents?.send("shared-window-channel", {
+        type: "set-control-selected",
+        payload: p.controlDeviceId,
+      });
+    }
+  }
+  return before !== JSON.stringify(settings.control.deviceList) || removedIds.length > 0;
+}
+// Tell the settings window and every Display window about the (possibly changed) control catalog.
+function broadcastControlList() {
+  mainWindow?.webContents?.send("update-control-device", { deviceList: settings.control.deviceList });
+  mainWindow?.webContents?.send("stream-sources-updated", getStreamSources().map(publicSource));
+  for (const win of pairWindows.values()) {
+    win?.webContents?.send("shared-window-channel", {
+      type: "set-control-list",
+      payload: settings.control.deviceList,
+    });
+  }
+  mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+}
+
 function getAllSources() {
   const streams = getStreamSources().map((s) => ({
     deviceId: STREAM_PREFIX + s.id,
@@ -907,6 +973,7 @@ app.whenReady().then(async () => {
   }
 
   mainWindow = createMainWindow();
+  syncManagedControls(); // create the controls of stream sources saved by an earlier version
   // Single-window mode (default) keeps only one window; collapse any stray extra-visible
   // pairs before opening so we never open more than one on launch.
   enforceSingleWindowInvariant();
@@ -1131,7 +1198,14 @@ app.whenReady().then(async () => {
       if (pair) pair.border = { ...pair.border, color: arg.payload };
       if (targetWin && !targetWin.isVisible()) targetWin.show();
     } else if (arg.type && arg.type === "set-control-list") {
-      // The device catalog is global. Remove any pair binding to a deleted device.
+      // The device catalog is global. Remove any pair binding to a deleted device. Stream
+      // controls are owned by their source, so keep them even if the sender's list is stale.
+      arg.payload = [
+        ...arg.payload,
+        ...(settings.control.deviceList || []).filter(
+          (d) => d.managedBy && !arg.payload.some((x) => x.id === d.id)
+        ),
+      ];
       const remainingIds = new Set(arg.payload.map((d) => d.id));
       let clearedAny = false;
       (settings.pairs || []).forEach((p) => {
@@ -1164,8 +1238,10 @@ app.whenReady().then(async () => {
       if (removed.length) {
         if (!getPair(activePairId)) activePairId = settings.pairs[0]?.id || "";
         settings.activePairId = activePairId;
-        mainWindow?.webContents?.send("pairs-updated", settings.pairs);
       }
+      // Create/refresh/remove the control device that belongs to each stream source.
+      syncManagedControls();
+      broadcastControlList();
       rebuildMenus();
     } else if (arg.type && arg.type === "set-control-selected") {
       if (pair) {
@@ -1281,6 +1357,19 @@ app.whenReady().then(async () => {
       if (!sender.isDestroyed()) sender.send("stream-signal", msg);
     });
     return { ok: true, name: source.name };
+  });
+  // Keys for a stream's built-in control (see syncManagedControls); sent from main because a
+  // Cloud Emulator needs its authenticated Device API and the token never reaches a renderer.
+  ipcMain.handle("send-stream-key", async (_e, controlIp, key, mod) => {
+    const sourceId = String(controlIp || "").slice(STREAM_CONTROL_PREFIX.length);
+    const source = getStreamSources().find((src) => src.id === sourceId);
+    if (!source) return { ok: false, message: "Stream source not found" };
+    try {
+      await streamSignaling.sendControlKey(withSecret(source), key, mod);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, message: error.message };
+    }
   });
   ipcMain.on("stream-signal-out", (event, msg) => {
     const pairId = senderToPair.get(event.sender.id);
