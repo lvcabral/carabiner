@@ -368,6 +368,43 @@ async function postKey(url, headers) {
   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
 }
 
+// Canonical remote key names (roku-deploy's RemoteKey). The Cloud Emulator's key-input route
+// rejects a wrong-case key with a 422, while the raw ECP proxy accepts any case.
+const REMOTE_KEYS = [
+  "Back", "Backspace", "ChannelDown", "ChannelUp", "Down", "Enter", "FindRemote", "Fwd", "Guide",
+  "Home", "Info", "InputAV1", "InputHDMI1", "InputHDMI2", "InputHDMI3", "InputHDMI4", "InputTuner",
+  "InstantReplay", "Left", "Play", "Power", "PowerOff", "PowerOn", "Rev", "Right", "Search",
+  "Select", "Up", "VolumeDown", "VolumeMute", "VolumeUp",
+];
+const REMOTE_KEY_BY_LOWER = new Map(REMOTE_KEYS.map((k) => [k.toLowerCase(), k]));
+
+function canonicalRemoteKey(key) {
+  if (/^lit_/i.test(key)) return `Lit_${key.slice(4)}`;
+  return REMOTE_KEY_BY_LOWER.get(key.toLowerCase()) ?? key;
+}
+
+// The Display window sends literal characters URL-encoded (`lit_%41`); the Cloud Emulator URL is
+// built from the raw key, which is encoded exactly once.
+function decodeKey(key) {
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
+  }
+}
+
+// Same approach as roku-deploy for a Cloud Emulator: the instance API's key-input route with the
+// canonical key name, falling back to the authenticated raw ECP port proxy when that route rejects
+// the key (for example a key that isn't in the canonical list).
+async function sendRceKey(base, headers, command, rawKey) {
+  try {
+    await postKey(`${base}/api/v0/input/${command}/${encodeURIComponent(canonicalRemoteKey(rawKey))}`, headers);
+  } catch (err) {
+    if (err.auth || err.name === "TimeoutError") throw err;
+    await postKey(`${base}/api/v0/ports/8060/http/${command}/${encodeURIComponent(rawKey)}`, headers);
+  }
+}
+
 // Send one ECP key. `mod`: -1 = keypress, 0 = keydown, 1 = keyup (same as the Display window).
 async function sendControlKey(source, key, mod = -1) {
   const command = mod === -1 ? "keypress" : mod === 0 ? "keydown" : "keyup";
@@ -376,11 +413,14 @@ async function sendControlKey(source, key, mod = -1) {
     return;
   }
   if (source?.type !== "rce") throw new Error("Unsupported stream source type");
-  const headers = { Authorization: `Bearer ${source.token}` };
+  // The instance API sits behind a service mesh that reads the bearer token from X-Authorization
+  // (the standard Authorization header is reserved for the emulated device's own digest auth).
+  const headers = { "X-Authorization": `Bearer ${source.token}` };
+  const rawKey = decodeKey(key);
   for (let attempt = 0; ; attempt++) {
     try {
       const base = await resolveRceInstanceBase(source);
-      await postKey(`${base}/api/v0/input/${command}/${key}`, headers);
+      await sendRceKey(base, headers, command, rawKey);
       return;
     } catch (err) {
       // Only a URL that looks stale (gone, or unreachable) is worth looking up again; a timeout,
