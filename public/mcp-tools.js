@@ -217,7 +217,8 @@ function registerCaptureTools(server, ctx) {
     "list_capture_devices",
     {
       title: "List capture devices",
-      description: "List available HDMI capture cards / video input devices.",
+      description:
+        "List available video sources: HDMI capture cards / video input devices (kind \"capture\") and configured WebRTC stream sources (kind \"stream\"). Use the deviceId returned here with select_capture_device.",
     },
     handler(async () => textResult(ctx.listCaptureDevices()))
   );
@@ -226,7 +227,7 @@ function registerCaptureTools(server, ctx) {
     "select_capture_device",
     {
       title: "Select capture device",
-      description: "Switch the active capture source by its deviceId.",
+      description: "Switch the active capture source (capture card or WebRTC stream) by its deviceId.",
       inputSchema: {
         deviceId: z.string().describe("Capture device id (deviceId from list_capture_devices)."),
       },

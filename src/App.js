@@ -22,11 +22,13 @@ import FilesSection from "./components/FilesSection";
 import AboutSection from "./components/AboutSection";
 import AutomationSection from "./components/AutomationSection";
 import MCPSection from "./components/MCPSection";
+import StreamsSection from "./components/StreamsSection";
 
 const { electronAPI } = window;
 
 function App() {
   const [streamingDevices, setStreamingDevices] = useState([]);
+  const [streamSources, setStreamSources] = useState([]);
   const [pairs, setPairs] = useState([]);
   const [activePairId, setActivePairId] = useState("");
   const onDeletedDeviceRef = useRef(null);
@@ -35,6 +37,11 @@ function App() {
     electronAPI.onMessageReceived("update-control-device", (event, data) => {
       if (data?.deviceList) {
         setStreamingDevices(data.deviceList);
+      }
+    });
+    electronAPI.onMessageReceived("stream-sources-updated", (event, sources) => {
+      if (Array.isArray(sources)) {
+        setStreamSources(sources);
       }
     });
     electronAPI.onMessageReceived("pairs-updated", (event, updated) => {
@@ -54,6 +61,9 @@ function App() {
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.deviceList) {
         handleUpdateStreamingDevices(settings.control.deviceList);
+      }
+      if (Array.isArray(settings.streams?.sources)) {
+        setStreamSources(settings.streams.sources);
       }
       if (Array.isArray(settings.pairs)) {
         setPairs(settings.pairs);
@@ -80,6 +90,16 @@ function App() {
     electronAPI.sendSync("shared-window-channel", {
       type: "set-control-list",
       payload: devices,
+    });
+  };
+
+  // Persist the WebRTC stream-source catalog. Main drops pairs bound to removed sources and
+  // echoes pairs-updated.
+  const handleUpdateStreamSources = (sources) => {
+    setStreamSources(sources);
+    electronAPI.sendSync("shared-window-channel", {
+      type: "set-stream-sources",
+      payload: sources,
     });
   };
 
@@ -111,6 +131,7 @@ function App() {
                 onDeletedDeviceRef={onDeletedDeviceRef}
                 pairs={pairs}
                 onPairsChange={handlePairsChange}
+                streamSources={streamSources}
               />
             </div>
           </Tab>
@@ -121,7 +142,13 @@ function App() {
                 activePairId={activePairId}
                 onPairsChange={handlePairsChange}
                 streamingDevices={streamingDevices}
+                streamSources={streamSources}
               />
+            </div>
+          </Tab>
+          <Tab eventKey="streams" title="Streams">
+            <div className="tab-content-container">
+              <StreamsSection sources={streamSources} onUpdateSources={handleUpdateStreamSources} />
             </div>
           </Tab>
           <Tab eventKey="control" title="Control">
@@ -139,6 +166,7 @@ function App() {
                 pairs={pairs}
                 activePairId={activePairId}
                 streamingDevices={streamingDevices}
+                streamSources={streamSources}
               />
             </div>
           </Tab>
@@ -154,6 +182,7 @@ function App() {
                 activePairId={activePairId}
                 onPairsChange={handlePairsChange}
                 streamingDevices={streamingDevices}
+                streamSources={streamSources}
               />
             </div>
           </Tab>

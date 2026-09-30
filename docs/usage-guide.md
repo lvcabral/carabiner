@@ -6,7 +6,7 @@ This guide will help you get started with Carabiner and make the most of its fea
 
 After installing Carabiner, launch the application to access the settings window. Configure your preferences in the various tabs, then minimize or close the settings window to start using the floating display window(s). Carabiner runs as a **single instance** — launching it again brings the running instance forward (the active window, or the settings window when none is enabled).
 
-Carabiner supports **multiple capture devices at once**: each capture card you enable opens its own floating Display window, linked to its own streaming device. If no capture device is enabled (or none is connected), the settings window always opens at launch so you can configure one.
+Carabiner supports **multiple video sources at once**: each capture card or WebRTC stream you enable opens its own floating Display window, linked to its own streaming device. If no capture device is enabled (or none is connected), the settings window always opens at launch so you can configure one.
 
 ## Device Setup
 
@@ -21,6 +21,7 @@ Carabiner supports **multiple capture devices at once**: each capture card you e
    - For **Roku (ECP)** you can click the **🔍 search** button next to the IP field to discover devices automatically
    - For **Xumo (RDK)** also set the **RDK JSON-RPC** port (default `9998`) and an optional auth **token**; use the **Test** button to verify the connection
 4. Click **+** to register the device
+5. To change a device's name later, select it in the *Streaming Device List*, click **✎** (Rename) and enter the new alias; **⌫** deletes it
 
 > [!NOTE]
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
@@ -30,17 +31,34 @@ Carabiner supports **multiple capture devices at once**: each capture card you e
 > 3. Select **Control by mobile apps**.
 > 4. Set to **Enabled** or **Permissive**.
 
-### 2. Choose a Window Mode
+### 2. Add WebRTC Streams *(optional)*
+
+Instead of (or besides) a capture card, a window can show a **WebRTC stream**. Open the **Streams** tab, pick the **Stream Source Type**, and click **+** to register it:
+
+- **[Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce)** — enter your Cloud Emulator **access token** (a personal access token from the Roku Cloud Emulator portal), click **Load devices** and pick the device to watch. The device must be running; if it is still starting, Carabiner waits for it. *Advanced* lets you override the management API URL. The token is encrypted with your operating system's keychain and is never exposed to the app's windows.
+- **BrightScript Simulator** — enable the *remote screen* (WebRTC) in [BrightScript Simulator](https://github.com/lvcabral/brs-desktop), then enter its **Host/IP** and **Port** (default `8090`). No authentication is needed. Use **Test** to verify it is reachable.
+
+To rename or remove a stream later, select it in the *Stream Source List* and use **✎** (Rename) or **⌫** (Delete); renaming a stream also renames its built-in control.
+
+Registered streams then show in the **General** tab grid (with a cloud icon) alongside your capture cards, and are enabled the same way (their control is linked automatically). A stream window shows a *Connecting to stream...* animation while it loads and reconnects automatically if the stream drops.
+
+> [!NOTE]
+> **macOS Keychain password prompt:** Carabiner stores the Roku Cloud Emulator access token encrypted with your operating system's secure storage (on macOS, the *Carabiner Safe Storage* item in your Keychain). macOS may therefore ask for your **login (Keychain) password** to let Carabiner read or save that item — this typically happens the first time after installing or upgrading to a new version, because macOS asks again for each new build of the app. Enter your password and choose **Always Allow** so you aren't asked again. If you click *Deny*, the token can't be read or saved and the Cloud Emulator stream won't connect; re-enter the token in the **Streams** tab and allow access. On Windows the token is protected with your user account (no prompt). On Linux a keyring service (GNOME Keyring or KWallet) must be running and unlocked, otherwise Carabiner asks for your permission before storing the token unencrypted (if you decline, the stream isn't saved). BrightScript Simulator sources have no credentials and are not affected.
+
+> [!TIP]
+> **Built-in control:** every stream comes with its own control device, created automatically when you add the stream — there is nothing to add in the **Control** tab and nothing to link. In the **General** tab the stream's *Control Device* shows **Built-in control (automatic)** and is locked (it can't be changed, and the *Linked Device* menu item is disabled for stream windows); keys, text, screenshots and automation scripts work right away. For a **Cloud Emulator** the keys are sent to the emulated device's ECP through the Cloud Emulator's authenticated instance API (the same way the [roku-deploy](https://github.com/rokucommunity/roku-deploy) tooling does) using the same access token as the stream, so no developer-mode ECP setup is needed on the emulated device; for the **BrightScript Simulator** they are sent to its ECP port (make sure ECP is enabled in the simulator). The built-in control is removed together with the stream.
+
+### 3. Choose a Window Mode
 
 At the top of the **General** tab, pick how Carabiner shows your capture devices:
 
 - **Single Window** (default) — one floating Display window at a time. Selecting another capture device simply switches that window to it. Best for testing one device at a time.
 - **Multiple Windows** — each enabled capture device gets its own floating window, so you can watch and control several devices side by side.
 
-### 3. Enable & Link Capture Devices
+### 4. Enable & Link Capture Devices and Streams
 
-1. The **General** tab lists every capture card detected on your computer in a grid.
-2. For each capture card you want to use:
+1. The **General** tab lists every capture card detected on your computer — and every WebRTC stream you added (with a cloud icon) — in a grid.
+2. For each capture card or stream you want to use:
    - Pick a **Control Device** from the dropdown to link a streaming device to that capture card.
    - In **Single Window** mode, check **Active** to make that card the one shown (checking another switches to it). In **Multiple Windows** mode, check **Enabled** to open that card's floating Display window.
 3. In Multiple Windows mode, repeat for additional capture cards to run several devices side by side — each gets its own window. (Using the same capture card for two windows isn't supported; some cards only allow a single stream.)
@@ -65,7 +83,7 @@ See the complete [keyboard control mappings](./key-mappings.md) for advanced con
 
 You manage windows from the **menu bar / system tray** menu, the macOS **View** menu, and the right-click context menu. What appears depends on the window mode (set in the General tab):
 
-- **Single Window mode** — the capture devices are listed **directly on the menu** for quick switching: pick one to switch the single window to that capture device (and its linked control).
+- **Single Window mode** — the capture devices and WebRTC streams are listed **directly on the menu** for quick switching: pick one to switch the single window to it (and its linked control). Streams appear as `<name> (RCE)` or `<name> (Simulator)`; capture cards as `<card> → <linked control>`.
 - **Multiple Windows mode** — a **Display Windows** submenu with, per capture device:
   - **Enabled** — open or close that capture device's window (same as the General tab checkbox).
   - **Visible** — show or hide an enabled window without closing it. This is how you bring back a window you previously hid (via the global shortcut or the Close Window command).
@@ -74,11 +92,13 @@ Other tips:
 
 - The **global shortcut** (set in the General tab) shows/hides **all** display windows together.
 - In **Multiple Windows** mode, the **active window** (the one menu/recording/script actions target) is whichever Display window you last focused. A disabled **"Active Window: …"** item at the top of the app/tray menus shows which window that is; window-specific actions are disabled when no window is enabled. This indicator is hidden in **Single Window** mode, where there is only one window.
-- The right-click context menu includes a **Linked Device** submenu to relink the active window's control device on the fly.
-- On macOS, the **Window** menu lists each Display window by its capture card + linked control name.
+- The menus include a **Linked Device** submenu to relink the active window's control device on the fly. Its title shows the currently linked control device; it is disabled for stream windows, which always use their built-in control.
+- On macOS, the **Window** menu lists each Display window by its capture card + linked control name (streams by `<name> (RCE|Simulator)`).
+- Each window can optionally be a **Regular Window** (title bar, native border, resizable) — see [Display Customization](#display-customization).
 
 #### Automatic capture pausing & reconnection
 
+- **WebRTC streams behave the same way.** A stream window shows a *Connecting to stream...* animation (inside the display border) while it connects, disconnects when the window isn't visible, and reconnects automatically if the stream drops.
 - **Capture stops when a window isn't visible.** A Display window only holds its capture device while it's actually on screen. Hiding, minimizing, moving it to another Space, fully covering it with another window, or locking the computer releases the capture device — so the macOS camera/recording indicator turns off and the device is freed (letting the Mac sleep). Capture resumes automatically when the window becomes visible again.
 - **Automatic reconnection after sleep.** When your computer wakes and a capture device (e.g. on a monitor's USB hub) takes a few seconds to come back, the window shows a **"reconnecting"** overlay and keeps retrying for about 30 seconds until the device is ready, then resumes streaming on its own. The "no capture device" image only appears if the device never returns.
 
@@ -120,8 +140,8 @@ Record your streaming device sessions (in MP4/WebM) for documentation, tutorials
 
 **Recording Features:**
 
-- **High Quality**: Records at 2.5 Mbps for crisp video quality
-- **Multiple Formats**: Supports MP4 (H.264) and WebM formats automatically
+- **High Quality**: Records at 2.5 Mbps for crisp video quality (WebRTC streams record at 720p or 1080p, following the window's *Recording Resolution*, at 3.5 / 6 Mbps; the recording keeps a fixed size even if the stream's own quality changes mid-recording)
+- **Multiple Formats**: Records in MP4 (H.264) or WebM (VP9/VP8) — choose your preference under **Files → Video Recording Format** (default MP4; if the preferred format isn't supported, Carabiner falls back to the other one). The save dialog only offers the format the recording actually uses, so the file extension always matches its content
 - **Visual Indicator**: Red pulsing indicator shows when recording is active
 - **Auto-Naming**: Files are automatically named with timestamp (e.g., `carabiner-recording-2025-07-01-143052.mp4`)
 - **Smart Saving**: Choose save location through system dialog
@@ -200,7 +220,12 @@ The **Files** tab in settings allows you to configure default save locations for
    - Use the "⋯" button to browse and select a folder
    - Use the "↺" button to reset to default location
 
-3. **Path Management**:
+3. **Video Recording Format**:
+   - Choose **MP4 (H.264)** (default, best compatibility) or **WebM (VP9/VP8)** in the *Video Recording Format* dropdown
+   - The choice applies to new recordings and is remembered between sessions
+   - Screenshots are saved as PNG or JPEG depending on the extension you pick in the save dialog
+
+4. **Path Management**:
    - Both paths are optional - leaving them empty uses system defaults
    - Custom paths are remembered between application sessions
    - Folders must be accessible and writable for successful saves
@@ -214,16 +239,18 @@ The **Files** tab in settings allows you to configure default save locations for
 These settings are **per window** — pick the window to edit with the **Editing Window** selector at the top of the **Display** tab (it defaults to the active window):
 
 - **Transparency**: Adjust window transparency (0-90%)
-- **Borders**: Add decorative borders to the display
+- **Borders**: Add decorative borders to the display (not available for a regular window)
+- **Regular Window**: Show the window like a normal application window — with a title bar and native border, resizable — instead of the default frameless overlay. Toggling it re-opens the window; the border settings don't apply to a regular window. New windows open 820 pixels wide (16:9) by default
 - **Always on Top**: Keep the display window above all others
 - **Display Size**: Choose from preset resolutions or use custom sizing
-- **Capture Resolution / Audio**: Configure the capture resolution and toggle audio capture for that window
+- **Capture Resolution / Audio**: Configure the capture resolution and toggle audio capture for that window (for a WebRTC stream the setting becomes **Recording Resolution**, limited to 720p/1080p, and audio simply un-mutes the stream)
 
 ### System Integration
 
 - **Global Shortcut**: Set a hotkey for quick show/hide of all display windows
 - **Launch on Login**: Start Carabiner automatically with your system
 - **Settings at Start**: Control whether settings window opens on launch
+- **Closing the last window (Windows/Linux)**: with the tray icon option off, closing the settings window when no Display window is open quits Carabiner, since nothing would be left to bring it back. With the tray icon on, the app keeps running and the tray restores the windows.
 
 ### Android Device Configuration
 

@@ -19,6 +19,7 @@ const {
   systemPreferences,
   globalShortcut,
   powerMonitor,
+  safeStorage,
   screen,
   shell,
 } = require("electron");
@@ -58,6 +59,8 @@ const {
   hideWindowSafely,
 } = require("./menu");
 const { checkForUpdates } = require("./updater");
+const streamSignaling = require("./stream-signaling");
+const { isStreamDeviceId, streamDeviceId, streamLabel } = require("./stream-utils");
 const { startMcpServer, stopMcpServer, isRunning: isMcpRunning, getPort: getMcpPort } = require("./mcp-server");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
@@ -94,10 +97,135 @@ const settings = loadSettings();
 let mainWindow = null; // settings (React) window; hoisted so helpers can reach it
 const pairWindows = new Map(); // pairId -> BrowserWindow
 const pairState = new Map(); // pairId -> { controlIp, controlType }
+// Pairs whose window is being closed only to be re-created (e.g. frameless <-> regular window)
+// and must therefore not be marked hidden by the close handler.
+const recreatingPairs = new Set();
 const senderToPair = new Map(); // webContents.id -> pairId (route renderer → main messages)
 let activePairId = settings.activePairId || settings.pairs?.[0]?.id || "";
 let isQuitting = false;
 let captureDevices;
+
+// WebRTC stream sources are exposed as pseudo capture devices (id "stream:<sourceId>") so a
+// pair binds to one exactly like a capture card and every captureDeviceId-keyed path (windows,
+// menus, MCP) keeps working. Hardware cards come from the renderers' enumeration.
+function getStreamSources() {
+  return settings?.streams?.sources || [];
+}
+function findStreamSource(deviceId) {
+  return getStreamSources().find((s) => streamDeviceId(s) === deviceId);
+}
+// Access tokens (Cloud Emulator PATs) are stored encrypted with the OS keychain via
+// safeStorage ("enc:<base64>") and never sent to a renderer; the UI only sees `hasToken`.
+// Returns the encrypted form, or null when secure storage can't be used (e.g. Linux without a
+// keyring, or access denied). Callers must get the user's consent before storing a token as
+// plain text instead — see the set-stream-sources handler.
+function trySealToken(token) {
+  try {
+    const weakBackend =
+      typeof safeStorage.getSelectedStorageBackend === "function" &&
+      safeStorage.getSelectedStorageBackend() === "basic_text";
+    if (safeStorage.isEncryptionAvailable() && !weakBackend) {
+      return "enc:" + safeStorage.encryptString(token).toString("base64");
+    }
+  } catch (error) {
+    log.warn("[streams] token encryption unavailable:", error.message);
+  }
+  return null;
+}
+// Decrypting hits the OS keychain, so remember results (keyed by the sealed value) instead of
+// decrypting on every control key press.
+const unsealedTokens = new Map();
+function unsealToken(token) {
+  if (!token) return "";
+  if (!token.startsWith("enc:")) return token;
+  if (unsealedTokens.has(token)) return unsealedTokens.get(token);
+  try {
+    const plain = safeStorage.decryptString(Buffer.from(token.slice(4), "base64"));
+    unsealedTokens.set(token, plain);
+    return plain;
+  } catch {
+    return "";
+  }
+}
+const publicSource = ({ token, ...rest }) => ({ ...rest, hasToken: !!token });
+// Source with its token decrypted, for main-process use only.
+const withSecret = (source) => (source ? { ...source, token: unsealToken(source.token) } : source);
+
+// Every stream source brings its own control device (ECP): keys for a Cloud Emulator go through
+// its authenticated Device API and a Simulator's through its ECP port, both sent from main. The
+// device lives in the control catalog flagged `managedBy: <sourceId>` so it appears in the
+// pickers, but is created/updated/removed together with its stream source instead of by hand.
+const STREAM_CONTROL_PREFIX = "streamctl:";
+const streamControlId = (src) => `${STREAM_CONTROL_PREFIX}${src.id}|ecp`;
+function managedControlFor(src) {
+  return {
+    id: streamControlId(src),
+    ipAddress: src.type === "rce" ? `Cloud Emulator #${src.deviceId}` : `${src.host}:${src.ecpPort || 8060}`,
+    alias: src.name,
+    type: src.type === "rce" ? "Roku Cloud Emulator" : "Roku",
+    linked: "",
+    managedBy: src.id,
+  };
+}
+// Reconcile the managed control devices with the stream-source catalog. Returns whether anything
+// changed. Pairs bound to a removed control are unbound; stream pairs are always linked to their
+// source's control.
+function syncManagedControls() {
+  if (!settings.control) settings.control = { deviceList: [] };
+  const sources = getStreamSources();
+  const wanted = new Map(sources.map((src) => [streamControlId(src), src]));
+  const before = JSON.stringify(settings.control.deviceList || []);
+  const removedIds = (settings.control.deviceList || [])
+    .filter((d) => d.managedBy && !wanted.has(d.id))
+    .map((d) => d.id);
+  const kept = (settings.control.deviceList || []).filter((d) => !d.managedBy || wanted.has(d.id));
+  const list = kept.filter((d) => !d.managedBy);
+  const managed = [];
+  for (const [id, src] of wanted) {
+    src.controlId = id;
+    managed.push(managedControlFor(src));
+  }
+  settings.control.deviceList = [...list, ...managed];
+  for (const p of settings.pairs || []) {
+    if (removedIds.includes(p.controlDeviceId)) {
+      p.controlDeviceId = "";
+      getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: "" });
+    }
+    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId);
+    // A stream's control is built in and can't be changed, so keep its pair locked to it.
+    if (src && p.controlDeviceId !== streamControlId(src)) {
+      p.controlDeviceId = streamControlId(src);
+      connectPairControl(p.id);
+      getWindow(p.id)?.webContents?.send("shared-window-channel", {
+        type: "set-control-selected",
+        payload: p.controlDeviceId,
+      });
+    }
+  }
+  return before !== JSON.stringify(settings.control.deviceList) || removedIds.length > 0;
+}
+// Tell the settings window and every Display window about the (possibly changed) control catalog.
+function broadcastControlList() {
+  mainWindow?.webContents?.send("update-control-device", { deviceList: settings.control.deviceList });
+  mainWindow?.webContents?.send("stream-sources-updated", getStreamSources().map(publicSource));
+  for (const win of pairWindows.values()) {
+    win?.webContents?.send("shared-window-channel", {
+      type: "set-control-list",
+      payload: settings.control.deviceList,
+    });
+  }
+  mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+}
+
+function getAllSources() {
+  const streams = getStreamSources().map((s) => ({
+    deviceId: streamDeviceId(s),
+    label: s.name,
+    kind: "stream",
+    streamType: s.type,
+  }));
+  return [...(captureDevices || []), ...streams];
+}
 const recordingPairs = new Set(); // pairIds whose Display window is currently recording video
 let isScriptRecording = false;
 let isScriptPlaying = false;
@@ -214,8 +342,10 @@ function setActivePair(pairId) {
 // Title for a Display window: capture card name + linked control (so the macOS Window
 // menu can tell multiple Display windows apart).
 function pairWindowTitle(pair) {
-  const cap = (captureDevices || []).find((d) => d.deviceId === pair.captureDeviceId);
+  const cap = getAllSources().find((d) => d.deviceId === pair.captureDeviceId);
   const capName = cap?.label || "Display Window";
+  // A stream's control is built in (same name), so just label the stream with its kind.
+  if (cap?.kind === "stream") return streamLabel(cap);
   const ctl = pair.controlDeviceId
     ? settings.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
     : null;
@@ -239,8 +369,9 @@ function rebuildMenus() {
   updateWindowTitles();
   if (!mainWindow) return;
   const active = getActiveWindow();
+  const sources = getAllSources();
   if (isMacOS) {
-    createMacOSMenu(mainWindow, active, packageInfo, settings, captureDevices);
+    createMacOSMenu(mainWindow, active, packageInfo, settings, sources);
   }
   const tray = getTray();
   if (tray) {
@@ -248,7 +379,7 @@ function rebuildMenus() {
       mainWindow,
       active,
       packageInfo,
-      captureDevices,
+      sources,
       settings,
       isActiveRecording(),
       switchControlDevice
@@ -309,6 +440,7 @@ function createWindow(name, options, showOnStart = true) {
     if (name === "mainWindow" && !isQuitting) {
       event.preventDefault();
       win?.hide();
+      quitIfNoWindowsLeft();
     }
   });
 
@@ -320,9 +452,9 @@ function createMainWindow() {
     "mainWindow",
     {
       height: isMacOS ? 620 : 645,
-      width: 700,
+      width: 820,
       minHeight: isMacOS ? 620 : 645,
-      minWidth: 700,
+      minWidth: 820,
       maximizable: false,
       resizable: false,
       autoHideMenuBar: true,
@@ -389,6 +521,22 @@ function disconnectPairControl(pairId, deviceId) {
   }
 }
 
+// Windows/Linux without the tray icon (taskbar mode): once the settings window is closed and no
+// Display window exists, nothing on screen or in the taskbar can bring the app back, so quit
+// instead of lingering invisibly. Tray mode keeps running (the tray restores the windows), and so
+// does an app whose Display windows are merely hidden (the global shortcut shows them again).
+// Deferred a moment so flows that close one window and open another (switching windows,
+// re-creating a window) don't trigger it.
+function quitIfNoWindowsLeft() {
+  if (isMacOS) return;
+  setTimeout(() => {
+    if (isQuitting || settings.display?.showInDock === false || recreatingPairs.size > 0) return;
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) return;
+    if (pairWindows.size > 0) return;
+    app.quit();
+  }, 300);
+}
+
 // True once both the settings window and every Display window are hidden — used on
 // macOS dock mode to hide the whole app.
 function allWindowsHidden() {
@@ -402,17 +550,12 @@ function createDisplayWindow(pair) {
     sizeFromRes = pair.resolution.split("|").map((dim) => parseInt(dim.replace("px", ""), 10) + 15);
   }
 
-  // Windows 11 specific configuration to remove the 1-pixel border
+  const regular = pair.regularWindow === true;
   const windowOptions = {
-    width: sizeFromRes?.[0] ?? 500,
-    height: sizeFromRes?.[1] ?? 290,
+    width: sizeFromRes?.[0] ?? 820,
+    height: sizeFromRes?.[1] ?? 461,
     minWidth: 500,
     minHeight: 290,
-    titleBarStyle: "hidden",
-    transparent: true,
-    darkTheme: false,
-    hasShadow: false,
-    frame: false,
     alwaysOnTop: pair.alwaysOnTop !== false,
     skipTaskbar: false,
     webPreferences: {
@@ -420,10 +563,21 @@ function createDisplayWindow(pair) {
       nodeIntegration: true,
       backgroundThrottling: false,
     },
+    ...(regular
+      ? // Regular window: native title bar, border, shadow and resizing.
+        { title: pairWindowTitle(pair), backgroundColor: "#000000" }
+      : // Frameless transparent overlay (Windows 11: also remove the 1-pixel border, below).
+        {
+          titleBarStyle: "hidden",
+          transparent: true,
+          darkTheme: false,
+          hasShadow: false,
+          frame: false,
+        }),
   };
 
   // Additional Windows-specific options to remove the border completely
-  if (isWindows) {
+  if (isWindows && !regular) {
     windowOptions.thickFrame = false;
     windowOptions.titleBarOverlay = false;
     // Windows 11 specific options
@@ -451,17 +605,63 @@ function createDisplayWindow(pair) {
     show: false, // Always start hidden for Windows 11 fix
   });
 
-  if (isMacOS) win.setWindowButtonVisibility(false);
+  if (isMacOS && !regular) win.setWindowButtonVisibility(false);
   // Pass the pair id to the renderer so it knows which capture/control it owns.
   win.loadFile("public/display.html", { query: { pairId: pair.id } });
   win.setResizable(true);
-  win.setAspectRatio(16 / 9);
+  // A regular window on Windows/Linux would show Electron's default menu bar (which also changes
+  // the frame size); this app has no per-window menu, so remove it BEFORE measuring the frame.
+  if (regular && !isMacOS) win.removeMenu();
+  // Saved bounds may come from the other window style (frameless <-> regular differ by the title
+  // bar / frame and the video inset), so fit the content area back to 16:9 for this style,
+  // keeping the outer width.
+  const [outerWidth] = win.getSize();
+  const [contentWidth0] = win.getContentSize();
+  const frameWidth = regular ? outerWidth - contentWidth0 : 0; // 0 on macOS
+  const contentWidth = outerWidth - frameWidth;
+  win.setContentSize(
+    contentWidth,
+    regular ? Math.round((contentWidth * 9) / 16) : Math.round(((contentWidth - 16) * 9) / 16) + 9
+  );
+  if (regular && isWindows) {
+    // Windows' native aspect-ratio handling does not account for the title bar / frame reliably
+    // (black bars left and right), so keep the CONTENT area 16:9 ourselves while the user drags.
+    win.on("will-resize", (event, newBounds, details) => {
+      const [outerW, outerH] = win.getSize();
+      const [contentW, contentH] = win.getContentSize();
+      const frameW = outerW - contentW;
+      const frameH = outerH - contentH;
+      const edge = details?.edge || "";
+      let w = newBounds.width - frameW;
+      let h = newBounds.height - frameH;
+      // Dragging only the top/bottom edge is height-driven; anything else follows the width.
+      if (/top|bottom/.test(edge) && !/left|right/.test(edge)) w = Math.round((h * 16) / 9);
+      else h = Math.round((w * 9) / 16);
+      const width = w + frameW;
+      const height = h + frameH;
+      // Keep the edge opposite to the one being dragged anchored.
+      const x = edge.includes("left") ? newBounds.x + newBounds.width - width : newBounds.x;
+      const y = edge.includes("top") ? newBounds.y + newBounds.height - height : newBounds.y;
+      event.preventDefault();
+      win.setBounds({ x, y, width, height });
+    });
+  } else if (regular && !isMacOS) {
+    // Linux: the ratio applies to the whole window, so tell Electron the frame is extra size.
+    const [winW, winH] = win.getSize();
+    const [contentW, contentH] = win.getContentSize();
+    win.setAspectRatio(16 / 9, { width: winW - contentW, height: winH - contentH });
+  } else {
+    // Frameless overlay, or macOS where the ratio already applies to the content area (adding the
+    // extra size there over-compensates and leaves black bars above and below the video).
+    win.setAspectRatio(16 / 9);
+  }
 
   // Keep our pair-based title (capture + control) instead of the page's <title>, so the
   // macOS Window menu can distinguish multiple Display windows.
   win.on("page-title-updated", (e) => e.preventDefault());
   win.setTitle(pairWindowTitle(pair));
 
+  win.isRegularWindow = regular;
   pairWindows.set(pair.id, win);
   senderToPair.set(win.webContents.id, pair.id);
 
@@ -475,7 +675,7 @@ function createDisplayWindow(pair) {
     }
   };
 
-  if (isWindows) {
+  if (isWindows && !regular) {
     // Apply Windows 11 specific fixes after the window is ready
     win.once("ready-to-show", () => {
       win.setBackgroundColor("#00000000");
@@ -492,11 +692,11 @@ function createDisplayWindow(pair) {
   }
 
   win.on("focus", () => {
-    if (isWindows) win.setBackgroundColor("#00000000");
+    if (isWindows && !regular) win.setBackgroundColor("#00000000");
     setActivePair(pair.id);
   });
 
-  if (!isMacOS) {
+  if (!isMacOS && !regular) {
     win.on("system-context-menu", (event) => event.preventDefault());
   }
 
@@ -557,16 +757,18 @@ function createDisplayWindow(pair) {
     const target = getPair(pair.id);
     // Only a user-initiated close marks the pair hidden; on app quit we preserve the
     // last visibility so windows reopen as they were on the next launch.
-    if (target && !isQuitting) {
+    if (target && !isQuitting && !recreatingPairs.has(pair.id)) {
       target.visible = false;
       saveSettings(settings);
     }
     senderToPair.delete(win.webContents.id);
     pairWindows.delete(pair.id);
     recordingPairs.delete(pair.id);
+    streamSignaling.stopSession(pair.id);
     if (!isQuitting) disconnectPairControl(pair.id);
     pairState.delete(pair.id);
     resetFullscreenVars();
+    if (!isQuitting) quitIfNoWindowsLeft();
   });
 
   return win;
@@ -585,6 +787,7 @@ function openPair(pair) {
 function closePair(pairId) {
   const win = getWindow(pairId);
   if (win) win.close();
+  streamSignaling.stopSession(pairId);
 }
 
 // Enable/disable a pair (pair.visible is the "enabled" flag = whether a Display window
@@ -646,11 +849,12 @@ function switchToWindow(captureDeviceId) {
     pair = makePair({ id: captureDeviceId, captureDeviceId, controlDeviceId: "", visible: true });
     settings.pairs.push(pair);
   }
-  // Hide every other pair; drop the ones with nothing worth remembering (no linked control).
+  // Hide every other pair. They are kept (not forgotten) even without a linked control: a pair
+  // also holds its window settings (Regular Window, border, size, audio...), which must survive
+  // switching away and coming back.
   settings.pairs.forEach((p) => {
     if (p.id !== pair.id) p.visible = false;
   });
-  settings.pairs = settings.pairs.filter((p) => p.id === pair.id || p.controlDeviceId);
   pair.visible = true;
   activePairId = pair.id;
   settings.activePairId = pair.id;
@@ -695,9 +899,6 @@ function setCaptureWindowEnabled(captureDeviceId, enabled) {
     const pair = settings.pairs.find((p) => p.captureDeviceId === captureDeviceId);
     if (pair) {
       pair.visible = false;
-      if (!pair.controlDeviceId) {
-        settings.pairs = settings.pairs.filter((p) => p.id !== pair.id);
-      }
       saveSettings(settings);
       closePair(pair.id);
     }
@@ -718,11 +919,8 @@ function setCaptureWindowEnabled(captureDeviceId, enabled) {
     if (!win) win = openPair(pair);
     win?.show();
   } else if (pair) {
+    // Keep the disabled pair: it remembers this window's settings for when it is enabled again.
     pair.visible = false;
-    // Forget the pair entirely if nothing else (a linked control) needs remembering.
-    if (!pair.controlDeviceId) {
-      settings.pairs = settings.pairs.filter((p) => p.id !== pair.id);
-    }
     saveSettings(settings);
     closePair(pair.id);
   }
@@ -786,6 +984,18 @@ function reconcilePairs(newPairs) {
     }
     // Enabled but no window yet: open it.
     if (!win) {
+      openPair(pair);
+      continue;
+    }
+    // The window style (frameless overlay <-> regular window) can't change on a live window, so
+    // re-create it, keeping the pair enabled.
+    if (prev && prev.regularWindow !== pair.regularWindow) {
+      recreatingPairs.add(pair.id);
+      try {
+        closePair(pair.id);
+      } finally {
+        recreatingPairs.delete(pair.id);
+      }
       openPair(pair);
       continue;
     }
@@ -858,6 +1068,7 @@ app.whenReady().then(async () => {
   }
 
   mainWindow = createMainWindow();
+  syncManagedControls(); // create the controls of stream sources saved by an earlier version
   // Single-window mode (default) keeps only one window; collapse any stray extra-visible
   // pairs before opening so we never open more than one on launch.
   enforceSingleWindowInvariant();
@@ -934,7 +1145,7 @@ app.whenReady().then(async () => {
     } else if (isDev) {
       log.info("[allow-sleep] watcher not started — display.allowSleep is disabled");
     }
-    createMacOSMenu(mainWindow, getActiveWindow(), packageInfo, settings, captureDevices);
+    createMacOSMenu(mainWindow, getActiveWindow(), packageInfo, settings, getAllSources());
     // Ensure menu reflects the active pair's always on top / audio state from settings
     updateAlwaysOnTopMenuItem(getActivePair()?.alwaysOnTop !== false);
     updateEnableAudioMenuItem(getActivePair()?.audioEnabled === true);
@@ -945,7 +1156,9 @@ app.whenReady().then(async () => {
   function resetFramelessWindow() {
     if (isWindows) {
       setTimeout(() => {
-        getDisplayWindows().forEach((win) => win.setBackgroundColor("#00000000"));
+        getDisplayWindows().forEach((win) => {
+          if (!win.isRegularWindow) win.setBackgroundColor("#00000000");
+        });
       }, 1000);
     }
   }
@@ -1021,6 +1234,7 @@ app.whenReady().then(async () => {
       // If the sending pair's capture device was removed and its window is hidden, show it.
       if (
         pair?.captureDeviceId &&
+        !isStreamDeviceId(pair.captureDeviceId) &&
         !newDevices.find((device) => device.deviceId === pair.captureDeviceId) &&
         targetWin &&
         !targetWin.isVisible()
@@ -1050,7 +1264,7 @@ app.whenReady().then(async () => {
         saveFlag = true;
       }
 
-      if (deviceIdChanged && captureDevices?.length > 0) rebuildMenus();
+      if (deviceIdChanged) rebuildMenus();
 
       // Forward to the target window when visible; show it if explicitly requested.
       if (targetWin?.isVisible()) {
@@ -1081,7 +1295,14 @@ app.whenReady().then(async () => {
       if (pair) pair.border = { ...pair.border, color: arg.payload };
       if (targetWin && !targetWin.isVisible()) targetWin.show();
     } else if (arg.type && arg.type === "set-control-list") {
-      // The device catalog is global. Remove any pair binding to a deleted device.
+      // The device catalog is global. Remove any pair binding to a deleted device. Stream
+      // controls are owned by their source, so keep them even if the sender's list is stale.
+      arg.payload = [
+        ...arg.payload,
+        ...(settings.control.deviceList || []).filter(
+          (d) => d.managedBy && !arg.payload.some((x) => x.id === d.id)
+        ),
+      ];
       const remainingIds = new Set(arg.payload.map((d) => d.id));
       let clearedAny = false;
       (settings.pairs || []).forEach((p) => {
@@ -1095,8 +1316,70 @@ app.whenReady().then(async () => {
           });
         }
       });
+      const listChanged = JSON.stringify(settings.control.deviceList) !== JSON.stringify(arg.payload);
       settings.control.deviceList = arg.payload;
+      // Aliases may have changed (window titles, Linked Device labels); skip when it's a resend.
+      if (listChanged) rebuildMenus();
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
+    } else if (arg.type && arg.type === "set-stream-sources") {
+      // The stream-source catalog is global. Drop pairs bound to a deleted source.
+      const existing = new Map(getStreamSources().map((src) => [src.id, src]));
+      // Encrypt any newly entered token. If secure storage isn't available, storing it as plain
+      // text needs the user's explicit consent (remembered once given).
+      const sealed = new Map();
+      let needsPlainText = false;
+      let payload = arg.payload;
+      for (const src of payload) {
+        if (!src.token) continue;
+        const enc = trySealToken(src.token);
+        if (enc) sealed.set(src.id, enc);
+        else needsPlainText = true;
+      }
+      if (needsPlainText && !settings.streams?.allowPlainTextTokens) {
+        const choice = dialog.showMessageBoxSync(mainWindow || undefined, {
+          type: "warning",
+          title: "Secure storage unavailable",
+          message: "The access token can't be stored securely.",
+          detail:
+            "Secure storage (the system keychain / keyring) is not available on this computer, so the " +
+            "Cloud Emulator access token cannot be encrypted. Do you want to store it unencrypted in " +
+            "Carabiner's settings file? Anyone who can read your user files would be able to use it. " +
+            "You can revoke the token at any time in the Roku Cloud Emulator portal.",
+          buttons: ["Don't Save", "Save Unencrypted"],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        });
+        if (choice !== 1) {
+          // Declined: discard the change and tell the settings window to revert to what is saved.
+          // (Downstream then just re-applies the saved catalog, which is a no-op.)
+          payload = getStreamSources().map(publicSource);
+          mainWindow?.webContents?.send("stream-sources-rejected");
+        } else {
+          settings.streams = { ...(settings.streams || {}), allowPlainTextTokens: true };
+        }
+      }
+      const sources = payload.map(({ hasToken, ...src }) => ({
+        ...src,
+        token: src.token
+          ? sealed.get(src.id) || src.token
+          : existing.get(src.id)?.token || "",
+      }));
+      settings.streams = { ...(settings.streams || {}), sources };
+      const remaining = new Set(payload.map(streamDeviceId));
+      const removed = (settings.pairs || []).filter(
+        (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
+      );
+      removed.forEach((p) => closePair(p.id));
+      settings.pairs = (settings.pairs || []).filter((p) => !removed.includes(p));
+      if (removed.length) {
+        if (!getPair(activePairId)) activePairId = settings.pairs[0]?.id || "";
+        settings.activePairId = activePairId;
+      }
+      // Create/refresh/remove the control device that belongs to each stream source.
+      syncManagedControls();
+      broadcastControlList();
+      rebuildMenus();
     } else if (arg.type && arg.type === "set-control-selected") {
       if (pair) {
         const prev = pair.controlDeviceId;
@@ -1184,6 +1467,72 @@ app.whenReady().then(async () => {
   // late-mounting renderer (e.g. a pair's capture dropdown) can fetch it without waiting
   // for the next broadcast.
   ipcMain.handle("get-capture-devices", async () => captureDevices || []);
+
+  // WebRTC streams: catalog lookup + signaling relay (see stream-signaling.js).
+  ipcMain.handle("get-stream-sources", async () => getStreamSources().map(publicSource));
+  // Forms send a token only when the user typed one; otherwise reuse the stored one by id.
+  const resolveFormSource = (source) => {
+    const stored = getStreamSources().find((src) => src.id === source?.id);
+    return { ...source, token: source?.token || unsealToken(stored?.token) };
+  };
+  ipcMain.handle("test-stream-source", async (_e, source) =>
+    streamSignaling.testSource(resolveFormSource(source))
+  );
+  ipcMain.handle("list-rce-devices", async (_e, source) => {
+    try {
+      return { ok: true, devices: await streamSignaling.listRceDevices(resolveFormSource(source)) };
+    } catch (error) {
+      return { ok: false, message: error.message };
+    }
+  });
+  ipcMain.handle("stream-start", async (event, deviceId) => {
+    const source = findStreamSource(deviceId);
+    const sender = event.sender;
+    const pairId = senderToPair.get(sender.id);
+    if (!source || !pairId) return { ok: false, message: "Stream source not found" };
+    streamSignaling.startSession(pairId, withSecret(source), (msg) => {
+      if (!sender.isDestroyed()) sender.send("stream-signal", msg);
+    });
+    return { ok: true, name: source.name };
+  });
+  // Keys for a stream's built-in control (see syncManagedControls); sent from main because a
+  // Cloud Emulator needs its authenticated Device API and the token never reaches a renderer.
+  // Keys are sent strictly in order per source (a key-up must never overtake its key-down, and a
+  // cold Cloud Emulator lookup is then done once). The backlog is capped so an unreachable
+  // device can't build an ever-growing queue of pending requests.
+  const MAX_PENDING_STREAM_KEYS = 20;
+  const streamKeyQueues = new Map(); // source id -> { tail: Promise, pending: number }
+  ipcMain.handle("send-stream-key", (_e, controlIp, key, mod) => {
+    const sourceId = String(controlIp || "").slice(STREAM_CONTROL_PREFIX.length);
+    const source = getStreamSources().find((src) => src.id === sourceId);
+    if (!source) return { ok: false, message: "Stream source not found" };
+    const queue = streamKeyQueues.get(sourceId) || { tail: Promise.resolve(), pending: 0 };
+    streamKeyQueues.set(sourceId, queue);
+    if (queue.pending >= MAX_PENDING_STREAM_KEYS) {
+      return { ok: false, message: "The device is not responding" };
+    }
+    queue.pending++;
+    const result = queue.tail.then(async () => {
+      try {
+        await streamSignaling.sendControlKey(withSecret(source), key, mod);
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, message: error.message };
+      } finally {
+        queue.pending--;
+      }
+    });
+    queue.tail = result;
+    return result;
+  });
+  ipcMain.on("stream-signal-out", (event, msg) => {
+    const pairId = senderToPair.get(event.sender.id);
+    if (pairId) streamSignaling.relayFromWindow(pairId, msg);
+  });
+  ipcMain.on("stream-stop", (event) => {
+    const pairId = senderToPair.get(event.sender.id);
+    if (pairId) streamSignaling.stopSession(pairId);
+  });
 
   ipcMain.on("save-launch-app-at-login", (event, launchAppAtLogin) => {
     settings.display.launchAppAtLogin = launchAppAtLogin;
@@ -1341,7 +1690,7 @@ app.whenReady().then(async () => {
       win,
       packageInfo,
       recordingPairs.has(ctxPairId),
-      captureDevices,
+      getAllSources(),
       settings,
       isScriptRecording,
       isScriptPlaying,
@@ -1460,7 +1809,11 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle("load-settings", async () => {
-    return settings;
+    // Never hand stream access tokens to a renderer.
+    return {
+      ...settings,
+      streams: { ...(settings.streams || {}), sources: getStreamSources().map(publicSource) },
+    };
   });
 
   ipcMain.handle("get-package-info", async () => {
@@ -1720,6 +2073,7 @@ app.whenReady().then(async () => {
     getAuthToken: () => settings.mcp?.token || "",
     getSettingsSnapshot: () => {
       const snap = JSON.parse(JSON.stringify(settings));
+      if (snap.streams?.sources) snap.streams.sources = snap.streams.sources.map(publicSource);
       if (snap.mcp && snap.mcp.token) snap.mcp.token = "***";
       return snap;
     },
@@ -1734,7 +2088,7 @@ app.whenReady().then(async () => {
     // List the live Display windows (pairs) so an MCP agent can target one explicitly.
     listWindows: () =>
       (settings.pairs || []).map((p) => {
-        const cap = (captureDevices || []).find((d) => d.deviceId === p.captureDeviceId);
+        const cap = getAllSources().find((d) => d.deviceId === p.captureDeviceId);
         const win = getWindow(p.id);
         return {
           pairId: p.id,
@@ -1820,9 +2174,9 @@ app.whenReady().then(async () => {
     },
     // Capture & recording
     listCaptureDevices: () =>
-      (captureDevices || []).map((d) => ({ deviceId: d.deviceId, label: d.label })),
+      getAllSources().map((d) => ({ deviceId: d.deviceId, label: d.label, kind: d.kind || "capture" })),
     selectCaptureDevice: (deviceId) => {
-      const found = (captureDevices || []).find((d) => d.deviceId === deviceId);
+      const found = getAllSources().find((d) => d.deviceId === deviceId);
       if (!found) throw new Error(`Unknown capture device id: ${deviceId}`);
       mainWindow?.webContents?.send("update-capture-device", deviceId);
       return { deviceId: found.deviceId, label: found.label };
@@ -1988,7 +2342,7 @@ app.whenReady().then(async () => {
     updateScriptsSubmenu(settings.scripts, mainWindow, getActiveWindow(), packageInfo, settings);
     const tray = getTray();
     if (tray) {
-      createTrayMenu(mainWindow, getActiveWindow(), packageInfo, captureDevices, settings, isActiveRecording(), switchControlDevice);
+      createTrayMenu(mainWindow, getActiveWindow(), packageInfo, getAllSources(), settings, isActiveRecording(), switchControlDevice);
     }
   });
 
@@ -2021,6 +2375,7 @@ app.whenReady().then(async () => {
     isQuitting = true;
     stopSleepWatcher();
     stopUpdateChecks();
+    streamSignaling.stopAll();
     if (isMcpRunning()) {
       stopMcpServer();
     }

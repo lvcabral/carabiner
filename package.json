@@ -2,7 +2,7 @@
   "name": "carabiner",
   "productName": "Carabiner",
   "description": "Screen Capture and Remote Control for Streaming Devices",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "main": "public/main.js",
   "license": "MIT",
   "author": {
@@ -34,6 +34,7 @@
     "react-bootstrap": "^2.2.1",
     "react-dom": "^17.0.2",
     "toastify-js": "^1.12.0",
+    "ws": "^8.22.0",
     "zod": "^4.4.3"
   },
   "homepage": "./",
@@ -49,6 +50,7 @@
     "make:mac:universal": "npm run make -- --platform=darwin --arch=universal",
     "make:win": "npm run make -- --platform=win32 --arch=x64",
     "make:linux": "npm run make -- --platform=linux --arch=x64",
+    "make:linux:arm64": "npm run make -- --platform=linux --arch=arm64 --targets=@electron-forge/maker-deb",
     "debug": "npm run build && ELECTRON_IS_DEV=1 npm run electron"
   },
   "eslintConfig": {

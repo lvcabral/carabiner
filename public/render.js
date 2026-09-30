@@ -51,6 +51,13 @@ function setScriptPlaybackIndicator(on) {
 }
 
 function showReconnectingOverlay() {
+  // The overlay serves both kinds of source; word it for whichever this window shows.
+  const label = document.getElementById("reconnecting-label");
+  if (label) {
+    label.textContent = isStreamId(myCaptureDeviceId)
+      ? "Connecting to stream..."
+      : "Reconnecting capture device...";
+  }
   reconnectingOverlay.style.display = "flex";
 }
 
@@ -58,8 +65,12 @@ function hideReconnectingOverlay() {
   reconnectingOverlay.style.display = "none";
 }
 
-const widthOff = 16;
-const heightOff = 9;
+// Inset of the video from the (frameless) window edge. A regular window has no such margin.
+let widthOff = 16;
+let heightOff = 9;
+// Regular (framed, resizable) window: native title bar and border, so the custom border settings
+// don't apply.
+let regularWindow = false;
 const margin = 5;
 let currentColor = "#662D91";
 let currentConstraints = { video: true, audio: false };
@@ -243,8 +254,9 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
       handleControlSelected(pair.controlDeviceId);
     }
     audioEnabled = pair.audioEnabled === true;
+    if (pair.regularWindow === true) enterRegularWindowMode();
     // Restore this window's appearance.
-    if (pair.border) {
+    if (pair.border && !regularWindow) {
       if (pair.border.color) handleSetBorderColor(pair.border.color);
       if (pair.border.style) handleSetBorderStyle(pair.border.style);
       if (pair.border.width) handleSetBorderWidth(pair.border.width);
@@ -274,7 +286,21 @@ window.electronAPI.invoke("load-settings").then(async (settings) => {
   if (settings.files && settings.files.recordingFormat) {
     preferredRecordingFormat = settings.files.recordingFormat;
   }
+  // Lay the video out for the window's actual size exactly as a manual resize would (this also
+  // matters when the window was just re-created in the other style, e.g. Regular Window on/off).
+  window.dispatchEvent(new Event("resize"));
 });
+
+// A regular window fills its content area edge to edge, with no custom border or drag region.
+function enterRegularWindowMode() {
+  regularWindow = true;
+  widthOff = 0;
+  heightOff = 0;
+  document.documentElement.classList.add("regular-window");
+  videoPlayer.style.border = "none";
+  videoPlayer.style.borderRadius = "0";
+  handleSetResolution({ width: `${window.innerWidth}px`, height: `${window.innerHeight}px` });
+}
 
 function updateOverlayPosition() {
   const rect = videoPlayer.getBoundingClientRect();
@@ -284,6 +310,12 @@ function updateOverlayPosition() {
   overlayImage.style.left = `${rect.left + borderWidth}px`;
   overlayImage.style.width = `${rect.width - 2 * borderWidth}px`;
   overlayImage.style.height = `${rect.height - 2 * borderWidth}px`;
+  // The connecting/reconnecting overlay covers only the area inside the display border.
+  reconnectingOverlay.style.position = "absolute";
+  reconnectingOverlay.style.top = overlayImage.style.top;
+  reconnectingOverlay.style.left = overlayImage.style.left;
+  reconnectingOverlay.style.width = overlayImage.style.width;
+  reconnectingOverlay.style.height = overlayImage.style.height;
 }
 
 function adjustVideoLayout() {
@@ -332,6 +364,7 @@ window.addEventListener("resize", () => {
 });
 
 function handleSetBorderWidth(borderWidth) {
+  if (regularWindow) return;
   if (borderWidth === "0.1px") {
     videoPlayer.style.borderColor = "rgba(0, 0, 0, 0.1)";
   } else {
@@ -343,10 +376,12 @@ function handleSetBorderWidth(borderWidth) {
 }
 
 function handleSetBorderStyle(borderStyle) {
+  if (regularWindow) return;
   videoPlayer.style.borderStyle = borderStyle;
 }
 
 function handleSetBorderColor(borderColor) {
+  if (regularWindow) return;
   currentColor = borderColor;
   if (videoPlayer.style.borderWidth !== "0.1px") {
     videoPlayer.style.borderColor = borderColor;
@@ -354,6 +389,17 @@ function handleSetBorderColor(borderColor) {
 }
 
 async function handleSetVideoStream(constraints) {
+  const requestedId = constraints.video?.deviceId?.exact;
+  if (isStreamId(requestedId)) {
+    // A stream's resolution is chosen by the remote end; the capture resolution only sizes the
+    // recording canvas, so changing it must not renegotiate a stream that is already up.
+    myCaptureWidth = constraints.video.width || myCaptureWidth;
+    myCaptureHeight = constraints.video.height || myCaptureHeight;
+    if (videoState !== "stopped" && requestedId === myCaptureDeviceId) {
+      currentConstraints = constraints;
+      return;
+    }
+  }
   currentConstraints = constraints;
   await updateAudioConstraints();
   renderDisplay(currentConstraints);
@@ -431,6 +477,11 @@ async function updateAudioConstraints() {
 
 async function handleSetAudioEnabled(enabled) {
   audioEnabled = enabled;
+  // A stream source's audio is already in the remote stream; just (un)mute, no renegotiation.
+  if (isStreamId(myCaptureDeviceId)) {
+    videoPlayer.muted = !enabled;
+    return;
+  }
   // Update the current constraints with proper audio settings
   await updateAudioConstraints();
   if (videoState !== "stopped") {
@@ -451,6 +502,163 @@ const eventHandlers = {
   "set-show-keystrokes": (payload) => { showKeystrokes = payload; },
   "set-recording-format": (payload) => { preferredRecordingFormat = payload; },
 };
+
+// ---- WebRTC stream sources -------------------------------------------------------------
+// A stream source is bound like a capture card, using the pseudo device id "stream:<sourceId>".
+// Signaling runs in main (see stream-signaling.js); this window only answers the remote offer.
+const STREAM_PREFIX = "stream:";
+const STREAM_NEGOTIATION_TIMEOUT = 20000;
+const isStreamId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
+let streamPc = null;
+// Set once the DOM-ready scope defines the recording handlers (stopVideoStream lives outside it).
+let stopRecordingHandler = null;
+let streamSessionActive = false;
+
+// Bumped whenever the peer is closed, so callbacks of a superseded negotiation can tell they are
+// stale and must not close/fail the session that replaced them.
+let streamAttempt = 0;
+let abortStreamNegotiation = null;
+
+function closeStreamPeer() {
+  streamAttempt++;
+  // Settle (and stop the 20s timer of) any negotiation still in flight instead of leaving it
+  // pending, where its timeout would later fire against the newer session.
+  abortStreamNegotiation?.();
+  abortStreamNegotiation = null;
+  if (streamPc) {
+    streamPc.onconnectionstatechange = null;
+    streamPc.ontrack = null;
+    streamPc.onicecandidate = null;
+    try {
+      streamPc.close();
+    } catch {
+      // already closed
+    }
+    streamPc = null;
+  }
+  if (streamSessionActive) {
+    streamSessionActive = false;
+    window.electronAPI.removeListener("stream-signal");
+    window.electronAPI.send("stream-stop");
+  }
+}
+
+// Name of the file the user actually saved (they may rename the suggested one in the dialog).
+function fileNameOf(filePath, fallback) {
+  return (filePath && filePath.split(/[\\/]/).pop()) || fallback;
+}
+
+// An established stream dropped — behave like an unplugged device so the retry loop kicks in.
+function handleStreamLost() {
+  if (videoState === "stopped") return;
+  window.electronAPI.log("debug", "[Carabiner] Stream connection lost");
+  stopVideoStream();
+  if (lastKnownDeviceId) showReconnectingOverlay();
+  scheduleStreamRetry();
+}
+
+// Resolve with the remote MediaStream once the peer connection delivers its tracks.
+async function acquireWebRtcStream(deviceId) {
+  closeStreamPeer();
+  streamSessionActive = true;
+  const attempt = streamAttempt;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let remoteSet = false;
+    const pendingCandidates = [];
+    const done = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const fail = (message, noRetry = false) => {
+      if (attempt !== streamAttempt) return; // superseded: not ours to fail or close
+      const err = new Error(message);
+      err.name = "StreamError";
+      err.noRetry = noRetry;
+      done(reject, err);
+      closeStreamPeer();
+    };
+    // Called by closeStreamPeer() when this negotiation is torn down or replaced.
+    abortStreamNegotiation = () => {
+      const err = new Error("Stream negotiation superseded");
+      err.name = "StreamSuperseded";
+      done(reject, err);
+    };
+    let timer;
+    const armTimeout = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fail("Timed out negotiating the stream"), STREAM_NEGOTIATION_TIMEOUT);
+    };
+    armTimeout();
+
+    window.electronAPI.onMessageReceived("stream-signal", async (_, msg) => {
+      try {
+        if (msg.type === "offer") {
+          const pc = new RTCPeerConnection({ iceServers: msg.iceServers || [] });
+          streamPc = pc;
+          pc.ontrack = (e) => {
+            if (e.streams[0]) done(resolve, e.streams[0]);
+          };
+          pc.onicecandidate = (e) => {
+            window.electronAPI.send(
+              "stream-signal-out",
+              e.candidate
+                ? { type: "candidate", candidate: e.candidate.toJSON() }
+                : { type: "candidates-complete" }
+            );
+          };
+          pc.onconnectionstatechange = () => {
+            if (pc !== streamPc) return;
+            if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+              if (!settled) return fail("Stream connection failed");
+              handleStreamLost();
+            }
+          };
+          if (/m=application [1-9]\d*/.test(msg.sdp?.sdp || "")) pc.createDataChannel("JanusDataChannel");
+          await pc.setRemoteDescription(msg.sdp);
+          remoteSet = true;
+          await pc.setLocalDescription(await pc.createAnswer());
+          window.electronAPI.send("stream-signal-out", {
+            type: "answer",
+            sdp: pc.localDescription.toJSON(),
+          });
+          pendingCandidates.splice(0).forEach((c) => pc.addIceCandidate(c).catch(() => {}));
+        } else if (msg.type === "candidate") {
+          if (streamPc && remoteSet) streamPc.addIceCandidate(msg.candidate).catch(() => {});
+          else pendingCandidates.push(msg.candidate);
+        } else if (msg.type === "status") {
+          // e.g. waiting for a cloud device to start: keep the negotiation alive.
+          if (!settled) armTimeout();
+        } else if (msg.type === "failure") {
+          fail(msg.message || "Stream failed", msg.noRetry);
+        } else if (msg.type === "closed") {
+          // Remote signaling ended. Before media flows that is a failure; afterwards the
+          // stream is gone (device stopped, simulator quit) so recover like a lost connection.
+          if (!settled) fail("Stream closed before it started");
+          else handleStreamLost();
+        }
+      } catch (err) {
+        fail(err.message);
+      }
+    });
+
+    window.electronAPI
+      .invoke("stream-start", deviceId)
+      .then((res) => {
+        if (!res?.ok) fail(res?.message || "Stream source not found", true);
+      })
+      .catch((err) => fail(err.message, true));
+  });
+}
+
+// Single acquisition point: capture cards use getUserMedia, stream sources use WebRTC.
+function acquireStream(constraints, deviceId) {
+  return isStreamId(deviceId)
+    ? acquireWebRtcStream(deviceId)
+    : navigator.mediaDevices.getUserMedia(constraints);
+}
 
 function renderDisplay(constraints, isBlankRetry = false) {
   const deviceId = constraints.video?.deviceId?.exact || constraints.video?.deviceId;
@@ -477,8 +685,15 @@ function renderDisplay(constraints, isBlankRetry = false) {
   // so a getUserMedia that resolves after we've moved on can detect it's stale and self-release.
   const myGeneration = ++streamGeneration;
   videoState = "starting";
-  navigator.mediaDevices
-    .getUserMedia(constraints)
+  if (isStreamId(deviceId)) {
+    // A remote stream can take a while (or never come up): show progress and the stream's
+    // own name right away instead of a blank frame with a border and a stale label.
+    showReconnectingOverlay();
+    getCaptureDeviceLabel(deviceId).then((label) => {
+      if (myGeneration === streamGeneration) deviceLabel.textContent = label;
+    });
+  }
+  acquireStream(constraints, deviceId)
     .then(async (stream) => {
       // Discard this stream if it's no longer wanted: a newer renderDisplay()/stopVideoStream()
       // superseded it, or the window was hidden/minimized/locked while getUserMedia resolved.
@@ -488,7 +703,10 @@ function renderDisplay(constraints, isBlankRetry = false) {
       if (myGeneration !== streamGeneration || document.hidden) {
         window.electronAPI.log("debug","[Carabiner] getUserMedia resolved but stream no longer wanted - releasing");
         stream.getTracks().forEach((track) => track.stop());
-        if (myGeneration === streamGeneration) videoState = "stopped";
+        if (myGeneration === streamGeneration) {
+          videoState = "stopped";
+          closeStreamPeer();
+        }
         return;
       }
       // Replace any previous live stream, stopping its tracks so they can't leak.
@@ -508,11 +726,17 @@ function renderDisplay(constraints, isBlankRetry = false) {
         window.electronAPI.log("debug","[Carabiner] stream superseded while resolving label - releasing");
         stream.getTracks().forEach((track) => track.stop());
         if (activeStream === stream) activeStream = null;
-        if (myGeneration === streamGeneration) videoState = "stopped";
+        if (myGeneration === streamGeneration) {
+          videoState = "stopped";
+          closeStreamPeer();
+        }
         return;
       }
       videoPlayer.srcObject = null; // Release any previous stream before assigning new one
       videoPlayer.srcObject = stream;
+      // Capture cards only carry audio when requested via constraints; a remote stream always
+      // carries its audio track, so honor the audio toggle by muting the element.
+      videoPlayer.muted = isStreamId(deviceId) && !audioEnabled;
       const playPromise = videoPlayer.play();
       if (playPromise) {
         playPromise
@@ -568,19 +792,38 @@ function renderDisplay(constraints, isBlankRetry = false) {
       }, 3000);
     })
     .catch((err) => {
-      console.error(`[Carabiner] getUserMedia failed: ${err.name} - ${err.message}`);
+      // A newer renderDisplay()/stopVideoStream() superseded this attempt (e.g. a stream still
+      // negotiating when the window restarted it): its failure is stale and must not touch the
+      // state, retry loop or peer connection of the attempt that replaced it.
+      if (myGeneration !== streamGeneration) {
+        window.electronAPI.log("debug", `[Carabiner] Ignoring stale acquisition failure: ${err.message}`);
+        return;
+      }
+      console.error(`[Carabiner] Stream acquisition failed: ${err.name} - ${err.message}`);
       videoState = "stopped";
+      if (isStreamId(deviceId)) closeStreamPeer();
       // If we were already streaming a real device (lastKnownDeviceId set), this failure is
       // most likely transient — e.g. the capture device re-enumerated on wake but the USB hub
       // isn't ready yet. Keep the reconnecting overlay up and retry instead of giving up. Only
       // fall back to the error image once retries are exhausted (or there's no device to retry).
-      if (lastKnownDeviceId && !document.hidden && streamRetryAttempts < MAX_STREAM_RETRY_ATTEMPTS) {
+      if (
+        !err.noRetry &&
+        lastKnownDeviceId &&
+        !document.hidden &&
+        streamRetryAttempts < MAX_STREAM_RETRY_ATTEMPTS
+      ) {
         showReconnectingOverlay();
         scheduleStreamRetry();
       } else {
         cancelStreamRetry();
         hideReconnectingOverlay();
-        showToast(`Error loading capture device! ${err.message}`, 5000, true);
+        showToast(
+          isStreamId(deviceId)
+            ? `Error loading stream! ${err.message}`
+            : `Error loading capture device! ${err.message}`,
+          5000,
+          true
+        );
         // Show fallback image when capture device fails to load
         overlayImage.style.opacity = "1";
         overlayImage.src = "images/no-capture-device.png";
@@ -592,12 +835,13 @@ function renderDisplay(constraints, isBlankRetry = false) {
 function stopVideoStream() {
   // Stop any ongoing recording when video stream stops
   if (isRecording && mediaRecorder) {
-    stopRecording();
+    stopRecordingHandler?.();
   }
 
   // Invalidate any in-flight getUserMedia so a stream that resolves after this point
   // releases itself instead of re-attaching a live camera track behind our backs.
   streamGeneration++;
+  closeStreamPeer();
 
   videoPlayer.pause();
   // Stop tracks from both the element and our tracked stream. They're normally the same
@@ -651,11 +895,18 @@ async function getCaptureDeviceLabel(deviceId) {
   // Handle both direct deviceId and deviceId.exact formats
   const actualDeviceId = typeof deviceId === "object" && deviceId.exact ? deviceId.exact : deviceId;
 
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const captureDevice = devices.find(
-    (device) => device.deviceId === actualDeviceId && device.kind === "videoinput"
-  );
-  let deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
+  let deviceLabel;
+  if (isStreamId(actualDeviceId)) {
+    const sources = await window.electronAPI.invoke("get-stream-sources");
+    deviceLabel =
+      sources.find((src) => STREAM_PREFIX + src.id === actualDeviceId)?.name || "Unknown Stream";
+  } else {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const captureDevice = devices.find(
+      (device) => device.deviceId === actualDeviceId && device.kind === "videoinput"
+    );
+    deviceLabel = captureDevice ? captureDevice.label : "Unknown Device";
+  }
   // This window owns one control device; show it (resolved from the window's own selection).
   const streamDevice = controlIp
     ? controlList.find((device) => device.id === `${controlIp}|${controlType}`)
@@ -793,9 +1044,11 @@ window.addEventListener("DOMContentLoaded", function () {
         payload: JSON.stringify(capture),
       });
       // Set the initial device label
-      const initialDevice = capture[0];
-      deviceLabel.textContent = initialDevice.label || "";
-    } else {
+      if (!isStreamId(myCaptureDeviceId) && !deviceLabel.textContent) {
+        const initialDevice = capture[0];
+        deviceLabel.textContent = initialDevice.label || "";
+      }
+    } else if (!isStreamId(myCaptureDeviceId)) {
       overlayImage.style.opacity = "1";
       overlayImage.src = "images/no-capture-device.png";
       overlayImage.style.display = "block";
@@ -1159,6 +1412,61 @@ window.addEventListener("DOMContentLoaded", function () {
     return canvas;
   }
 
+  // WebRTC streams can change resolution mid-stream (low quality at connect, then ramping up).
+  // MediaRecorder's encoder (H.264/MP4 especially) is initialized at the first frame's size and
+  // freezes on a size change, producing a file that shows only the first frame. So streams are
+  // recorded through a fixed-size canvas: every video frame is letterboxed into it, and the
+  // encoder always sees the same dimensions. Capture cards have a fixed size and record directly.
+  // The canvas follows the window's capture resolution, limited to 720p or 1080p for streams.
+  const streamRecordingSize = () =>
+    myCaptureHeight >= 1080 ? { width: 1920, height: 1080 } : { width: 1280, height: 720 };
+  let stopRecordingCanvas = null;
+
+  function createFixedSizeRecordingStream(source) {
+    const canvas = document.createElement("canvas");
+    const size = streamRecordingSize();
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext("2d", { alpha: false });
+    let running = true;
+    let rafId = null;
+    // The letterboxed rectangle only changes when the stream's own size does (e.g. quality ramping
+    // up), so compute it then and clear the canvas once instead of redoing both every frame.
+    let layout = null; // { vw, vh, x, y, w, h }
+    const draw = () => {
+      if (!running) return;
+      const vw = videoPlayer.videoWidth;
+      const vh = videoPlayer.videoHeight;
+      if (vw && vh) {
+        if (!layout || layout.vw !== vw || layout.vh !== vh) {
+          const scale = Math.min(canvas.width / vw, canvas.height / vh);
+          const w = vw * scale;
+          const h = vh * scale;
+          layout = { vw, vh, x: (canvas.width - w) / 2, y: (canvas.height - h) / 2, w, h };
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        ctx.drawImage(videoPlayer, layout.x, layout.y, layout.w, layout.h);
+      }
+      schedule();
+    };
+    const schedule = () => {
+      if (!running) return;
+      if (videoPlayer.requestVideoFrameCallback) videoPlayer.requestVideoFrameCallback(draw);
+      else rafId = requestAnimationFrame(draw);
+    };
+    draw();
+    const recordingStream = canvas.captureStream(30);
+    source.getAudioTracks().forEach((track) => recordingStream.addTrack(track));
+    stopRecordingCanvas = () => {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      recordingStream.getVideoTracks().forEach((track) => track.stop());
+      stopRecordingCanvas = null;
+    };
+    return recordingStream;
+  }
+
   // Video Recording Functions
   function handleStartRecording() {
     if (isRecording || !videoPlayer.srcObject) {
@@ -1167,12 +1475,15 @@ window.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
-      const stream = videoPlayer.srcObject;
+      const isStream = isStreamId(myCaptureDeviceId);
+      const stream = isStream
+        ? createFixedSizeRecordingStream(videoPlayer.srcObject)
+        : videoPlayer.srcObject;
       recordedChunks = [];
 
       // Configure recording options - Chromium 126+ supports MP4 recording
       const options = {
-        videoBitsPerSecond: 2500000, // 2.5 Mbps
+        videoBitsPerSecond: isStream ? (myCaptureHeight >= 1080 ? 6000000 : 3500000) : 2500000,
       };
 
       // Select codec based on user preference with fallback
@@ -1217,11 +1528,13 @@ window.addEventListener("DOMContentLoaded", function () {
       };
 
       mediaRecorder.onstop = () => {
+        stopRecordingCanvas?.();
         saveRecording();
       };
 
       mediaRecorder.onerror = (event) => {
         console.error("[Carabiner] MediaRecorder error:", event.error);
+        stopRecordingCanvas?.();
         showToast("Recording error occurred!", 5000, true);
         isRecording = false;
         setVideoRecordingIndicator(false); // Hide recording indicator on error
@@ -1234,6 +1547,7 @@ window.addEventListener("DOMContentLoaded", function () {
       window.electronAPI.send("recording-state-changed", isRecording);
       showToast("Recording started...");
     } catch (error) {
+      stopRecordingCanvas?.();
       console.error("[Carabiner] Error starting recording:", error);
       showToast("Failed to start recording!", 5000, true);
       isRecording = false;
@@ -1261,6 +1575,8 @@ window.addEventListener("DOMContentLoaded", function () {
       window.electronAPI.send("recording-state-changed", isRecording);
     }
   }
+
+  stopRecordingHandler = handleStopRecording;
 
   function settleMcpRecording(error, filePath) {
     const resolve = mcpStopRecordingResolve;
@@ -1311,7 +1627,7 @@ window.addEventListener("DOMContentLoaded", function () {
         const directResult = await window.electronAPI.invoke("save-video-direct", filename, bufferData);
         recordedChunks = [];
         if (directResult.success) {
-          showToast(`Recording saved as ${filename}.`, 5000, false, () => {
+          showToast(`Recording saved as ${fileNameOf(directResult.filePath, filename)}.`, 5000, false, () => {
             window.electronAPI.invoke("open-containing-folder", directResult.filePath);
           });
           settleMcpRecording(null, directResult.filePath);
@@ -1327,7 +1643,7 @@ window.addEventListener("DOMContentLoaded", function () {
 
       if (result.success) {
         showToast(
-          `Recording saved as ${filename}. Click to open containing folder.`,
+          `Recording saved as ${fileNameOf(result.filePath, filename)}. Click to open containing folder.`,
           5000,
           false,
           () => {
@@ -1613,6 +1929,13 @@ function handleControlList(data) {
     controlType = "ecp";
   }
   controlList = data;
+  // A rename of the control (or its stream) changes what the window's label should say.
+  const shownDeviceId = currentConstraints?.video?.deviceId?.exact;
+  if (shownDeviceId && videoState !== "stopped") {
+    getCaptureDeviceLabel(shownDeviceId).then((label) => {
+      deviceLabel.textContent = label;
+    });
+  }
 }
 
 // ECP Keyboard Mapping
@@ -1867,8 +2190,27 @@ async function playScript(steps, scriptControlType) {
   }
 }
 
+// Throttle error toasts so a dead connection doesn't flood the screen while keys keep coming.
+let lastStreamControlToast = 0;
+
+// A stream source's built-in control: main sends the key (authenticated Device API for a Cloud
+// Emulator, plain ECP for the Simulator) so the token never reaches this window.
+async function sendStreamKey(key, mod) {
+  try {
+    const result = await window.electronAPI.invoke("send-stream-key", controlIp, key, mod);
+    if (!result?.ok && Date.now() - lastStreamControlToast > 5000) {
+      lastStreamControlToast = Date.now();
+      showToast(`Control failed: ${result?.message || "unknown error"}`, 4000, true);
+    }
+  } catch (e) {
+    console.error("Error sending stream control key: ", e.message);
+  }
+}
+
 function sendKey(key, mod) {
-  if (isValidIP(controlIp) && controlType === "ecp") {
+  if (controlType === "ecp" && controlIp.startsWith("streamctl:")) {
+    sendStreamKey(key, mod);
+  } else if (isValidIP(controlIp) && controlType === "ecp") {
     sendEcpKey(controlIp, key, mod);
   } else if (isValidIP(controlIp) && controlType === "adb" && mod === 0) {
     window.electronAPI.sendSync("shared-window-channel", {
@@ -1990,6 +2332,8 @@ function setupDeviceMonitoring() {
 }
 
 function updateCaptureDeviceList(captureDevices) {
+  // Hardware changes are irrelevant to a window showing a WebRTC stream.
+  if (isStreamId(myCaptureDeviceId)) return;
   const previousCount = currentDeviceList.length;
   const newCount = captureDevices.length;
   const currentDeviceId =

@@ -7,6 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { pairLabel, isStreamDeviceId } from "./pairLabel";
 import { useEffect, useState, useRef } from "react";
 import Form from "react-bootstrap/Form";
 import Card from "react-bootstrap/Card";
@@ -19,6 +20,11 @@ import SelectResolution, { resolutionOptions } from "./select/Resolution";
 import { notifyCaptureChange } from "./GeneralSection";
 
 const { electronAPI } = window;
+
+// A stream picks its own resolution; the setting only sizes the recording, so 720p/1080p.
+const STREAM_RESOLUTION_OPTIONS = resolutionOptions.filter((o) =>
+  ["1280|720", "1920|1080"].includes(o.value)
+);
 
 // Convert resolution options to display size format, filtered by monitor size
 const getDisplaySizeOptions = (maxWidth, maxHeight) => {
@@ -45,7 +51,13 @@ const getPredefinedSizes = (maxWidth, maxHeight) => {
     });
 };
 
-function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamingDevices = [] }) {
+function DisplaySection({
+  pairs = [],
+  activePairId = "",
+  onPairsChange,
+  streamingDevices = [],
+  streamSources = [],
+}) {
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const [selectedPairId, setSelectedPairId] = useState(activePairId);
   const [displaySize, setDisplaySize] = useState("custom");
@@ -58,12 +70,7 @@ function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamin
   const visiblePairs = pairs.filter((p) => p.visible !== false);
 
   // Label for the "Editing Window" selector: capture card name + linked control (if any).
-  const pairLabel = (pair) => {
-    const cap = captureDevices.find((d) => d.deviceId === pair.captureDeviceId);
-    const capName = cap?.label || pair.captureDeviceId || "Capture device";
-    const ctl = streamingDevices.find((d) => d.id === pair.controlDeviceId);
-    return ctl ? `${capName} → ${ctl.type}: ${ctl.alias || ctl.ipAddress}` : capName;
-  };
+  const labelFor = (pair) => pairLabel(pair, { captureDevices, streamSources, streamingDevices });
 
   // The pair whose appearance is being edited (defaults to / follows the active window).
   const selectedPair =
@@ -77,10 +84,18 @@ function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamin
   const borderWidth = selectedPair?.border?.width || "0.1px";
   const borderStyle = selectedPair?.border?.style || "solid";
   const borderColor = selectedPair?.border?.color || "#662D91";
-  const resolution = `${selectedPair?.captureWidth || 1280}|${selectedPair?.captureHeight || 720}`;
+  // Streams choose their own resolution; the setting only sizes the recording, so 720p/1080p.
+  const isStreamPair = isStreamDeviceId(selectedPair?.captureDeviceId);
+  const resolution = isStreamPair
+    ? (selectedPair?.captureHeight || 720) >= 1080
+      ? "1920|1080"
+      : "1280|720"
+    : `${selectedPair?.captureWidth || 1280}|${selectedPair?.captureHeight || 720}`;
   const transparency = selectedPair?.transparency || 0;
   const alwaysOnTop = selectedPair?.alwaysOnTop !== false;
   const audioEnabled = selectedPair?.audioEnabled === true;
+  // Regular window: native title bar/border, so the custom border settings do not apply.
+  const regularWindow = selectedPair?.regularWindow === true;
 
   // Follow the active window when the user focuses a different Display window.
   useEffect(() => {
@@ -206,6 +221,11 @@ function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamin
     });
   };
 
+  // Switching the window style re-creates the Display window (main handles it on set-pairs).
+  const handleRegularWindowChange = (e) => {
+    patchSelectedPair({ regularWindow: e.target.checked });
+  };
+
   const handleAllowSleepChange = (e) => {
     setAllowSleep(e.target.checked);
     electronAPI.sendSync("shared-window-channel", {
@@ -265,11 +285,16 @@ function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamin
               >
                 {visiblePairs.map((pair) => (
                   <option key={pair.id} value={pair.id}>
-                    {pairLabel(pair)}
+                    {labelFor(pair)}
                   </option>
                 ))}
               </Form.Control>
             </Form.Group> )}
+          <fieldset
+            disabled={regularWindow}
+            title={regularWindow ? "Not applicable to a regular window" : undefined}
+            style={{ opacity: regularWindow ? 0.5 : 1, border: 0, margin: 0, padding: 0, minWidth: 0 }}
+          >
           <Row>
             <Col>
               <SelectBorderWidth size="sm" value={borderWidth} onChange={handleWidthChange} />
@@ -290,10 +315,17 @@ function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamin
               </Form.Group>
             </Col>
           </Row>
+          </fieldset>
           <hr className="my-2" />
           <Row>
             <Col>
-              <SelectResolution size="sm" value={resolution} onChange={handleResolutionChange} />
+              <SelectResolution
+                size="sm"
+                value={resolution}
+                onChange={handleResolutionChange}
+                options={isStreamPair ? STREAM_RESOLUTION_OPTIONS : undefined}
+                label={isStreamPair ? "Recording Resolution" : undefined}
+              />
             </Col>
             <Col>
               <Form.Group>
@@ -329,10 +361,18 @@ function DisplaySection({ pairs = [], activePairId = "", onPairsChange, streamin
                 <div>
                   <Form.Check
                     type="checkbox"
+                    label="Regular Window"
+                    title="Show the window with a title bar and native border (resizable). The border settings above don't apply."
+                    checked={regularWindow}
+                    onChange={handleRegularWindowChange}
+                    className="text-nowrap"
+                  />
+                  <Form.Check
+                    type="checkbox"
                     label="Always on Top"
                     checked={alwaysOnTop}
                     onChange={handleAlwaysOnTopChange}
-                    className="text-nowrap"
+                    className="text-nowrap mt-2"
                   />
                   <Form.Check
                     type="checkbox"

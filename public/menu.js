@@ -9,6 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 const { Menu, BrowserWindow, app, shell, Tray, MenuItem } = require("electron");
 const path = require("path");
+const { streamLabel } = require("./stream-utils");
 
 let alwaysOnTopMenuItem;
 let copyScreenshotMenuItem;
@@ -56,6 +57,8 @@ function activeWindowLabel(settings, captureDevices) {
   const pair = getActivePair(settings);
   if (!pair) return "No active window";
   const cap = (captureDevices || []).find((d) => d.deviceId === pair.captureDeviceId);
+  // A stream shows "<name> (RCE)": its control is built in and shares the name.
+  if (cap?.kind === "stream") return streamLabel(cap);
   const capName = cap?.label || pair.captureDeviceId || "Capture device";
   const ctl = pair.controlDeviceId
     ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
@@ -669,6 +672,7 @@ function windowEntryLabel(device, index, pairs, settings) {
   const control = pair?.controlDeviceId
     ? settings?.control?.deviceList?.find((d) => d.id === pair.controlDeviceId)
     : null;
+  if (device.kind === "stream") return streamLabel(device);
   const capLabel = device.label || `Device ${index + 1}`;
   // Show only the control device's alias/type here (no IP / MAC) to keep the label readable.
   const controlName = control ? (control.alias ? `${control.type}: ${control.alias}` : control.type) : null;
@@ -756,20 +760,27 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
   const activePair = getActivePair(settings);
   if (!activePair) return;
 
-  const cap = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId);
-  const headerSuffix = cap?.label ? ` (${cap.label})` : "";
   const activeControlId = activePair.controlDeviceId;
+  // The header names the currently linked control device (not the capture card / stream).
+  const activeControl = deviceList.find((d) => d.id === activeControlId);
+  const headerSuffix = ` (${activeControl ? activeControl.alias || activeControl.type : "None"})`;
+  // A stream has its own built-in control, so its link can't be changed from the menu.
+  const isStream = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId)?.kind === "stream";
 
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(
     new MenuItem({
       label: `Linked Device${headerSuffix}`,
-      submenu: deviceList.map((device) => ({
-        label: controlLabel(device),
-        type: "radio",
-        checked: activeControlId === device.id,
-        click: () => onDeviceSelected?.(device.id),
-      })),
+      enabled: !isStream,
+      // Stream controls are managed by their source; never offer them for a capture card.
+      submenu: deviceList
+        .filter((device) => !device.managedBy)
+        .map((device) => ({
+          label: controlLabel(device),
+          type: "radio",
+          checked: activeControlId === device.id,
+          click: () => onDeviceSelected?.(device.id),
+        })),
     })
   );
 }

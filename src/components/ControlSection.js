@@ -17,6 +17,7 @@ import Alert from "react-bootstrap/Alert";
 import Modal from "react-bootstrap/Modal";
 import ListGroup from "react-bootstrap/ListGroup";
 import Spinner from "react-bootstrap/Spinner";
+import RenameModal from "./RenameModal";
 
 const { electronAPI } = window;
 
@@ -25,6 +26,7 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
   const [alias, setAlias] = useState("");
   const [deviceType, setDeviceType] = useState("roku");
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
   const [adbPath, setAdbPath] = useState("");
   const [atvremotePath, setAtvremotePath] = useState("");
   const [rdkPort, setRdkPort] = useState("9998");
@@ -203,6 +205,15 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
 
   const handleDeviceSelect = (e) => {
     setSelectedDevice(e.target.value);
+  };
+
+  const selectedDeviceObj = streamingDevices.find((d) => d.id === selectedDevice);
+
+  const handleRenameConfirm = (name) => {
+    onUpdateStreamingDevices(
+      streamingDevices.map((d) => (d.id === selectedDevice ? { ...d, alias: name } : d))
+    );
+    setRenameOpen(false);
   };
 
   const handleDeleteDevice = () => {
@@ -404,8 +415,8 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
               <Row>
                 <Col className="d-flex align-items-center flex-grow-1">
                   <Form.Control size="sm" as="select" value={selectedDevice} onChange={handleDeviceSelect}>
-                    <option value="">Select a device to delete</option>
-                    {streamingDevices.map((device, index) => (
+                    <option value="">Select a device to rename or delete</option>
+                    {streamingDevices.filter((device) => !device.managedBy).map((device, index) => (
                       <option key={index} value={device.id}>
                         {device.type}: {device.alias ? device.alias + " - " : ""}
                         {device.ipAddress}
@@ -415,7 +426,23 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
                   </Form.Control>
                 </Col>
                 <Col xs="auto" className="d-flex align-items-center">
-                  <Button size="sm" title="Delete Device" variant="primary" onClick={handleDeleteDevice}>
+                  <Button
+                    size="sm"
+                    title="Rename Device"
+                    variant="primary"
+                    className="me-1"
+                    onClick={() => setRenameOpen(true)}
+                    disabled={!selectedDevice}
+                  >
+                    &#x270E;
+                  </Button>
+                  <Button
+                    size="sm"
+                    title="Delete Device"
+                    variant="primary"
+                    onClick={handleDeleteDevice}
+                    disabled={!selectedDevice}
+                  >
                     &#x232B;
                   </Button>
                 </Col>
@@ -479,6 +506,13 @@ function ControlSection({ streamingDevices, onUpdateStreamingDevices, onDeletedD
         </Alert>
       )}
 
+      <RenameModal
+        show={renameOpen}
+        title="Rename Device"
+        initialValue={selectedDeviceObj?.alias || ""}
+        onConfirm={handleRenameConfirm}
+        onHide={() => setRenameOpen(false)}
+      />
       <Modal
         show={showDiscoverModal}
         onHide={() => setShowDiscoverModal(false)}

@@ -25,6 +25,13 @@
                 box-sizing: border-box;
             }
 
+            /* Regular (framed) window: opaque, and the title bar is the drag handle. */
+            html.regular-window,
+            html.regular-window body {
+                background: #000;
+                -webkit-app-region: no-drag;
+            }
+
             .interactive {
                 -webkit-app-region: no-drag;
             }
@@ -62,6 +69,11 @@
                 justify-content: center;
                 flex-direction: column;
                 gap: 14px;
+                /* The frameless window is dragged by its content, so the overlay must not block
+                   dragging while a stream loads (a regular window has its title bar instead). */
+                -webkit-app-region: drag;
+            }
+            html.regular-window #reconnecting-overlay {
                 -webkit-app-region: no-drag;
             }
             #reconnecting-spinner {
