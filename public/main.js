@@ -466,14 +466,21 @@ function createMainWindow() {
   const buildDir = path.join(__dirname, "../build");
   win.loadURL(`file://${path.join(buildDir, "index.html")}`);
 
-  // `npm run dev` rebuilds build/ on every src/ change; reload the settings UI to pick it up
+  // `npm run dev` live reload: settings UI on each src/ rebuild, Display windows on
+  // display.html/render.js edits (main-process files are handled by restarting Electron)
   if (isDev) {
-    let reloadTimer;
-    fs.watch(buildDir, (_, filename) => {
-      if (filename !== "index.html") return;
-      clearTimeout(reloadTimer);
-      reloadTimer = setTimeout(() => win.isDestroyed() || win.webContents.reloadIgnoringCache(), 300);
-    });
+    const watchAndReload = (dir, files, getWindows) => {
+      let timer;
+      fs.watch(dir, (_, filename) => {
+        if (!files.includes(filename)) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          getWindows().forEach((w) => w.isDestroyed() || w.webContents.reloadIgnoringCache());
+        }, 300);
+      });
+    };
+    watchAndReload(buildDir, ["index.html"], () => [win]);
+    watchAndReload(__dirname, ["display.html", "render.js"], () => [...pairWindows.values()]);
   }
 
   win.removeMenu();

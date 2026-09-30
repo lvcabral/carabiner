@@ -1,5 +1,6 @@
-// Dev loop: rebuilds build/ with webpack watch whenever src/ changes, and launches Electron
-// against it (main reloads the settings window on each rebuild). Output is a normal
+// Dev loop: rebuilds build/ with webpack watch whenever src/ changes and launches Electron
+// against it. main.js reloads the settings window on each rebuild and the Display windows on
+// display.html/render.js edits; other public/*.js edits restart Electron. Output is a normal
 // file:// build, so capture device IDs/permissions match the packaged app.
 process.env.BABEL_ENV = "production";
 process.env.NODE_ENV = "production";
@@ -24,6 +25,7 @@ fs.copySync(paths.appPublic, paths.appBuild, {
 });
 
 let app;
+let restarting = false;
 const watcher = webpack(config).watch({}, (err, stats) => {
   if (err) return console.error(err);
   if (stats.hasErrors()) {
@@ -38,5 +40,26 @@ function launchElectron() {
   // VS Code's terminal sets this, which makes Electron run as plain Node
   delete env.ELECTRON_RUN_AS_NODE;
   app = spawn(electron, ["."], { stdio: "inherit", env });
-  app.on("exit", (code) => watcher.close(() => process.exit(code ?? 0)));
+  app.on("exit", (code) => {
+    if (restarting) {
+      restarting = false;
+      return launchElectron();
+    }
+    watcher.close(() => process.exit(code ?? 0));
+  });
 }
+
+// Main-process files can't be hot-swapped: restart Electron. display.html/render.js are
+// renderer files that main reloads in place, so they're skipped here.
+const rendererFiles = ["display.html", "render.js", "index.html"];
+let restartTimer;
+fs.watch(paths.appPublic, (_, filename) => {
+  if (!filename || !filename.endsWith(".js") || rendererFiles.includes(filename)) return;
+  clearTimeout(restartTimer);
+  restartTimer = setTimeout(() => {
+    if (!app || restarting) return;
+    console.log(`[dev] ${filename} changed, restarting Electron`);
+    restarting = true;
+    app.kill();
+  }, 300);
+});
