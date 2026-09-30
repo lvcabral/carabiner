@@ -7,7 +7,7 @@ module.exports = {
     asar: true,
     // Exclude the react-scripts/webpack build cache (~100 MB) from the packaged
     // app — it is a build artifact never read at runtime.
-    ignore: [/node_modules[\\/]\.cache([\\/]|$)/],
+    ignore: [/node_modules[\\/]\.cache([\\/]|$)/, /^[\\/]scripts([\\/]|$)/],
     appBundleId: "com.lvcabral.carabiner",
     appCategoryType: "public.app-category.utilities",
     osxSign: {},

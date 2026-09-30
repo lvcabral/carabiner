@@ -463,7 +463,18 @@ function createMainWindow() {
     settings.display.showSettingsOnStart
   );
 
-  win.loadURL(`file://${path.join(__dirname, "../build/index.html")}`);
+  const buildDir = path.join(__dirname, "../build");
+  win.loadURL(`file://${path.join(buildDir, "index.html")}`);
+
+  // `npm run dev` rebuilds build/ on every src/ change; reload the settings UI to pick it up
+  if (isDev) {
+    let reloadTimer;
+    fs.watch(buildDir, (_, filename) => {
+      if (filename !== "index.html") return;
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => win.isDestroyed() || win.webContents.reloadIgnoringCache(), 300);
+    });
+  }
 
   win.removeMenu();
   win.setMenuBarVisibility(false);
