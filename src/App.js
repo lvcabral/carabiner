@@ -7,33 +7,39 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
 import logo from "./carabiner-icon.png";
 
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 
+import DevicesSection from "./components/DevicesSection";
 import GeneralSection from "./components/GeneralSection";
 import DisplaySection from "./components/DisplaySection";
-import ControlSection from "./components/ControlSection";
 import OverlaySection from "./components/OverlaySection";
 import FilesSection from "./components/FilesSection";
 import AboutSection from "./components/AboutSection";
 import AutomationSection from "./components/AutomationSection";
 import MCPSection from "./components/MCPSection";
-import StreamsSection from "./components/StreamsSection";
 
 const { electronAPI } = window;
 
 function App() {
   const [streamingDevices, setStreamingDevices] = useState([]);
   const [streamSources, setStreamSources] = useState([]);
+  const [rceAccounts, setRceAccounts] = useState([]);
   const [pairs, setPairs] = useState([]);
   const [activePairId, setActivePairId] = useState("");
-  const onDeletedDeviceRef = useRef(null);
+  const [singleWindowMode, setSingleWindowMode] = useState(true);
 
   useEffect(() => {
+    electronAPI.onMessageReceived("rce-accounts-updated", (event, accounts) => {
+      if (Array.isArray(accounts)) setRceAccounts(accounts);
+    });
+    electronAPI.onMessageReceived("single-window-mode-changed", (event, single) => {
+      setSingleWindowMode(!!single);
+    });
     electronAPI.onMessageReceived("update-control-device", (event, data) => {
       if (data?.deviceList) {
         setStreamingDevices(data.deviceList);
@@ -64,6 +70,12 @@ function App() {
       }
       if (Array.isArray(settings.streams?.sources)) {
         setStreamSources(settings.streams.sources);
+      }
+      if (Array.isArray(settings.rce?.accounts)) {
+        setRceAccounts(settings.rce.accounts);
+      }
+      if (settings.display?.singleWindowMode !== undefined) {
+        setSingleWindowMode(settings.display.singleWindowMode);
       }
       if (Array.isArray(settings.pairs)) {
         setPairs(settings.pairs);
@@ -103,10 +115,10 @@ function App() {
     });
   };
 
-  const handleDeletedDevice = (deviceId) => {
-    if (onDeletedDeviceRef.current) {
-      onDeletedDeviceRef.current(deviceId);
-    }
+  // Main collapses to the active window and rebuilds menus, then echoes pairs-updated.
+  const handleSingleWindowModeChange = (single) => {
+    setSingleWindowMode(single);
+    electronAPI.send("set-single-window-mode", single);
   };
 
   // Persist the full pairs array to the main process, which reconciles the live
@@ -126,12 +138,21 @@ function App() {
         <Tabs defaultActiveKey="display" id="settings-tabs" className="custom-tabs">
           <Tab eventKey="display" title="General">
             <div className="tab-content-container">
-              <GeneralSection
-                streamingDevices={streamingDevices}
-                onDeletedDeviceRef={onDeletedDeviceRef}
+              <GeneralSection />
+            </div>
+          </Tab>
+          <Tab eventKey="devices" title="Devices">
+            <div className="tab-content-container">
+              <DevicesSection
                 pairs={pairs}
                 onPairsChange={handlePairsChange}
+                streamingDevices={streamingDevices}
+                onUpdateStreamingDevices={handleUpdateStreamingDevices}
                 streamSources={streamSources}
+                onUpdateStreamSources={handleUpdateStreamSources}
+                rceAccounts={rceAccounts}
+                singleWindowMode={singleWindowMode}
+                onSingleWindowModeChange={handleSingleWindowModeChange}
               />
             </div>
           </Tab>
@@ -143,20 +164,6 @@ function App() {
                 onPairsChange={handlePairsChange}
                 streamingDevices={streamingDevices}
                 streamSources={streamSources}
-              />
-            </div>
-          </Tab>
-          <Tab eventKey="streams" title="Streams">
-            <div className="tab-content-container">
-              <StreamsSection sources={streamSources} onUpdateSources={handleUpdateStreamSources} />
-            </div>
-          </Tab>
-          <Tab eventKey="control" title="Control">
-            <div className="tab-content-container">
-              <ControlSection
-                streamingDevices={streamingDevices}
-                onUpdateStreamingDevices={handleUpdateStreamingDevices}
-                onDeletedDevice={handleDeletedDevice}
               />
             </div>
           </Tab>

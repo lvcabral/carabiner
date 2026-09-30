@@ -158,7 +158,7 @@ function DisplaySection({
         const predefinedSizes = getPredefinedSizes(size.width, size.height);
         setDisplaySize(predefinedSizes.includes(windowSize) ? windowSize : "custom");
       } else if (message.type === "set-capture-devices") {
-        // The General tab enumerates capture devices and broadcasts them; use the list
+        // The Devices tab enumerates capture devices and broadcasts them; use the list
         // here to label the "Editing Window" selector with friendly device names.
         let devices = [];
         if (Array.isArray(message.payload)) devices = message.payload;

@@ -1,0 +1,514 @@
+/*---------------------------------------------------------------------------------------------
+ *  Carabiner - Simple Screen Capture and Remote Control App for Streaming Devices
+ *
+ *  Repository: https://github.com/lvcabral/carabiner
+ *
+ *  Copyright (c) 2024-2026 Marcelo Lv Cabral. All Rights Reserved.
+ *
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import { useEffect, useRef, useState } from "react";
+import Modal from "react-bootstrap/Modal";
+import Button from "react-bootstrap/Button";
+import Form from "react-bootstrap/Form";
+import Spinner from "react-bootstrap/Spinner";
+import { Dot, ExternalLink, SourceIcon, currentTheme } from "./ui";
+
+const RCE_DOCS_URL = "https://developer.roku.com/dev/docs/rce";
+const SIMULATOR_RELEASES_URL = "https://github.com/lvcabral/brs-desktop/releases";
+
+// Inline "are you sure" bar, used inside the dialog (Bootstrap 5.1 can't stack a second modal).
+function ConfirmBar({ message, onConfirm, onCancel }) {
+  return (
+    <div className="pick-inline align-items-center" role="alert">
+      <span className="flex-grow-1">{message}</span>
+      <Button size="sm" variant="danger" onClick={onConfirm} autoFocus>
+        Remove
+      </Button>
+      <Button size="sm" variant="link" onClick={onCancel}>
+        Cancel
+      </Button>
+    </div>
+  );
+}
+
+function PickRow({ entry, checked, onToggle, detail, live, onRemove, confirming, onConfirmRemove, onCancelRemove }) {
+  return (
+    <>
+      <label className="pick-row">
+        <input type="checkbox" checked={checked} onChange={(e) => onToggle(entry.id, e.target.checked)} />
+        <span className="grow">
+          <div>
+            <SourceIcon kind={entry.kind} />
+            {entry.name}
+          </div>
+          {detail && <div className="sub">{detail}</div>}
+        </span>
+        {live !== undefined && <Dot live={live} />}
+        {onRemove && (
+          <Button
+            size="sm"
+            variant="link"
+            className="p-0 ms-1"
+            aria-label={`Remove ${entry.name}`}
+            onClick={(e) => {
+              e.preventDefault();
+              onRemove(entry);
+            }}
+          >
+            Remove
+          </Button>
+        )}
+      </label>
+      {confirming && (
+        <ConfirmBar
+          message={`Remove ${entry.name}? You'd have to add it again.`}
+          onConfirm={onConfirmRemove}
+          onCancel={onCancelRemove}
+        />
+      )}
+    </>
+  );
+}
+
+// Which groups are collapsed is a per-computer convenience, so plain localStorage is enough.
+const COLLAPSED_KEY = "carabiner.chooseVideo.collapsed";
+const loadCollapsed = () => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+};
+const saveCollapsed = (set) => {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set]));
+  } catch {
+    // not persisted; still works for this session
+  }
+};
+
+function Chevron({ open }) {
+  return (
+    <svg
+      className={`group-chevron${open ? " open" : ""}`}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d="M6 3l5 5-5 5" />
+    </svg>
+  );
+}
+
+// A collapsible group: the chevron + title toggle it; `actions` stay clickable on the right.
+function PickGroup({ id, title, meta, metaTitle, actions, collapsed, onToggle, children }) {
+  const open = !collapsed;
+  return (
+    <div>
+      <div className="pick-group">
+        <button
+          type="button"
+          className="group-toggle"
+          aria-expanded={open}
+          aria-controls={`group-${id}`}
+          onClick={() => onToggle(id)}
+        >
+          <Chevron open={open} />
+          <span className="title">{title}</span>
+        </button>
+        {meta && (
+          <span className="sub" title={metaTitle}>
+            {meta}
+          </span>
+        )}
+        <span className="spacer" />
+        {actions}
+      </div>
+      {open && <div id={`group-${id}`}>{children}</div>}
+    </div>
+  );
+}
+
+const countOf = (list) => `${list.filter((e) => e.chosen).length} of ${list.length}`;
+
+// "Choose video" checklist. Every change applies right away: checking a box shows the source on
+// the Devices page, and accounts, stream URLs and simulators are saved as they are added.
+function ChooseVideoDialog({
+  show,
+  entries,
+  accounts,
+  onHide,
+  onToggle,
+  onAddAccount,
+  onRefreshAccount,
+  onRemoveAccount,
+  onAddStream,
+  onAddSimulator,
+  onRemoveStream,
+  toast,
+}) {
+  const [confirmId, setConfirmId] = useState(""); // entry or account id awaiting "Remove?"
+  const [acctForm, setAcctForm] = useState(false);
+  const [token, setToken] = useState("");
+  const [label, setLabel] = useState("");
+  const [apiUrl, setApiUrl] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [acctError, setAcctError] = useState("");
+  const [loadingAcct, setLoadingAcct] = useState(false);
+  const [refreshing, setRefreshing] = useState("");
+  const [url, setUrl] = useState("");
+  const [urlName, setUrlName] = useState("");
+  const [urlError, setUrlError] = useState("");
+  const [simHost, setSimHost] = useState("");
+  const [simPort, setSimPort] = useState("8090");
+  const [simError, setSimError] = useState("");
+  const tokenRef = useRef(null);
+  const [collapsed, setCollapsed] = useState(loadCollapsed);
+  const toggleGroup = (id) =>
+    setCollapsed((c) => {
+      const next = new Set(c);
+      next.has(id) ? next.delete(id) : next.add(id);
+      saveCollapsed(next);
+      return next;
+    });
+  const groupProps = (id) => ({ id, collapsed: collapsed.has(id), onToggle: toggleGroup });
+
+  useEffect(() => {
+    if (!show) return;
+    setConfirmId("");
+    setAcctForm(false);
+    setSimError("");
+    setAcctError("");
+    setUrlError("");
+  }, [show]);
+
+  const rowProps = (e) => ({
+    entry: e,
+    checked: e.chosen,
+    onToggle,
+    confirming: confirmId === e.id,
+    onConfirmRemove: () => {
+      setConfirmId("");
+      onRemoveStream(e);
+    },
+    onCancelRemove: () => setConfirmId(""),
+  });
+  const askRemove = (e) => setConfirmId(e.id);
+
+  const captures = entries.filter((e) => e.kind === "capture");
+  const simulators = entries.filter((e) => e.kind === "simulator");
+  const streams = entries.filter((e) => e.kind === "webrtc");
+
+  const simulatorDetail = (e) =>
+    ["localhost", "127.0.0.1"].includes(e.source.host) ? "On this computer" : `${e.source.host}:${e.source.port}`;
+
+  const handleAddAccount = async () => {
+    if (!token.trim()) {
+      setAcctError("Paste a personal access token.");
+      tokenRef.current?.focus();
+      return;
+    }
+    setAcctError("");
+    setLoadingAcct(true);
+    const res = await onAddAccount({ token: token.trim(), label: label.trim(), apiUrl: apiUrl.trim() });
+    setLoadingAcct(false);
+    if (!res?.ok) {
+      setAcctError(res?.message || "Couldn't load the account's devices.");
+      return;
+    }
+    setToken("");
+    setLabel("");
+    setApiUrl("");
+    setAcctForm(false);
+    toast(
+      `${res.account.label}: ${res.deviceCount} device${res.deviceCount === 1 ? "" : "s"}. Check the ones you want.`,
+    );
+  };
+
+  const handleRefresh = async (account) => {
+    setRefreshing(account.id);
+    const res = await onRefreshAccount(account.id);
+    setRefreshing("");
+    if (res?.errors?.[account.id]) toast(`${account.label}: ${res.errors[account.id]}`);
+  };
+
+  const handleAddStream = () => {
+    const id = onAddStream({ url: url.trim(), name: urlName.trim() }, setUrlError);
+    if (!id) return;
+    setUrl("");
+    setUrlName("");
+    setUrlError("");
+  };
+
+  const handleAddSimulator = async () => {
+    const id = await onAddSimulator({ host: simHost.trim(), port: simPort.trim() }, setSimError);
+    if (!id) return;
+    setSimHost("");
+    setSimPort("8090");
+  };
+
+  return (
+    <Modal
+      show={show}
+      onHide={onHide}
+      centered
+      scrollable
+      data-bs-theme={currentTheme()}
+      aria-labelledby="choose-video-title"
+    >
+      <Modal.Header closeButton>
+        <div>
+          <Modal.Title id="choose-video-title" style={{ fontSize: "1.05rem" }}>
+            Choose video
+          </Modal.Title>
+          <div className="text-muted" style={{ fontSize: "0.78rem" }}>
+            Checked items show on the Devices page.
+          </div>
+        </div>
+      </Modal.Header>
+      <Modal.Body style={{ fontSize: "0.85rem", paddingTop: 0 }}>
+        <PickGroup
+          {...groupProps("local")}
+          title="This computer"
+          meta={captures.length ? countOf(captures) : ""}
+          metaTitle="Capture devices checked"
+        >
+          <div className="pick-box">
+            {captures.length === 0 && <div className="pick-none">No capture devices found.</div>}
+            {captures.map((e) => (
+              <PickRow key={e.id} {...rowProps(e)} detail={e.hardwareId || "capture device"} />
+            ))}
+          </div>
+        </PickGroup>
+
+        <PickGroup
+          {...groupProps("simulators")}
+          title="BrightScript Simulators"
+          meta={simulators.length ? countOf(simulators) : ""}
+          metaTitle="Simulators checked"
+        >
+          <div className="pick-box">
+            {simulators.map((e) => (
+              <PickRow key={e.id} {...rowProps(e)} detail={simulatorDetail(e)} onRemove={askRemove} />
+            ))}
+            <div className="pick-inline">
+              <Form.Control
+                size="sm"
+                placeholder="Host or IP address"
+                aria-label="Simulator host"
+                value={simHost}
+                onChange={(e) => setSimHost(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
+              />
+              <Form.Control
+                size="sm"
+                placeholder="Port"
+                aria-label="Simulator port"
+                value={simPort}
+                onChange={(e) => setSimPort(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
+                style={{ flex: "0 1 80px" }}
+              />
+              <Button size="sm" variant="outline-secondary" onClick={handleAddSimulator}>
+                Add
+              </Button>
+            </div>
+            {simError && <div className="pick-error">{simError}</div>}
+            <div className="pick-hint">
+              Run the <ExternalLink url={SIMULATOR_RELEASES_URL}>BrightScript Simulator</ExternalLink> and enable its
+              remote screen (WebRTC), then enter its host and port. One running on this computer shows up here
+              automatically.
+            </div>
+          </div>
+        </PickGroup>
+
+        {accounts.map((account) => {
+          const devices = entries.filter((e) => e.kind === "rce" && e.source.accountId === account.id);
+          return (
+            <PickGroup
+              key={account.id}
+              {...groupProps(account.id)}
+              title={account.label}
+              meta={
+                <>
+                  <span className="acct-tag me-1">RCE</span>
+                  {account.tail && `••••${account.tail}`}
+                  {devices.length > 0 && <span className="ms-2">{countOf(devices)}</span>}
+                </>
+              }
+              metaTitle={`Roku Cloud Emulator account${account.tail ? `, token ending ${account.tail}` : ""}`}
+              actions={
+                <>
+                  <Button
+                    size="sm"
+                    variant="link"
+                    className="p-0"
+                    disabled={refreshing === account.id}
+                    onClick={() => handleRefresh(account)}
+                    aria-label={`Refresh ${account.label}`}
+                  >
+                    {refreshing === account.id ? <Spinner animation="border" size="sm" /> : "Refresh"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="link"
+                    className="p-0 ms-2"
+                    onClick={() => {
+                      if (collapsed.has(account.id)) toggleGroup(account.id);
+                      setConfirmId(account.id);
+                    }}
+                    aria-label={`Remove ${account.label}`}
+                  >
+                    Remove
+                  </Button>
+                </>
+              }
+            >
+              <div className="pick-box">
+                {confirmId === account.id && (
+                  <ConfirmBar
+                    message={`Remove ${account.label} and its ${devices.length} device${devices.length === 1 ? "" : "s"} from Carabiner? The token is deleted too.`}
+                    onConfirm={() => {
+                      setConfirmId("");
+                      onRemoveAccount(account);
+                    }}
+                    onCancel={() => setConfirmId("")}
+                  />
+                )}
+                {devices.length === 0 && <div className="pick-none">No devices on this account.</div>}
+                {devices.map((e) => (
+                  <PickRow
+                    key={e.id}
+                    {...rowProps(e)}
+                    detail={e.source.status || ""}
+                    live={e.source.status === "running"}
+                  />
+                ))}
+              </div>
+            </PickGroup>
+          );
+        })}
+
+        {acctForm ? (
+          <>
+            <div className="pick-group">
+              <span className="title">New Cloud Emulator account</span>
+            </div>
+            <div className="pick-box pick-form">
+              <Form.Group controlId="rce-token">
+                <Form.Label>Personal access token</Form.Label>
+                <Form.Control
+                  ref={tokenRef}
+                  size="sm"
+                  type="password"
+                  autoComplete="off"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddAccount()}
+                  autoFocus
+                />
+                <Form.Text>
+                  Create one in the <ExternalLink url={RCE_DOCS_URL}>Roku Cloud Emulator</ExternalLink> portal.
+                </Form.Text>
+              </Form.Group>
+              <Form.Group controlId="rce-label">
+                <Form.Label>Label (optional)</Form.Label>
+                <Form.Control
+                  size="sm"
+                  placeholder="e.g. Staging"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddAccount()}
+                />
+              </Form.Group>
+              {showAdvanced && (
+                <Form.Group controlId="rce-api-url">
+                  <Form.Label>Management API URL</Form.Label>
+                  <Form.Control
+                    size="sm"
+                    placeholder="https://api.rce.roku.com/api/v1"
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                  />
+                </Form.Group>
+              )}
+              {acctError && (
+                <div className="text-danger" role="alert">
+                  {acctError}
+                </div>
+              )}
+              <div className="pick-form-actions">
+                <Button size="sm" variant="link" className="p-0 me-auto" onClick={() => setShowAdvanced(!showAdvanced)}>
+                  {showAdvanced ? "Hide advanced" : "Advanced"}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setAcctForm(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" variant="primary" onClick={handleAddAccount} disabled={loadingAcct}>
+                  {loadingAcct ? (
+                    <>
+                      <Spinner animation="border" size="sm" /> Adding…
+                    </>
+                  ) : (
+                    "Add account"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="pick-group">
+            <Button size="sm" variant="outline-secondary" onClick={() => setAcctForm(true)}>
+              Add Cloud Emulator account
+            </Button>
+          </div>
+        )}
+
+        <PickGroup
+          {...groupProps("streams")}
+          title="Stream URLs"
+          meta={streams.length ? countOf(streams) : ""}
+          metaTitle="WebRTC streams (WHEP) you add by URL"
+        >
+          <div className="pick-box">
+            {streams.map((e) => (
+              <PickRow key={e.id} {...rowProps(e)} detail={e.source.url} onRemove={askRemove} />
+            ))}
+            <div className="pick-inline">
+              <Form.Control
+                size="sm"
+                placeholder="http://192.168.1.60:8889/stream/whep"
+                aria-label="Stream URL"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddStream()}
+              />
+              <Form.Control
+                size="sm"
+                placeholder="Name (optional)"
+                aria-label="Stream name"
+                value={urlName}
+                onChange={(e) => setUrlName(e.target.value)}
+                style={{ flex: "0 1 140px" }}
+              />
+              <Button size="sm" variant="outline-secondary" onClick={handleAddStream}>
+                Add
+              </Button>
+            </div>
+            {urlError && <div className="pick-error">{urlError}</div>}
+          </div>
+        </PickGroup>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button size="sm" variant="primary" onClick={onHide}>
+          Done
+        </Button>
+      </Modal.Footer>
+    </Modal>
+  );
+}
+
+export default ChooseVideoDialog;

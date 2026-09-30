@@ -765,7 +765,9 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
   const activeControl = deviceList.find((d) => d.id === activeControlId);
   const headerSuffix = ` (${activeControl ? activeControl.alias || activeControl.type : "None"})`;
   // A stream has its own built-in control, so its link can't be changed from the menu.
-  const isStream = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId)?.kind === "stream";
+  // (A WebRTC stream URL has no built-in control, so it links like a capture card.)
+  const activeSource = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId);
+  const isStream = activeSource?.kind === "stream" && activeSource.streamType !== "webrtc";
 
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(
@@ -774,7 +776,7 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
       enabled: !isStream,
       // Stream controls are managed by their source; never offer them for a capture card.
       submenu: deviceList
-        .filter((device) => !device.managedBy)
+        .filter((device) => !device.managedBy && device.chosen !== false)
         .map((device) => ({
           label: controlLabel(device),
           type: "radio",

@@ -88,6 +88,47 @@ function startSimulator(source, emit) {
 }
 
 
+// ---- WebRTC stream URL (WHEP) ------------------------------------------------------------
+// A stream URL the user entered by hand is treated as a WHEP endpoint (RFC 9725): unlike the
+// other sources, the viewer makes the offer. The window is asked for a complete (non-trickle)
+// offer, which is POSTed as application/sdp; the SDP answer comes back in the response body and
+// the session resource (Location header) is DELETEd when the viewer stops.
+function startWhep(source, emit) {
+  let cancelled = false;
+  let resourceUrl = null;
+  const fail = (message, noRetry = false) => {
+    if (!cancelled) emit({ type: "failure", message, noRetry });
+  };
+  emit({ type: "request-offer", iceServers: [] });
+
+  return {
+    async send(msg) {
+      if (msg.type !== "local-offer" || cancelled) return;
+      try {
+        const res = await fetch(source.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/sdp", Accept: "application/sdp" },
+          body: msg.sdp?.sdp || "",
+          signal: AbortSignal.timeout(API_REQUEST_TIMEOUT),
+        });
+        if (!res.ok) return fail(`Stream server refused the connection (HTTP ${res.status})`, res.status === 404);
+        const location = res.headers.get("location");
+        if (location) resourceUrl = new URL(location, source.url).toString();
+        const sdp = await res.text();
+        if (cancelled) return;
+        emit({ type: "answer", sdp: { type: "answer", sdp } });
+      } catch (err) {
+        fail(err.name === "TimeoutError" ? "Timed out contacting the stream server" : err.cause?.message || err.message);
+      }
+    },
+    close() {
+      cancelled = true;
+      if (resourceUrl) fetch(resourceUrl, { method: "DELETE", signal: AbortSignal.timeout(4000) }).catch(() => {});
+    },
+  };
+}
+
+
 // ---- Roku Cloud Emulator -----------------------------------------------------------------
 // The management API (bearer PAT) resolves a device to its live Janus stream details, then the
 // Janus streaming plugin negotiates over a WebSocket that needs an Authorization header on the
@@ -396,6 +437,7 @@ async function sendControlKey(source, key, mod = -1) {
 const STARTERS = {
   sim: startSimulator,
   rce: startRce,
+  webrtc: startWhep,
 };
 
 function stopSession(pairId) {
@@ -422,7 +464,7 @@ function relayFromWindow(pairId, msg) {
   sessions.get(pairId)?.send(msg);
 }
 
-// Reachability check used by the Streams tab "Test" button.
+// Reachability check (simulator detection and ECP port probe on the Devices tab).
 async function testSource(source) {
   if (source?.type === "rce") {
     try {

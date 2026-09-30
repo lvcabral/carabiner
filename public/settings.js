@@ -21,6 +21,7 @@ const DEFAULT_PAIR_BORDER = { width: "0.1px", style: "solid", color: "#662D91" }
 const DEFAULT_WINDOW_WIDTH = 820;
 const DEFAULT_WINDOW_HEIGHT = 461;
 const DEFAULT_PAIR_RESOLUTION = "804px|452px";
+const CONTROL_MODES = ["host", "viewer"];
 
 function saveSettings(settings) {
   fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
@@ -37,6 +38,9 @@ function makePair(partial = {}) {
     id: partial.id || newPairId(),
     captureDeviceId: partial.captureDeviceId || "",
     controlDeviceId: partial.controlDeviceId || "",
+    // Optional: "host" (ECP to a WebRTC stream's own host; controlDeviceId is "<host>|ecp") or
+    // "viewer" (picked in the viewer). Absent means controlDeviceId is used as is.
+    ...(CONTROL_MODES.includes(partial.controlMode) ? { controlMode: partial.controlMode } : {}),
     visible: partial.visible !== false,
     bounds: partial.bounds || {
       x: undefined,
@@ -62,7 +66,7 @@ function makePair(partial = {}) {
 // Convert the legacy single-window settings (display.deviceId + control.deviceId +
 // displayWindow bounds + global border/transparency/resolution) into one pair.
 // Each pair maps to exactly one capture device (pair.id === captureDeviceId); the
-// General tab lists the available capture devices rather than free-form "pairs".
+// Devices tab lists the available video sources rather than free-form "pairs".
 // Idempotent and legacy keys are left in place so a downgrade keeps working.
 function migrateSettings(settings) {
   if (Array.isArray(settings.pairs) && settings.pairs.length > 0) {
@@ -94,7 +98,7 @@ function migrateSettings(settings) {
   }
 
   // Only create a pair when there is a legacy capture device to carry over. On a
-  // truly fresh install pairs stays empty — the General tab is populated from the
+  // truly fresh install pairs stays empty — the Devices tab is populated from the
   // enumerated capture devices instead.
   if (captureDeviceId) {
     const migratedPair = makePair({
@@ -148,7 +152,15 @@ function loadSettings() {
       token: "", // Optional Bearer token; empty means no authentication
     },
     streams: {
-      sources: [], // WebRTC stream sources: { id, type: "sim", name, host, port }
+      // WebRTC stream sources, type "sim" | "rce" | "webrtc". Optional `chosen: false` hides one
+      // from the Devices tab (absent = shown, so older settings look as before).
+      sources: [],
+    },
+    rce: {
+      accounts: [], // Cloud Emulator accounts { id, label, token (sealed), tail, apiUrl? }
+    },
+    video: {
+      hiddenCaptureIds: [], // capture devices unchecked in Choose video (absent = shown)
     },
     pairs: [], // Per-window capture+control pairs (populated by migrateSettings)
     activePairId: "", // Pair targeted by MCP / tray actions by default

@@ -28,11 +28,25 @@
   box-sizing: border-box;
   max-height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Let the active tab shrink to whatever height is left under the header and tabs (and scroll),
+   instead of guessing that height with a fixed calc(). Short tabs keep their natural height. */
+.custom-container > .bg-light,
+.custom-container .tab-content,
+.custom-container .tab-content > .tab-pane.active {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
 }
 
 .tab-content-container {
   min-width: 400px;
-  max-height: calc(100vh - 120px);
+  flex: 0 1 auto;
+  min-height: 0;
   overflow-y: auto;
   background-color: white;
   padding: 8px; /* Reduced from 10px */
@@ -390,17 +404,320 @@ select.form-control:disabled {
   background-color: #adb5bd;
 }
 
-/* Window Mode row: vertically center the inline radios with the "Window Mode:" label.
-   Bootstrap lays each radio out with a floated input + min-height + margin-top, which sits
-   it lower than the plain label span. Lay each radio out as its own centered flex row. */
-.window-mode-row .form-check {
-  min-height: auto;
-  margin-bottom: 0;
-  padding-left: 0;
+/* ----- Devices tab ----- */
+:root {
+  --dev-line: #dee2e6;
+  --dev-raised: #f8f9fa;
+  --dev-muted: #6c757d;
+  --dev-live: #198754;
+  --dev-off: #adb5bd;
+  --dev-busy: rgba(13, 110, 253, 0.08);
+  --dev-err: #b61717;
+}
+[data-bs-theme="dark"] {
+  --dev-line: #495057;
+  --dev-raised: #3d4349;
+  --dev-muted: #adb5bd;
+  --dev-live: #3fcf8e;
+  --dev-off: #6c757d;
+  --dev-busy: rgba(110, 168, 254, 0.14);
+  --dev-err: #f08a4b;
+}
+.devices-bar {
   display: flex;
   align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
 }
-.window-mode-row .form-check-input {
-  float: none;
-  margin: 0 0.35em 0 0;
+.devices-bar h2 {
+  font-size: 1rem;
+  margin: 0;
+  font-weight: 600;
+}
+.devices-bar .hint {
+  color: var(--dev-muted);
+  font-size: 0.78rem;
+}
+.devices-bar .spacer {
+  flex: 1;
+}
+.devices-list {
+  border: 1px solid var(--dev-line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.device-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px 44px 56px;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border-top: 1px solid var(--dev-line);
+}
+.device-row.control {
+  grid-template-columns: minmax(0, 1fr) auto 56px;
+}
+.device-row:first-child,
+.device-typehead:first-child {
+  border-top: 0;
+}
+.device-row.busy {
+  background: var(--dev-busy);
+}
+.device-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-sub {
+  font-size: 0.75rem;
+  color: var(--dev-muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.device-sub .text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.source-icon {
+  width: 1em;
+  height: 1em;
+  margin-right: 5px;
+  vertical-align: -0.125em;
+  color: var(--dev-muted);
+  flex: none;
+}
+.device-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dev-off);
+  flex: none;
+}
+.device-dot.live {
+  background: var(--dev-live);
+}
+.acct-tag {
+  font-size: 0.7rem;
+  border: 1px solid var(--dev-line);
+  border-radius: 4px;
+  padding: 0 5px;
+  white-space: nowrap;
+  flex: none;
+}
+.device-used {
+  font-size: 0.72rem;
+  color: var(--dev-muted);
+  text-align: right;
+}
+.device-typehead {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--dev-muted);
+  background: var(--dev-raised);
+  border-top: 1px solid var(--dev-line);
+}
+.device-empty {
+  padding: 18px 10px;
+  text-align: center;
+  color: var(--dev-muted);
+}
+.device-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--dev-muted);
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.icon-btn:hover {
+  background: var(--dev-raised);
+}
+.icon-btn.danger:hover {
+  color: var(--dev-err);
+}
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.device-status {
+  font-size: 0.72rem;
+  color: var(--dev-muted);
+  margin-top: 3px;
+}
+.pick-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 4px;
+}
+.pick-group .title {
+  font-weight: 600;
+}
+.pick-group .sub {
+  font-size: 0.75rem;
+  color: var(--dev-muted);
+}
+.pick-group .spacer {
+  flex: 1;
+}
+.group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+.group-chevron {
+  width: 12px;
+  height: 12px;
+  color: var(--dev-muted);
+  transition: transform 0.15s;
+}
+.group-chevron.open {
+  transform: rotate(90deg);
+}
+.pick-box {
+  border: 1px solid var(--dev-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--dev-line);
+  cursor: pointer;
+  margin: 0;
+}
+.pick-row:first-child {
+  border-top: 0;
+}
+.pick-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.pick-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+.pick-row .sub,
+.pick-row .type {
+  font-size: 0.72rem;
+  color: var(--dev-muted);
+}
+.pick-select-all {
+  background: var(--dev-raised);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--dev-muted);
+}
+.pick-none {
+  font-size: 0.78rem;
+  color: var(--dev-muted);
+  padding: 6px 10px;
+}
+.pick-inline {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-top: 1px solid var(--dev-line);
+  background: var(--dev-raised);
+}
+.pick-inline:first-child {
+  border-top: 0;
+}
+.pick-inline .form-control {
+  flex: 1;
+  min-width: 110px;
+  width: auto;
+}
+.pick-inline select.form-control {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+/* A small stacked form inside a pick box (e.g. new Cloud Emulator account). */
+.pick-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--dev-raised);
+}
+.pick-form .form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+.pick-form .form-text {
+  font-size: 0.72rem;
+  color: var(--dev-muted);
+}
+.pick-form .form-group {
+  margin-bottom: 0;
+}
+.pick-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pick-error {
+  font-size: 0.75rem;
+  color: var(--dev-err);
+  padding: 0 10px 6px;
+  background: var(--dev-raised);
+}
+.pick-hint {
+  font-size: 0.72rem;
+  color: var(--dev-muted);
+  padding: 0 10px 8px;
+  background: var(--dev-raised);
+}
+.devices-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  background: #212529;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  max-width: 90vw;
+  z-index: 2000;
+}
+[data-bs-theme="dark"] .devices-toast {
+  background: #f8f9fa;
+  color: #212529;
+}
+.devices-toast.show {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .devices-toast,
+  .group-chevron {
+    transition: none;
+  }
 }

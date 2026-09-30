@@ -12,7 +12,7 @@
 // (src/components/pairLabel.js) and the Display window (render.js) keep their own copy of these
 // few lines because they can't require() this file.
 const STREAM_PREFIX = "stream:";
-const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator" };
+const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator", webrtc: "WebRTC" };
 
 const isStreamDeviceId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
 const streamDeviceId = (source) => STREAM_PREFIX + source.id;
