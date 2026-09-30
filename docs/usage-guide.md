@@ -35,8 +35,8 @@ Carabiner supports **multiple video sources at once**: each capture card or WebR
 
 Instead of (or besides) a capture card, a window can show a **WebRTC stream**. Open the **Streams** tab, pick the **Stream Source Type**, and click **+** to register it:
 
-- **BrightScript Simulator** — enable the *remote screen* (WebRTC) in [BrightScript Simulator](https://github.com/lvcabral/brs-desktop), then enter its **Host/IP** and **Port** (default `8090`). No authentication is needed. Use **Test** to verify it is reachable.
 - **[Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce)** — enter your Cloud Emulator **access token** (a personal access token from the Roku Cloud Emulator portal), click **Load devices** and pick the device to watch. The device must be running; if it is still starting, Carabiner waits for it. *Advanced* lets you override the management API URL. The token is encrypted with your operating system's keychain and is never exposed to the app's windows.
+- **BrightScript Simulator** — enable the *remote screen* (WebRTC) in [BrightScript Simulator](https://github.com/lvcabral/brs-desktop), then enter its **Host/IP** and **Port** (default `8090`). No authentication is needed. Use **Test** to verify it is reachable.
 
 To rename or remove a stream later, select it in the *Stream Source List* and use **✎** (Rename) or **⌫** (Delete); renaming a stream also renames its built-in control.
 

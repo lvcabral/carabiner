@@ -26,10 +26,28 @@ const describeSource = (src) =>
     ? `${TYPE_LABELS.rce}: ${src.name}`
     : `${TYPE_LABELS[src.type] || src.type}: ${src.name} (${src.host}${src.port ? `:${src.port}` : ""})`;
 
+const RCE_DOCS_URL = "https://developer.roku.com/dev/docs/rce";
+const SIMULATOR_RELEASES_URL = "https://github.com/lvcabral/brs-desktop/releases";
+
+// Opens in the system browser (the settings window itself must not navigate away).
+function ExternalLink({ url, children }) {
+  return (
+    <a
+      href={url}
+      onClick={(e) => {
+        e.preventDefault();
+        electronAPI.openExternal(url);
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 // Catalog of WebRTC stream sources. Sources are enabled and linked to a control device from the
 // General tab, next to the capture cards.
 function StreamsSection({ sources = [], onUpdateSources }) {
-  const [type, setType] = useState("sim");
+  const [type, setType] = useState("rce");
   const [name, setName] = useState("");
   const [host, setHost] = useState("");
   const [port, setPort] = useState(SIM_DEFAULT_PORT);
@@ -194,8 +212,8 @@ function StreamsSection({ sources = [], onUpdateSources }) {
                   setTestStatus("");
                 }}
               >
-                <option value="sim">BrightScript Simulator (WebRTC)</option>
                 <option value="rce">Roku Cloud Emulator (WebRTC)</option>
+                <option value="sim">BrightScript Simulator (WebRTC)</option>
               </Form.Control>
             </Form.Group>
             {isRce ? (
@@ -379,11 +397,20 @@ function StreamsSection({ sources = [], onUpdateSources }) {
               <div style={{ fontSize: "0.75rem", color: "#198754", marginBottom: "8px" }}>{notice}</div>
             )}
             <p className="text-muted small mb-0">
+              {isRce ? (
+                <>
+                  Create a personal access token in the{" "}
+                  <ExternalLink url={RCE_DOCS_URL}>Roku Cloud Emulator</ExternalLink> portal, enter it
+                  above and load your devices. The device must be running to be watched.
+                </>
+              ) : (
+                <>
+                  Run the <ExternalLink url={SIMULATOR_RELEASES_URL}>BrightScript Simulator</ExternalLink>{" "}
+                  and enable its remote screen (WebRTC), then enter its host and port above.
+                </>
+              )}{" "}
               Every stream comes with its own built-in control, so there is nothing to set up in the
-              Control tab: keys are sent to the stream&apos;s device using the same connection details.
-              Just enable the stream on the General tab. Enable the
-              remote screen (WebRTC) in BrightScript Simulator first, or create a personal access token in the
-              Roku Cloud Emulator portal for Cloud Emulator devices.
+              Control tab. Just enable the stream on the General tab.
             </p>
           </Form>
         </Card.Body>
