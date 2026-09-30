@@ -111,6 +111,18 @@ test("deleting a control device asks first; Cancel keeps it", async () => {
   expect(screen.getByLabelText("Control for usb video")).toHaveValue("none");
 });
 
+test("Remove in Choose control devices deletes the device for good, after confirming", async () => {
+  renderDevicesTab();
+  await screen.findByText("Controls usb video");
+  userEvent.click(screen.getByRole("button", { name: "Choose devices" }));
+  const dialog = await screen.findByRole("dialog");
+  userEvent.click(within(dialog).getByRole("button", { name: "Remove Bench 3" }));
+  userEvent.click(await within(dialog).findByRole("button", { name: "Remove" }));
+  const lists = calls.filter(([k, , msg]) => k === "sendSync" && msg?.type === "set-control-list");
+  expect(lists[lists.length - 1][2].payload).toEqual([]);
+  await waitFor(() => expect(within(dialog).queryByText("Bench 3")).not.toBeInTheDocument());
+});
+
 test("Choose control devices scans on open and keeps typed input when the scan finishes", async () => {
   renderDevicesTab();
   await screen.findByText("usb video");

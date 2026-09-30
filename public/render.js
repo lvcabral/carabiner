@@ -615,12 +615,12 @@ async function acquireWebRtcStream(deviceId) {
     const createPeer = (iceServers, trickle) => {
       const pc = new RTCPeerConnection({ iceServers: iceServers || [] });
       streamPc = pc;
-      let remote = null;
+      // Collect every track into one stream of our own: WHEP servers don't always tie tracks to a
+      // stream, and audio may arrive before video. Resolve once there is video to show.
+      const remote = new MediaStream();
       pc.ontrack = (e) => {
-        // WHEP servers don't always tie tracks to a stream, so collect them ourselves.
-        remote = e.streams[0] || remote || new MediaStream();
-        if (!e.streams[0]) remote.addTrack(e.track);
-        if (e.track.kind === "video" || e.streams[0]) done(resolve, remote);
+        if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
+        if (remote.getVideoTracks().length) done(resolve, remote);
       };
       if (trickle) {
         pc.onicecandidate = (e) => {
@@ -1963,21 +1963,16 @@ async function handleControlSelected(data) {
     controlType = "ecp";
   } else if (typeof data === "string" && data.includes("|")) {
     [controlIp, controlType] = data.split("|");
-    deviceLabel.textContent = await getCaptureDeviceLabel(
-      currentConstraints?.video?.deviceId?.exact
-    );
+  } else {
+    return;
   }
+  deviceLabel.textContent = await getCaptureDeviceLabel(currentConstraints?.video?.deviceId?.exact);
 }
 
+// The catalog only matters for labels here: main owns the pairing and sends set-control-selected ""
+// whenever this window's control leaves the catalog. (Clearing here too would also drop a stream's
+// "same host" target "<host>|ecp", which can share its id with a catalog Roku at that address.)
 function handleControlList(data) {
-  // Only drop a target that was in the catalog and has now left it. A stream's "same host" ECP
-  // target ("<host>|ecp") is never in the catalog and must survive catalog updates.
-  const current = `${controlIp}|${controlType}`;
-  const wasListed = controlList.some((device) => device.id === current);
-  if (wasListed && !data.some((device) => device.id === current)) {
-    controlIp = "";
-    controlType = "ecp";
-  }
   controlList = data;
   // A rename of the control (or its stream) changes what the window's label should say.
   const shownDeviceId = currentConstraints?.video?.deviceId?.exact;

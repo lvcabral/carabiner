@@ -113,8 +113,6 @@ function TypeHint({ typeKey, repoUrl }) {
   );
 }
 
-// "Choose control devices" checklist. Opening it scans the network. Every change applies right
-// away: checking a device shows it on the Devices page, and devices added by hand are checked.
 // Checkbox that also shows the "some checked" (indeterminate) state.
 function SelectAll({ checked, indeterminate, onChange, label }) {
   const ref = useRef(null);
@@ -129,6 +127,8 @@ function SelectAll({ checked, indeterminate, onChange, label }) {
   );
 }
 
+// "Choose control devices" checklist. Opening it scans the network. Every change applies right
+// away: checking a device shows it on the Devices page, and devices added by hand are checked.
 function ChooseControlDialog({
   show,
   deviceList,
@@ -136,12 +136,15 @@ function ChooseControlDialog({
   onHide,
   onToggle,
   onSetAll,
+  onRemove,
   onDeviceListChange,
   onScan,
   toast,
 }) {
   const [scanning, setScanning] = useState(false);
   const [lastFound, setLastFound] = useState(null); // ids found or reachable in the latest scan
+  const [scanError, setScanError] = useState("");
+  const [confirmId, setConfirmId] = useState(""); // device awaiting "Remove?"
   const [typeKey, setTypeKey] = useState("roku");
   const [address, setAddress] = useState("");
   const [name, setName] = useState("");
@@ -155,14 +158,16 @@ function ChooseControlDialog({
 
   const scan = async () => {
     setScanning(true);
-    const found = await onScan();
+    const { found, error: failed } = await onScan();
     setLastFound(found);
+    setScanError(failed);
     setScanning(false);
   };
 
   useEffect(() => {
     if (!show) return;
     setError("");
+    setConfirmId("");
     setShowAdd(false);
     setLastFound(null);
     electronAPI
@@ -176,6 +181,16 @@ function ChooseControlDialog({
   const isXumo = typeKey === "xumo";
 
   const handleAdd = () => {
+    // These are driven through a command-line tool, which has to be set up first.
+    const proto = CONTROL_TYPES.find((t) => t.key === typeKey)?.proto;
+    if (proto === "adb" && !paths.adb) {
+      setError("Set the ADB tool path on the General tab before adding this device.");
+      return;
+    }
+    if (proto === "atv" && !paths.atv) {
+      setError("Set the atvremote tool path on the General tab before adding this device.");
+      return;
+    }
     const res = addManualDevice(deviceList, { typeKey, address, name, port: rdkPort, token: rdkToken });
     if (res.error) {
       setError(res.error);
@@ -192,17 +207,16 @@ function ChooseControlDialog({
     setName("");
     setRdkToken("");
     setRdkTest("");
-    const needsTool =
-      (controlTypeOf(res.device).proto === "adb" && !paths.adb) ||
-      (controlTypeOf(res.device).proto === "atv" && !paths.atv);
-    toast(
-      needsTool
-        ? `Added ${controlName(res.device)}. Set its tool path on the General tab.`
-        : `Added ${controlName(res.device)}.`,
-    );
+    toast(`Added ${controlName(res.device)}.`);
   };
 
   const testRdk = async () => {
+    // Same address/port checks as adding it.
+    const check = addManualDevice([], { typeKey: "xumo", address, port: rdkPort });
+    if (check.error) {
+      setRdkTest(check.error);
+      return;
+    }
     setRdkTest("Testing…");
     const r = await electronAPI.invoke("test-rdk-connection", {
       host: address.trim(),
@@ -246,6 +260,10 @@ function ChooseControlDialog({
           {scanning ? (
             <span className="sub d-inline-flex align-items-center gap-1">
               <Spinner animation="border" size="sm" /> Scanning your network
+            </span>
+          ) : scanError ? (
+            <span className="sub text-danger" role="alert" title={scanError}>
+              Roku scan failed: {scanError}
             </span>
           ) : (
             <span className="sub">Scan finished</span>
@@ -352,20 +370,49 @@ function ChooseControlDialog({
             />
           )}
           {devices.map((d) => (
-            <label className="pick-row" key={d.id}>
-              <input
-                type="checkbox"
-                checked={isChosen(d)}
-                onChange={(e) => onToggle(d.id, e.target.checked)}
-                aria-label={controlName(d)}
-              />
-              <span className="grow">
-                <div>{controlName(d)}</div>
-                <div className="sub">{detailFor(d)}</div>
-              </span>
-              <span className="type">{controlTypeOf(d).label}</span>
-              <Dot live={online[d.id] === true} />
-            </label>
+            <div className="pick-item" key={d.id}>
+              <div className="pick-row">
+                <label className="pick-main">
+                  <input type="checkbox" checked={isChosen(d)} onChange={(e) => onToggle(d.id, e.target.checked)} />
+                  <span className="grow">
+                    <div>{controlName(d)}</div>
+                    <div className="sub">{detailFor(d)}</div>
+                  </span>
+                </label>
+                <span className="type">{controlTypeOf(d).label}</span>
+                <Dot live={online[d.id] === true} />
+                <Button
+                  size="sm"
+                  variant="link"
+                  className="p-0 ms-1"
+                  aria-label={`Remove ${controlName(d)}`}
+                  onClick={() => setConfirmId(d.id)}
+                >
+                  Remove
+                </Button>
+              </div>
+              {confirmId === d.id && (
+                <div className="pick-inline align-items-center" role="alert">
+                  <span className="flex-grow-1">
+                    Remove {controlName(d)} from Carabiner? A scan may find it again if it's on your network.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    autoFocus
+                    onClick={() => {
+                      setConfirmId("");
+                      onRemove(d);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                  <Button size="sm" variant="link" onClick={() => setConfirmId("")}>
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </Modal.Body>

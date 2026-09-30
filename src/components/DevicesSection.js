@@ -26,10 +26,11 @@ import {
   controlTypeOf,
   controlValueOf,
   defaultControlName,
-  renameControl,
   hostOf,
   isChosen,
   mergeScanResults,
+  removeControlDevice,
+  renameControl,
   setPairFor,
   userControls,
   validateStreamUrl,
@@ -68,9 +69,10 @@ function DevicesSection({
   const [refreshing, setRefreshing] = useState(false);
   const [toast, toastNode] = useToast();
 
-  // Long-lived callbacks (IPC listeners, async scans) must see the latest lists.
+  // Long-lived callbacks (IPC listeners, async scans, a confirmation left open while a refresh
+  // lands) must act on the latest lists, never on the ones captured when they were created.
   const latest = useRef({});
-  latest.current = { pairs, streamingDevices, streamSources, singleWindowMode };
+  latest.current = { pairs, streamingDevices, streamSources, singleWindowMode, captureDevices, hiddenCaptureIds };
 
   const entries = videoEntries({ captureDevices, streamSources, hiddenCaptureIds });
   const chosenEntries = entries.filter((e) => e.chosen);
@@ -182,12 +184,14 @@ function DevicesSection({
 
   // Check or uncheck one video source (Choose video checkbox, or the row's delete button).
   const setVideoChosen = (id, on) => {
-    const chosen = new Set(chosenEntries.map((e) => e.id));
+    const now = latest.current;
+    const all = videoEntries(now);
+    const chosen = new Set(all.filter((e) => e.chosen).map((e) => e.id));
     on ? chosen.add(id) : chosen.delete(id);
-    const res = applyVideoSelection({ entries, streamSources, hiddenCaptureIds, pairs }, chosen);
-    if (JSON.stringify(res.streamSources) !== JSON.stringify(streamSources)) onUpdateStreamSources(res.streamSources);
-    if (JSON.stringify(res.hiddenCaptureIds) !== JSON.stringify(hiddenCaptureIds)) persistHidden(res.hiddenCaptureIds);
-    if (JSON.stringify(res.pairs) !== JSON.stringify(pairs)) onPairsChange?.(res.pairs);
+    const res = applyVideoSelection({ ...now, entries: all }, chosen);
+    if (JSON.stringify(res.streamSources) !== JSON.stringify(now.streamSources)) onUpdateStreamSources(res.streamSources);
+    if (JSON.stringify(res.hiddenCaptureIds) !== JSON.stringify(now.hiddenCaptureIds)) persistHidden(res.hiddenCaptureIds);
+    if (JSON.stringify(res.pairs) !== JSON.stringify(now.pairs)) onPairsChange?.(res.pairs);
   };
 
   const handleDeleteVideo = (entry) =>
@@ -208,33 +212,49 @@ function DevicesSection({
       setError(problem);
       return null;
     }
-    if (streamSources.some((s) => s.type === "webrtc" && s.url === url)) {
+    const current = latest.current.streamSources;
+    if (current.some((s) => s.type === "webrtc" && s.url === url)) {
       setError("That stream is already in the list.");
       return null;
     }
     const host = hostOf(url);
     const src = { id: `webrtc-${Date.now().toString(36)}`, type: "webrtc", name: name || `Stream at ${host}`, url };
-    onUpdateStreamSources([...streamSources, src]);
+    onUpdateStreamSources([...current, src]);
     // Default control: ECP to the stream's own host.
     onPairsChange?.(setPairFor(latest.current.pairs, streamDeviceId(src), controlPatch("host", { host })));
     return streamDeviceId(src);
   };
 
-  const handleAddSimulator = async ({ host, port }, setError) => {
+  // Returns an error message for a simulator address, or null when it is valid.
+  const simulatorProblem = (host, port) => {
     const n = Number(port);
-    if (!host) {
-      setError("Enter the simulator's host name or IP address.");
+    if (!host) return "Enter the simulator's host name or IP address.";
+    if (!Number.isInteger(n) || n < 1 || n > 65535) return "The port has to be 1–65535.";
+    return null;
+  };
+
+  // Test button: reach the simulator's remote screen before adding it.
+  const handleTestSimulator = async ({ host, port }) => {
+    const problem = simulatorProblem(host, port);
+    if (problem) return { ok: false, message: problem };
+    const res = await electronAPI.invoke("test-stream-source", { type: "sim", host, port: Number(port) }).catch(() => null);
+    if (!res?.ok) return { ok: false, message: `Failed: ${res?.message || "no response"}` };
+    if (res.config?.ecpEnabled === false) return { ok: true, message: "Connected, but ECP is disabled in the simulator" };
+    return { ok: true, message: "Connected" };
+  };
+
+  const handleAddSimulator = async ({ host, port, name }, setError) => {
+    const problem = simulatorProblem(host, port);
+    if (problem) {
+      setError(problem);
       return null;
     }
-    if (!Number.isInteger(n) || n < 1 || n > 65535) {
-      setError("The port has to be 1–65535.");
-      return null;
-    }
-    if (streamSources.some((s) => s.type === "sim" && s.host === host && Number(s.port) === n)) {
+    const n = Number(port);
+    if (latest.current.streamSources.some((s) => s.type === "sim" && s.host === host && Number(s.port) === n)) {
       setError("That simulator is already in the list.");
       return null;
     }
-    const src = { id: `sim-${Date.now().toString(36)}`, type: "sim", name: `Simulator at ${host}`, host, port: n };
+    const src = { id: `sim-${Date.now().toString(36)}`, type: "sim", name: name || `Simulator at ${host}`, host, port: n };
     // The simulator's ECP port is reported by its remote screen; fall back to the default.
     const probe = await electronAPI.invoke("test-stream-source", src).catch(() => null);
     if (probe?.ok && probe.config?.ecpPort) src.ecpPort = Number(probe.config.ecpPort);
@@ -246,7 +266,7 @@ function DevicesSection({
   };
 
   const handleRemoveStream = (entry) => {
-    onUpdateStreamSources(streamSources.filter((s) => streamDeviceId(s) !== entry.id));
+    onUpdateStreamSources(latest.current.streamSources.filter((s) => streamDeviceId(s) !== entry.id));
     toast(`Removed ${entry.name}.`);
   };
 
@@ -263,14 +283,19 @@ function DevicesSection({
     return names.length ? `${names.join(", ")} now ${names.length > 1 ? "have" : "has"} no control.` : "";
   };
 
-  // Check or uncheck one control device. Unchecking unlinks the sources it controlled.
-  const setControlChosen = (id, on) => {
-    const chosen = new Set(chosenControls.map((d) => d.id));
-    on ? chosen.add(id) : chosen.delete(id);
-    const res = applyControlSelection(streamingDevices, chosen, pairs);
+  // Apply a control-catalog change ({ deviceList, pairs, affected }) and report what lost control.
+  const commitControls = (res) => {
     onUpdateStreamingDevices(res.deviceList);
     if (res.affected.length) onPairsChange?.(res.pairs);
     return res.affected;
+  };
+
+  // Check or uncheck one control device. Unchecking unlinks the sources it controlled.
+  const setControlChosen = (id, on) => {
+    const { streamingDevices: list, pairs: current } = latest.current;
+    const chosen = new Set(userControls(list).filter(isChosen).map((d) => d.id));
+    on ? chosen.add(id) : chosen.delete(id);
+    return commitControls(applyControlSelection(list, chosen, current));
   };
 
   const handleToggleControl = (id, on) => {
@@ -280,13 +305,17 @@ function DevicesSection({
 
   // "Select all" in Choose control devices: one update for the whole list.
   const handleSetAllControls = (on) => {
-    const chosen = new Set(on ? userControls(streamingDevices).map((d) => d.id) : []);
-    const res = applyControlSelection(streamingDevices, chosen, pairs);
-    onUpdateStreamingDevices(res.deviceList);
-    if (res.affected.length) {
-      onPairsChange?.(res.pairs);
-      toast(noControlMessage(res.affected));
-    }
+    const { streamingDevices: list, pairs: current } = latest.current;
+    const chosen = new Set(on ? userControls(list).map((d) => d.id) : []);
+    const affected = commitControls(applyControlSelection(list, chosen, current));
+    if (affected.length) toast(noControlMessage(affected));
+  };
+
+  // Remove from Choose control devices: gone for good (e.g. a mistyped address).
+  const handleRemoveControl = (device) => {
+    const { streamingDevices: list, pairs: current } = latest.current;
+    const affected = commitControls(removeControlDevice(list, device.id, current));
+    toast(`Removed ${controlName(device)}. ${noControlMessage(affected)}`.trim());
   };
 
   const handleDeleteControl = (device) => {
@@ -302,10 +331,12 @@ function DevicesSection({
     });
   };
 
-  // Scan: Roku discovery (SSDP) plus a reachability check of every known device. Returns the ids
-  // found or reachable, for the dialog's "not found in this scan".
+  // Scan: Roku discovery (SSDP) plus a reachability check of every known device. Returns
+  // { found, error }: the ids found or reachable (for "not found in this scan"), and why Roku
+  // discovery failed, if it did.
   const handleScan = async () => {
-    const res = await electronAPI.invoke("discover-roku-devices", 3000).catch(() => null);
+    const res = await electronAPI.invoke("discover-roku-devices", 3000).catch((e) => ({ success: false, error: e.message }));
+    const error = res?.success ? "" : res?.error || "Roku discovery failed.";
     const merged = mergeScanResults(latest.current.streamingDevices, res?.success ? res.devices : []);
     if (merged.addedCount || merged.deviceList.some((d, i) => d !== latest.current.streamingDevices[i])) {
       onUpdateStreamingDevices(merged.deviceList);
@@ -315,7 +346,7 @@ function DevicesSection({
     Object.entries(reach).forEach(([id, ok]) => ok && found.add(id));
     merged.foundIds.forEach((id) => setOnline((o) => ({ ...o, [id]: true })));
     if (merged.addedCount) toast(`Found ${merged.addedCount} new device${merged.addedCount > 1 ? "s" : ""}.`);
-    return found;
+    return { found, error };
   };
 
   // ----- rename -----
@@ -386,7 +417,7 @@ function DevicesSection({
             <optgroup key={t.key} label={t.label}>
               {list.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {controlName(d)}
+                  {controlName(d)} ({d.port ? `${d.ipAddress}:${d.port}` : d.ipAddress})
                 </option>
               ))}
             </optgroup>
@@ -568,6 +599,7 @@ function DevicesSection({
         onRemoveAccount={handleRemoveAccount}
         onAddStream={handleAddStream}
         onAddSimulator={handleAddSimulator}
+        onTestSimulator={handleTestSimulator}
         onRemoveStream={handleRemoveStream}
         toast={toast}
       />
@@ -578,6 +610,7 @@ function DevicesSection({
         onHide={() => setShowControl(false)}
         onToggle={handleToggleControl}
         onSetAll={handleSetAllControls}
+        onRemove={handleRemoveControl}
         onDeviceListChange={onUpdateStreamingDevices}
         onScan={handleScan}
         toast={toast}

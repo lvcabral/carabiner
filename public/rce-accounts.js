@@ -42,6 +42,9 @@ function normalizeRceAccounts(settings, { unseal, newId }) {
     if (src.type !== "rce") continue;
     if (src.accountId && accounts.some((a) => a.id === src.accountId)) continue;
     const plain = unseal(src.token);
+    // A sealed token that can't be decrypted right now (keychain locked/denied) can't be grouped
+    // with the others; leave the source alone and try again next launch.
+    if (src.token && !plain) continue;
     let account = plain ? findAccountByToken(accounts, plain, unseal) : null;
     if (!account) {
       account = {
@@ -102,6 +105,29 @@ function applyAccountDevices(sources, account, devices, newId) {
   return { sources: next, removedIds, addedCount };
 }
 
+// Merge the stream-source list sent by the settings window into the stored one. Cloud Emulator
+// sources belong to their account (main adds/removes them), so from the window only a rename or
+// check/uncheck is taken: a stale window list can't drop devices a refresh just added, nor bring
+// back removed ones. Other sources are taken as sent, keeping the stored token when none is sent
+// (`sealed` maps source id -> newly sealed token).
+const RCE_EDITABLE = ["name", "chosen"];
+function mergeWindowSources(stored = [], fromWindow = [], sealed = new Map()) {
+  const byId = new Map(stored.map((src) => [src.id, src]));
+  const sentIds = new Set(fromWindow.map((src) => src.id));
+  const merged = fromWindow
+    .filter((src) => src.type !== "rce" || byId.get(src.id)?.type === "rce")
+    .map(({ hasToken, ...src }) => {
+      const prev = byId.get(src.id);
+      if (src.type === "rce") {
+        const next = { ...prev };
+        RCE_EDITABLE.forEach((key) => (key in src ? (next[key] = src[key]) : delete next[key]));
+        return next;
+      }
+      return { ...src, token: src.token ? sealed.get(src.id) || src.token : prev?.token || "" };
+    });
+  return [...merged, ...stored.filter((src) => src.type === "rce" && !sentIds.has(src.id))];
+}
+
 // Remove an account and every source that belongs to it. Returns the removed source ids.
 function removeAccount(settings, accountId) {
   const sources = settings?.streams?.sources || [];
@@ -118,5 +144,6 @@ module.exports = {
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
+  mergeWindowSources,
   removeAccount,
 };

@@ -124,17 +124,23 @@ export function mergeScanResults(deviceList, found = []) {
 }
 
 // Unlink every pair whose control is one of `ids`. Returns { pairs, affected } where affected is
-// the list of pairs that changed.
+// the list of pairs that changed. A stream's "same host" target ("<host>|ecp") isn't a catalog
+// device even when a catalog Roku has the same address, so it is left alone.
 export function resetPairingsFor(pairs = [], ids = []) {
   const gone = new Set(ids);
   const affected = [];
   const next = pairs.map((p) => {
-    if (!p.controlDeviceId || !gone.has(p.controlDeviceId)) return p;
+    if (!p.controlDeviceId || !gone.has(p.controlDeviceId) || p.controlMode === "host") return p;
     affected.push(p);
     const { controlMode, ...rest } = p;
     return { ...rest, controlDeviceId: "" };
   });
   return { pairs: next, affected };
+}
+
+// Remove a control device for good (not just uncheck it), unlinking the sources it controlled.
+export function removeControlDevice(deviceList, id, pairs) {
+  return { deviceList: deviceList.filter((d) => d.id !== id), ...resetPairingsFor(pairs, [id]) };
 }
 
 // Make `chosenIds` the chosen control devices; pairs linked to a device that is no longer chosen

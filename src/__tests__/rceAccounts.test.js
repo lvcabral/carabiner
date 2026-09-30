@@ -1,4 +1,5 @@
 const {
+  mergeWindowSources,
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
@@ -33,12 +34,50 @@ describe("normalizeRceAccounts (settings from older builds)", () => {
     expect(settings.streams.sources[2].accountId).toBeUndefined();
   });
 
+  test("a token that can't be decrypted right now is left for the next launch", () => {
+    const locked = () => "";
+    const settings = { streams: { sources: [rce("a", 1, "enc:aaaa"), rce("b", 2, "enc:aaaa")] } };
+    expect(normalizeRceAccounts(settings, { unseal: locked, newId: ids() })).toBe(false);
+    expect(settings.rce.accounts).toEqual([]);
+    expect(settings.streams.sources.every((s) => !s.accountId)).toBe(true);
+  });
+
   test("is idempotent", () => {
     const settings = { streams: { sources: [rce("a", 1, "enc:aaaa")] } };
     normalizeRceAccounts(settings, { unseal, newId: ids() });
     const snapshot = JSON.stringify(settings);
     expect(normalizeRceAccounts(settings, { unseal, newId: ids() })).toBe(false);
     expect(JSON.stringify(settings)).toBe(snapshot);
+  });
+});
+
+describe("stream sources sent by the settings window", () => {
+  const stored = [
+    rce("r1", 1, "enc:t", { accountId: "a1", status: "running", name: "Box" }),
+    rce("r2", 2, "enc:t", { accountId: "a1", status: "running" }), // just added by a refresh
+    { id: "s1", type: "sim", name: "Sim", host: "localhost", port: 8090 },
+  ];
+
+  test("a stale list can't drop, resurrect or roll back Cloud Emulator devices", () => {
+    const stale = [
+      { id: "r1", type: "rce", name: "Renamed", status: "shutdown", hasToken: true, chosen: false }, // old status
+      { id: "gone", type: "rce", name: "Removed by refresh", hasToken: true },
+      { id: "s1", type: "sim", name: "Sim", host: "localhost", port: 8090, hasToken: false },
+    ];
+    const merged = mergeWindowSources(stored, stale);
+    expect(merged.map((s) => s.id).sort()).toEqual(["r1", "r2", "s1"]);
+    const r1 = merged.find((s) => s.id === "r1");
+    expect(r1).toMatchObject({ name: "Renamed", chosen: false, status: "running", token: "enc:t", accountId: "a1" });
+    expect(merged.every((s) => !("hasToken" in s))).toBe(true);
+  });
+
+  test("re-checking a device clears its chosen flag; other sources keep their stored token", () => {
+    const merged = mergeWindowSources([{ ...stored[0], chosen: false }, { id: "w", type: "webrtc", url: "http://x", token: "" }], [
+      { id: "r1", type: "rce", name: "Box" },
+      { id: "w", type: "webrtc", url: "http://x" },
+    ]);
+    expect("chosen" in merged.find((s) => s.id === "r1")).toBe(false);
+    expect(merged.find((s) => s.id === "w").token).toBe("");
   });
 });
 

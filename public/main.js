@@ -69,6 +69,7 @@ const {
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
+  mergeWindowSources,
   removeAccount,
 } = require("./rce-accounts");
 const { startMcpServer, stopMcpServer, isRunning: isMcpRunning, getPort: getMcpPort } = require("./mcp-server");
@@ -879,6 +880,7 @@ function switchControlDevice(deviceId, pairId = activePairId) {
   if (!pair) return;
   const prevDeviceId = pair.controlDeviceId;
   pair.controlDeviceId = deviceId;
+  delete pair.controlMode; // linked to a catalog device now, not "same host" / "viewer"
   saveSettings(settings);
   if (prevDeviceId && prevDeviceId !== deviceId) {
     disconnectPairControl(pairId, prevDeviceId);
@@ -1397,7 +1399,6 @@ app.whenReady().then(async () => {
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
     } else if (arg.type && arg.type === "set-stream-sources") {
       // The stream-source catalog is global. Drop pairs bound to a deleted source.
-      const existing = new Map(getStreamSources().map((src) => [src.id, src]));
       // Encrypt any newly entered token. If secure storage isn't available, storing it as plain
       // text needs the user's explicit consent (remembered once given).
       const sealed = new Map();
@@ -1406,23 +1407,17 @@ app.whenReady().then(async () => {
         if (!src.token) continue;
         const stored = sealTokenWithConsent(src.token);
         if (stored === null) {
-          // Declined: discard the change and tell the settings window to revert to what is saved.
-          // (Downstream then just re-applies the saved catalog, which is a no-op.)
+          // Declined: discard the change (re-applying the saved catalog is a no-op).
           payload = getStreamSources().map(publicSource);
           sealed.clear();
-          mainWindow?.webContents?.send("stream-sources-rejected");
           break;
         }
         sealed.set(src.id, stored);
       }
-      const sources = payload.map(({ hasToken, ...src }) => ({
-        ...src,
-        token: src.token
-          ? sealed.get(src.id) || src.token
-          : existing.get(src.id)?.token || "",
-      }));
+      // Cloud Emulator sources stay owned by their account (see mergeWindowSources).
+      const sources = mergeWindowSources(getStreamSources(), payload, sealed);
       settings.streams = { ...(settings.streams || {}), sources };
-      const remaining = new Set(payload.map(streamDeviceId));
+      const remaining = new Set(sources.map(streamDeviceId));
       const removed = (settings.pairs || []).filter(
         (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
       );
@@ -1440,6 +1435,7 @@ app.whenReady().then(async () => {
       if (pair) {
         const prev = pair.controlDeviceId;
         pair.controlDeviceId = arg.payload;
+        delete pair.controlMode; // linked to a catalog device now, not "same host" / "viewer"
         if (prev && prev !== arg.payload) disconnectPairControl(pairId, prev);
         connectPairControl(pairId);
       }
@@ -1617,12 +1613,22 @@ app.whenReady().then(async () => {
     return sources;
   };
 
+  // Tokens being added right now, so a double submit can't create the account twice.
+  const addingTokens = new Set();
   ipcMain.handle("rce-add-account", async (_e, { token, label, apiUrl } = {}) => {
     const plain = String(token || "").trim();
     if (!plain) return { ok: false, message: "Paste a personal access token." };
-    if (findAccountByToken(getRceAccounts(), plain, unsealToken)) {
+    if (addingTokens.has(plain) || findAccountByToken(getRceAccounts(), plain, unsealToken)) {
       return { ok: false, message: "That token is already added." };
     }
+    addingTokens.add(plain);
+    try {
+      return await addAccount(plain, label, apiUrl);
+    } finally {
+      addingTokens.delete(plain);
+    }
+  });
+  const addAccount = async (plain, label, apiUrl) => {
     let devices;
     try {
       devices = await streamSignaling.listRceDevices({ token: plain, apiUrl: apiUrl || "" });
@@ -1642,11 +1648,13 @@ app.whenReady().then(async () => {
     const { sources, addedCount } = applyAccountDevices(getStreamSources(), account, devices, () => newSourceId("rce"));
     commitStreamSources(sources);
     return { ok: true, account: publicAccount(account), deviceCount: addedCount };
-  });
+  };
 
   // Refresh one account (accountId) or all of them. Accounts that fail are reported, not fatal.
+  // Runs every time the settings window opens, so it only saves/broadcasts when something changed.
   ipcMain.handle("rce-refresh-accounts", async (_e, accountId) => {
     const targets = getRceAccounts().filter((a) => !accountId || a.id === accountId);
+    const before = JSON.stringify(getStreamSources());
     const errors = {};
     for (const account of targets) {
       try {
@@ -1656,7 +1664,7 @@ app.whenReady().then(async () => {
         errors[account.id] = error.message;
       }
     }
-    commitStreamSources(getStreamSources());
+    if (JSON.stringify(getStreamSources()) !== before) commitStreamSources(getStreamSources());
     return { ok: Object.keys(errors).length === 0, errors };
   });
 
@@ -1670,8 +1678,12 @@ app.whenReady().then(async () => {
   // A BrightScript Simulator on this computer shows up in Choose video without being typed in.
   ipcMain.handle("detect-simulator", async () => {
     const probe = await streamSignaling.testSource({ type: "sim", host: "localhost", port: 8090 });
-    if (!probe?.ok) return { found: false };
-    const isLocal = (s) => s.type === "sim" && ["localhost", "127.0.0.1"].includes(s.host) && Number(s.port) === 8090;
+    // Any web server can answer /config with JSON; the simulator's remote screen reports its ECP.
+    const cfg = probe?.config;
+    const looksLikeSimulator = cfg && typeof cfg === "object" && ("ecpPort" in cfg || "ecpEnabled" in cfg);
+    if (!probe?.ok || !looksLikeSimulator) return { found: false };
+    const isLocal = (s) =>
+      s.type === "sim" && ["localhost", "127.0.0.1"].includes(s.host) && Number(s.port || 8090) === 8090;
     if (!getStreamSources().some(isLocal)) {
       commitStreamSources([
         ...getStreamSources(),
@@ -2303,9 +2315,10 @@ app.whenReady().then(async () => {
       } else if (type === "ecp") connected = !!ip;
       return { id, ip, type, connected, pairId };
     },
+    // Only devices checked on the Devices tab (unchecked ones are hidden there and in the menus).
     listDevices: () => {
       const activeControl = getActivePair()?.controlDeviceId;
-      return (settings.control.deviceList || []).map((d) => ({
+      return (settings.control.deviceList || []).filter((d) => d.chosen !== false).map((d) => ({
         id: d.id,
         name: d.alias || "",
         deviceType: d.type || "",
@@ -2315,7 +2328,7 @@ app.whenReady().then(async () => {
       }));
     },
     selectDevice: (deviceId) => {
-      const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
+      const device = (settings.control.deviceList || []).find((d) => d.id === deviceId && d.chosen !== false);
       if (!device) throw new Error(`Unknown device id: ${deviceId}`);
       const bound = (settings.pairs || []).find((p) => p.controlDeviceId === deviceId);
       if (isSingleWindowMode()) {

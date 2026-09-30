@@ -6,8 +6,9 @@ import {
   controlValueOf,
   defaultControlName,
   isChosen,
-  renameControl,
   mergeScanResults,
+  removeControlDevice,
+  renameControl,
   resetPairingsFor,
   setPairFor,
   splitCaptureLabel,
@@ -110,6 +111,18 @@ describe("pairing reset on delete or uncheck", () => {
     expect(affected.map((p) => p.id)).toEqual(["usb"]);
     expect(next[0].controlDeviceId).toBe("");
     expect(next[1]).toBe(pairs[1]);
+  });
+
+  test("a stream's same-host control survives unchecking a Roku at that address", () => {
+    const withHost = [{ id: "stream:w", captureDeviceId: "stream:w", controlDeviceId: "10.0.0.5|ecp", controlMode: "host" }];
+    expect(resetPairingsFor(withHost, ["10.0.0.5|ecp"]).affected).toEqual([]);
+  });
+
+  test("removing a device deletes it and unlinks what it controlled", () => {
+    const list = [roku("192.168.1.41"), roku("192.168.1.43")];
+    const res = removeControlDevice(list, "192.168.1.43|ecp", pairs);
+    expect(res.deviceList.map((d) => d.id)).toEqual(["192.168.1.41|ecp"]);
+    expect(res.affected.map((p) => p.id)).toEqual(["usb"]);
   });
 
   test("unchecking a device resets its pairings", () => {

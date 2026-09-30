@@ -99,6 +99,10 @@ function startWhep(source, emit) {
   const fail = (message, noRetry = false) => {
     if (!cancelled) emit({ type: "failure", message, noRetry });
   };
+  const deleteSession = () => {
+    if (resourceUrl) fetch(resourceUrl, { method: "DELETE", signal: AbortSignal.timeout(4000) }).catch(() => {});
+    resourceUrl = null;
+  };
   emit({ type: "request-offer", iceServers: [] });
 
   return {
@@ -111,11 +115,16 @@ function startWhep(source, emit) {
           body: msg.sdp?.sdp || "",
           signal: AbortSignal.timeout(API_REQUEST_TIMEOUT),
         });
-        if (!res.ok) return fail(`Stream server refused the connection (HTTP ${res.status})`, res.status === 404);
+        if (!res.ok) {
+          // A client error (bad URL, auth, unsupported) won't fix itself; only timeouts/rate limits can.
+          const permanent = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
+          return fail(`Stream server refused the connection (HTTP ${res.status})`, permanent);
+        }
         const location = res.headers.get("location");
         if (location) resourceUrl = new URL(location, source.url).toString();
         const sdp = await res.text();
-        if (cancelled) return;
+        // Stopped while the POST was in flight: the server session exists now, so end it.
+        if (cancelled) return deleteSession();
         emit({ type: "answer", sdp: { type: "answer", sdp } });
       } catch (err) {
         fail(err.name === "TimeoutError" ? "Timed out contacting the stream server" : err.cause?.message || err.message);
@@ -123,7 +132,7 @@ function startWhep(source, emit) {
     },
     close() {
       cancelled = true;
-      if (resourceUrl) fetch(resourceUrl, { method: "DELETE", signal: AbortSignal.timeout(4000) }).catch(() => {});
+      deleteSession();
     },
   };
 }
@@ -153,7 +162,9 @@ async function rceGet(source, path) {
 async function listRceDevices(source) {
   if (!source?.token) throw new Error("Enter your Cloud Emulator access token first");
   const devices = await rceGet(source, "/devices?items=0");
-  return (Array.isArray(devices) ? devices : []).map((d) => ({
+  // An unexpected body must not read as "no devices": callers drop devices missing from the list.
+  if (!Array.isArray(devices)) throw new Error("Unexpected response from the Cloud Emulator API");
+  return devices.map((d) => ({
     id: d.id,
     name: d.name || `Device ${d.id}`,
     status: d.status,

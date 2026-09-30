@@ -34,32 +34,25 @@ function ConfirmBar({ message, onConfirm, onCancel }) {
 
 function PickRow({ entry, checked, onToggle, detail, live, onRemove, confirming, onConfirmRemove, onCancelRemove }) {
   return (
-    <>
-      <label className="pick-row">
-        <input type="checkbox" checked={checked} onChange={(e) => onToggle(entry.id, e.target.checked)} />
-        <span className="grow">
-          <div>
-            <SourceIcon kind={entry.kind} />
-            {entry.name}
-          </div>
-          {detail && <div className="sub">{detail}</div>}
-        </span>
+    <div className="pick-item">
+      <div className="pick-row">
+        <label className="pick-main">
+          <input type="checkbox" checked={checked} onChange={(e) => onToggle(entry.id, e.target.checked)} />
+          <span className="grow">
+            <div>
+              <SourceIcon kind={entry.kind} />
+              {entry.name}
+            </div>
+            {detail && <div className="sub">{detail}</div>}
+          </span>
+        </label>
         {live !== undefined && <Dot live={live} />}
         {onRemove && (
-          <Button
-            size="sm"
-            variant="link"
-            className="p-0 ms-1"
-            aria-label={`Remove ${entry.name}`}
-            onClick={(e) => {
-              e.preventDefault();
-              onRemove(entry);
-            }}
-          >
+          <Button size="sm" variant="link" className="p-0 ms-1" aria-label={`Remove ${entry.name}`} onClick={() => onRemove(entry)}>
             Remove
           </Button>
         )}
-      </label>
+      </div>
       {confirming && (
         <ConfirmBar
           message={`Remove ${entry.name}? You'd have to add it again.`}
@@ -67,7 +60,7 @@ function PickRow({ entry, checked, onToggle, detail, live, onRemove, confirming,
           onCancel={onCancelRemove}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -127,7 +120,10 @@ function PickGroup({ id, title, meta, metaTitle, actions, collapsed, onToggle, c
         <span className="spacer" />
         {actions}
       </div>
-      {open && <div id={`group-${id}`}>{children}</div>}
+      {/* Always rendered (hidden when collapsed) so aria-controls points at a real element. */}
+      <div id={`group-${id}`} hidden={!open}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -147,6 +143,7 @@ function ChooseVideoDialog({
   onRemoveAccount,
   onAddStream,
   onAddSimulator,
+  onTestSimulator,
   onRemoveStream,
   toast,
 }) {
@@ -164,7 +161,9 @@ function ChooseVideoDialog({
   const [urlError, setUrlError] = useState("");
   const [simHost, setSimHost] = useState("");
   const [simPort, setSimPort] = useState("8090");
+  const [simName, setSimName] = useState("");
   const [simError, setSimError] = useState("");
+  const [simTest, setSimTest] = useState(null); // { ok, message } from the Test button
   const tokenRef = useRef(null);
   const [collapsed, setCollapsed] = useState(loadCollapsed);
   const toggleGroup = (id) =>
@@ -181,6 +180,7 @@ function ChooseVideoDialog({
     setConfirmId("");
     setAcctForm(false);
     setSimError("");
+    setSimTest(null);
     setAcctError("");
     setUrlError("");
   }, [show]);
@@ -206,6 +206,7 @@ function ChooseVideoDialog({
     ["localhost", "127.0.0.1"].includes(e.source.host) ? "On this computer" : `${e.source.host}:${e.source.port}`;
 
   const handleAddAccount = async () => {
+    if (loadingAcct) return; // Enter pressed again while adding
     if (!token.trim()) {
       setAcctError("Paste a personal access token.");
       tokenRef.current?.focus();
@@ -244,10 +245,18 @@ function ChooseVideoDialog({
   };
 
   const handleAddSimulator = async () => {
-    const id = await onAddSimulator({ host: simHost.trim(), port: simPort.trim() }, setSimError);
+    setSimTest(null);
+    const id = await onAddSimulator({ host: simHost.trim(), port: simPort.trim(), name: simName.trim() }, setSimError);
     if (!id) return;
     setSimHost("");
     setSimPort("8090");
+    setSimName("");
+  };
+
+  const handleTestSimulator = async () => {
+    setSimError("");
+    setSimTest({ ok: true, message: "Testing…" });
+    setSimTest(await onTestSimulator({ host: simHost.trim(), port: simPort.trim() }));
   };
 
   return (
@@ -312,11 +321,28 @@ function ChooseVideoDialog({
                 onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
                 style={{ flex: "0 1 80px" }}
               />
+              <Form.Control
+                size="sm"
+                placeholder="Name (optional)"
+                aria-label="Simulator name"
+                value={simName}
+                onChange={(e) => setSimName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
+                style={{ flex: "0 1 130px" }}
+              />
+              <Button size="sm" variant="outline-secondary" onClick={handleTestSimulator}>
+                Test
+              </Button>
               <Button size="sm" variant="outline-secondary" onClick={handleAddSimulator}>
                 Add
               </Button>
             </div>
             {simError && <div className="pick-error">{simError}</div>}
+            {simTest && (
+              <div className={simTest.ok ? "pick-hint" : "pick-error"} role="status">
+                {simTest.message}
+              </div>
+            )}
             <div className="pick-hint">
               Run the <ExternalLink url={SIMULATOR_RELEASES_URL}>BrightScript Simulator</ExternalLink> and enable its
               remote screen (WebRTC), then enter its host and port. One running on this computer shows up here
