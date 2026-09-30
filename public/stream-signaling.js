@@ -368,19 +368,23 @@ async function postKey(url, headers) {
   if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
 }
 
-// Canonical remote key names (roku-deploy's RemoteKey). The Cloud Emulator's key-input route
-// rejects a wrong-case key with a 422, while the raw ECP proxy accepts any case.
-const REMOTE_KEYS = [
-  "Back", "Backspace", "ChannelDown", "ChannelUp", "Down", "Enter", "FindRemote", "Fwd", "Guide",
-  "Home", "Info", "InputAV1", "InputHDMI1", "InputHDMI2", "InputHDMI3", "InputHDMI4", "InputTuner",
-  "InstantReplay", "Left", "Play", "Power", "PowerOff", "PowerOn", "Rev", "Right", "Search",
-  "Select", "Up", "VolumeDown", "VolumeMute", "VolumeUp",
-];
-const REMOTE_KEY_BY_LOWER = new Map(REMOTE_KEYS.map((k) => [k.toLowerCase(), k]));
+// Canonical remote key names, a snapshot of roku-deploy's RemoteKey (v4). The Cloud Emulator's
+// key-input route rejects a wrong-case key with a 422, while the raw ECP proxy accepts any case.
+// (The lowercase names the Display window sends are the ecpKeysMap values in render.js.)
+const REMOTE_KEY_BY_LOWER = new Map(
+  [
+    "Back", "Backspace", "ChannelDown", "ChannelUp", "Down", "Enter", "FindRemote", "Fwd", "Guide",
+    "Home", "Info", "InputAV1", "InputHDMI1", "InputHDMI2", "InputHDMI3", "InputHDMI4", "InputTuner",
+    "InstantReplay", "Left", "Play", "Power", "PowerOff", "PowerOn", "Rev", "Right", "Search",
+    "Select", "Up", "VolumeDown", "VolumeMute", "VolumeUp",
+  ].map((k) => [k.toLowerCase(), k])
+);
 
+// The canonical name of a key for the key-input route (`Lit_<char>` for literals), or null when
+// the key isn't one the route is known to accept.
 function canonicalRemoteKey(key) {
-  if (/^lit_/i.test(key)) return `Lit_${key.slice(4)}`;
-  return REMOTE_KEY_BY_LOWER.get(key.toLowerCase()) ?? key;
+  if (/^lit_./i.test(key)) return `Lit_${key.slice(4)}`;
+  return REMOTE_KEY_BY_LOWER.get(key.toLowerCase()) ?? null;
 }
 
 // The Display window sends literal characters URL-encoded (`lit_%41`); the Cloud Emulator URL is
@@ -394,21 +398,27 @@ function decodeKey(key) {
 }
 
 // Same approach as roku-deploy for a Cloud Emulator: the instance API's key-input route with the
-// canonical key name, falling back to the authenticated raw ECP port proxy when that route rejects
-// the key (for example a key that isn't in the canonical list).
+// canonical key name. Keys that aren't canonical go straight to the authenticated raw ECP port
+// proxy (no wasted rejected request), and so does a key the input route rejects with a 4xx.
 async function sendRceKey(base, headers, command, rawKey) {
-  try {
-    await postKey(`${base}/api/v0/input/${command}/${encodeURIComponent(canonicalRemoteKey(rawKey))}`, headers);
-  } catch (err) {
-    if (err.auth || err.name === "TimeoutError") throw err;
-    await postKey(`${base}/api/v0/ports/8060/http/${command}/${encodeURIComponent(rawKey)}`, headers);
+  const post = (path, key) => postKey(`${base}/api/v0/${path}/${command}/${encodeURIComponent(key)}`, headers);
+  const canonical = canonicalRemoteKey(rawKey);
+  if (canonical) {
+    try {
+      return await post("input", canonical);
+    } catch (err) {
+      // Auth, timeouts, 5xx and network errors aren't about this key: let the caller handle them.
+      if (!(err.status >= 400 && err.status < 500)) throw err;
+    }
   }
+  await post("ports/8060/http", rawKey);
 }
 
 // Send one ECP key. `mod`: -1 = keypress, 0 = keydown, 1 = keyup (same as the Display window).
 async function sendControlKey(source, key, mod = -1) {
   const command = mod === -1 ? "keypress" : mod === 0 ? "keydown" : "keyup";
   if (source?.type === "sim") {
+    // A plain ECP server takes the Display window's wire form (lowercase, URL-encoded) as is.
     await postKey(`http://${source.host}:${Number(source.ecpPort) || 8060}/${command}/${key}`);
     return;
   }
