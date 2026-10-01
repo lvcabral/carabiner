@@ -1,11 +1,11 @@
-const {
+import {
   mergeWindowSources,
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
   removeAccount,
   publicAccount,
-} = require("../../public/rce-accounts");
+} from "../../public/rce-accounts";
 
 // Stand-in for safeStorage: "enc:<token>" decrypts to <token>.
 const unseal = (t) => (t && t.startsWith("enc:") ? t.slice(4) : t || "");

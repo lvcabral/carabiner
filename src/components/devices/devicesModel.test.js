@@ -177,8 +177,9 @@ describe("control choice and pairs", () => {
     ]);
   });
 
-  test("a hidden, unlinked pair is dropped, but a hidden pair with a control mode is kept", () => {
-    expect(setPairFor([], "a", { visible: false })).toEqual([]);
+  test("turning a source off keeps its pair (and its window settings), even without a control", () => {
+    const pairs = [{ id: "a", captureDeviceId: "a", controlDeviceId: "", visible: true, regularWindow: true }];
+    expect(setPairFor(pairs, "a", { visible: false })).toEqual([{ ...pairs[0], visible: false }]);
     expect(setPairFor([], "w", controlPatch("host", { host: "h" }))).toHaveLength(1);
   });
 });

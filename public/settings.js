@@ -12,7 +12,8 @@ const path = require("path");
 const { app } = require("electron");
 const { isStreamDeviceId, streamDeviceId } = require("./stream-utils");
 
-const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
+// Resolved on use (not at import), so the pure helpers below can be unit tested without Electron.
+const settingsFilePath = () => path.join(app.getPath("userData"), "settings.json");
 
 // Default per-window appearance, used when seeding/migrating a pair.
 const DEFAULT_PAIR_BORDER = { width: "0.1px", style: "solid", color: "#662D91" };
@@ -24,7 +25,7 @@ const DEFAULT_PAIR_RESOLUTION = "804px|452px";
 const CONTROL_MODES = ["host", "viewer"];
 
 function saveSettings(settings) {
-  fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+  fs.writeFileSync(settingsFilePath(), JSON.stringify(settings, null, 2));
 }
 
 function newPairId() {
@@ -166,7 +167,7 @@ function loadSettings() {
     activePairId: "", // Pair targeted by MCP / tray actions by default
   };
   try {
-    const loaded = Object.assign(defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath)));
+    const loaded = Object.assign(defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath())));
     return migrateSettings(loaded);
   } catch (error) {
     return migrateSettings(defaultSettings);

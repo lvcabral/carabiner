@@ -219,8 +219,9 @@ export function controlValueOf(pair) {
   return pair.controlDeviceId || "none";
 }
 
-// Create/update the pair bound to a video source. Pairs that end up hidden and unlinked are
-// dropped (nothing worth remembering). In single-window mode enabling one hides the others.
+// Create/update the pair bound to a video source. Inactive pairs are kept, even without a linked
+// control: a pair also holds its window's settings (Regular Window, border, size, audio...), which
+// must survive turning it off and on again. In single-window mode enabling one hides the others.
 export function setPairFor(pairs, sourceId, patch, { singleWindowMode = false, autoControl = "" } = {}) {
   const existing = pairs.find((p) => p.captureDeviceId === sourceId);
   let next = existing
@@ -229,7 +230,7 @@ export function setPairFor(pairs, sourceId, patch, { singleWindowMode = false, a
   if (singleWindowMode && patch.visible === true) {
     next = next.map((p) => (p.captureDeviceId === sourceId ? p : { ...p, visible: false }));
   }
-  return next.filter((p) => p.visible !== false || (p.controlDeviceId && p.controlDeviceId !== "") || p.controlMode);
+  return next;
 }
 
 // Patch for a Control select choice: "none", "host" (ECP to the stream URL's host), "viewer",

@@ -1,7 +1,5 @@
-// settings.js reads the userData path at import time.
-jest.mock("electron", () => ({ app: { getPath: () => require("os").tmpdir() } }));
-
-const { migrateSettings, makePair } = require("../../public/settings");
+// settings.js only touches Electron when it loads/saves the file, so its pure helpers import directly.
+import { migrateSettings, makePair } from "../../public/settings";
 
 describe("settings compatibility", () => {
   test("pairs keep their control link, and a stream's control mode survives normalization", () => {

@@ -14,7 +14,7 @@ const settings = {
   files: {},
   mcp: {},
 };
-// Plain functions, not jest.fn: CRA's jest config resets mock implementations before each test.
+// Plain functions that record their calls, so tests can check what was sent to main.
 const calls = [];
 const record = (kind) => (...args) => {
   calls.push([kind, ...args]);
@@ -45,6 +45,7 @@ window.electronAPI = {
 };
 const sent = (kind, channel) => calls.some(([k, c]) => k === kind && c === channel);
 Object.defineProperty(navigator, "mediaDevices", {
+  configurable: true,
   value: {
     enumerateDevices: async () => [{ kind: "videoinput", deviceId: "usb", label: "usb video (534d:2109)" }],
     getUserMedia: async () => ({ getTracks: () => [] }),
@@ -54,7 +55,11 @@ Object.defineProperty(navigator, "mediaDevices", {
 });
 window.matchMedia = window.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {} }));
 
-const App = require("./App").default;
+// Components read window.electronAPI when they load, so App is imported after the stub above.
+let App;
+beforeAll(async () => {
+  App = (await import("./App")).default;
+});
 
 // General opens first; switch to Devices.
 const renderDevicesTab = () => {
