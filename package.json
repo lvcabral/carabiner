@@ -37,12 +37,11 @@
     "ws": "^8.22.0",
     "zod": "^4.4.3"
   },
-  "homepage": "./",
   "scripts": {
     "forge": "electron-forge start",
     "electron": "electron .",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "build": "vite build",
+    "test": "vitest run",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "npm run build && electron-forge publish",
@@ -52,22 +51,6 @@
     "make:linux": "npm run make -- --platform=linux --arch=x64",
     "make:linux:arm64": "npm run make -- --platform=linux --arch=arm64 --targets=@electron-forge/maker-deb",
     "debug": "npm run build && ELECTRON_IS_DEV=1 npm run electron"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version"
-    ]
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",
@@ -80,9 +63,11 @@
     "@testing-library/jest-dom": "^5.16.2",
     "@testing-library/react": "^12.1.4",
     "@testing-library/user-event": "^13.5.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "dotenv": "^16.4.7",
     "electron": "44.5.1",
-    "react-scripts": "5.0.0",
-    "web-vitals": "^2.1.4"
+    "jsdom": "^29.1.1",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
   }
 }
