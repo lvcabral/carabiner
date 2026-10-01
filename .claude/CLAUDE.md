@@ -16,13 +16,13 @@ Always create a new git branch before starting work on any new feature or fix. N
 
 ```bash
 # Development workflow — must build React before running Electron
-npm run build       # Compile React app to build/
+npm run build       # Compile React app (Vite) to build/
 npm run forge       # Start Electron via electron-forge (loads from build/, requires build first)
 npm run electron    # Run Electron directly (electron .) — also needs a prior build
 npm run debug       # build + run with ELECTRON_IS_DEV=1 (build + electron .)
 
-# Testing
-npm test            # Run React component tests (react-scripts test)
+# Testing (Vitest + jsdom)
+npm test            # Run React component tests (vitest run)
 
 # Packaging / releasing (output: out/make/)
 npm run package            # Package the app (electron-forge package, no installer)
@@ -85,7 +85,7 @@ Renderer→main messages are routed by `event.sender` (no need to tag pairId). V
 
 ### Settings Panel (`src/`)
 
-React 17 app using React Bootstrap tabs. `App.js` is the root; each tab is a component in `src/components/`:
+React 17 app (built with Vite; components are `.jsx`) using React Bootstrap tabs. `App.js` is the root; each tab is a component in `src/components/`:
 
 | Tab label | Component | Purpose |
 |-----------|-----------|---------|
