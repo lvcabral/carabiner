@@ -203,7 +203,7 @@ function GeneralSection({
     if (singleWindowMode && patch.visible === true) {
       next = next.map((p) => (p.captureDeviceId === deviceId ? p : { ...p, visible: false }));
     }
-    next = next.filter((p) => p.visible !== false || (p.controlDeviceId && p.controlDeviceId !== ""));
+    // Disabled pairs are kept (even without a linked control) so the window's settings survive.
     onPairsChange?.(next);
   };
 

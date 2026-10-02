@@ -867,11 +867,12 @@ function switchToWindow(captureDeviceId) {
     pair = makePair({ id: captureDeviceId, captureDeviceId, controlDeviceId: "", visible: true });
     settings.pairs.push(pair);
   }
-  // Hide every other pair; drop the ones with nothing worth remembering (no linked control).
+  // Hide every other pair. They are kept (not forgotten) even without a linked control: a pair
+  // also holds its window settings (Regular Window, border, size, audio...), which must survive
+  // switching away and coming back.
   settings.pairs.forEach((p) => {
     if (p.id !== pair.id) p.visible = false;
   });
-  settings.pairs = settings.pairs.filter((p) => p.id === pair.id || p.controlDeviceId);
   pair.visible = true;
   activePairId = pair.id;
   settings.activePairId = pair.id;
@@ -916,9 +917,6 @@ function setCaptureWindowEnabled(captureDeviceId, enabled) {
     const pair = settings.pairs.find((p) => p.captureDeviceId === captureDeviceId);
     if (pair) {
       pair.visible = false;
-      if (!pair.controlDeviceId) {
-        settings.pairs = settings.pairs.filter((p) => p.id !== pair.id);
-      }
       saveSettings(settings);
       closePair(pair.id);
     }
@@ -939,11 +937,8 @@ function setCaptureWindowEnabled(captureDeviceId, enabled) {
     if (!win) win = openPair(pair);
     win?.show();
   } else if (pair) {
+    // Keep the disabled pair: it remembers this window's settings for when it is enabled again.
     pair.visible = false;
-    // Forget the pair entirely if nothing else (a linked control) needs remembering.
-    if (!pair.controlDeviceId) {
-      settings.pairs = settings.pairs.filter((p) => p.id !== pair.id);
-    }
     saveSettings(settings);
     closePair(pair.id);
   }
