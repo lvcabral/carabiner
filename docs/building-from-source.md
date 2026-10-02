@@ -55,6 +55,7 @@ The first command builds the React frontend, and the second starts the Electron 
 - **`npm run make:mac:universal`**: Create a universal macOS DMG (Intel + Apple Silicon)
 - **`npm run make:win`**: Create a Windows x64 installer
 - **`npm run make:linux`**: Create a Linux x64 installer
+- **`npm run make:linux:arm64`**: Create a Linux ARM64 installer (`.deb`)
 - **`npm run publish`**: Build and publish a draft release to GitHub
 
 ## Creating Installers
@@ -85,6 +86,7 @@ npm run make:mac:universal  # universal (Intel + Apple Silicon)
 ```console
 npm run make:win    # Windows x64 installer
 npm run make:linux  # Linux x64 installer
+npm run make:linux:arm64  # Linux ARM64 installer (.deb)
 ```
 
 > Cross-platform builds generally require building on (or with the toolchain for) the target OS.

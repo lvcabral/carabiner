@@ -47,7 +47,6 @@ Checked sources appear in the **Video** list on the Devices tab, each with an ic
 
 > [!TIP]
 > **Control comes with Cloud Emulator and Simulator streams:** Carabiner sends key presses to them over the same connection as their video, so there is nothing to link — their *Control* shows **Included with the stream**, they appear in the Control list's Roku group as **Comes with its video**, and the *Linked Device* menu item is disabled for their windows. Keys, text, screenshots and automation scripts work right away. For a **Cloud Emulator** the keys are sent to the emulated device's ECP through the Cloud Emulator's authenticated instance API (the same way the [roku-deploy](https://github.com/rokucommunity/roku-deploy) tooling does) using the same access token as the stream, so no developer-mode ECP setup is needed on the emulated device; for the **BrightScript Simulator** they are sent to its ECP port (make sure ECP is enabled in the simulator). A **Stream URL** has no control of its own: by default it sends ECP to the stream's host (**Same host as stream**), or you can link any control device.
-
 ### 3. Link Control and Activate
 
 For each capture card or Stream URL in the **Video** list, pick a device in its **Control** picker (the chosen control devices, grouped by type; **Choose more devices…** opens the Control dialog). Then turn on its **Active** switch to open its floating Display window.
