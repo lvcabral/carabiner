@@ -38,6 +38,7 @@
     "zod": "^4.4.3"
   },
   "scripts": {
+    "dev": "node scripts/dev.js",
     "forge": "electron-forge start",
     "electron": "electron .",
     "build": "vite build",
@@ -63,7 +64,7 @@
     "@testing-library/jest-dom": "^5.16.2",
     "@testing-library/react": "^12.1.4",
     "@testing-library/user-event": "^13.5.0",
-    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react": "^5.2.0",
     "dotenv": "^16.4.7",
     "electron": "44.5.1",
     "jsdom": "^29.1.1",
