@@ -51,7 +51,7 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 ### For Xumo Stream Box (RDK) — experimental
 
 1. **RDK Services**: The device must expose the `org.rdk.RDKShell` JSON-RPC endpoint (default port `9998`) reachable from your computer
-2. **Add the Device**: In the **Control** tab pick **Xumo (RDK)**, enter the device IP, port, and optional auth token, then use **Test** to verify — see the [Usage Guide](./usage-guide.md#xumo-stream-box-rdk-configuration-experimental)
+2. **Add the Device**: On the **Devices** tab click **Choose devices** → **Add by hand**, pick **Xumo**, enter the device IP, port, and optional auth token, then use **Test** to verify — see the [Usage Guide](./usage-guide.md#xumo-stream-box-rdk-configuration-experimental)
    - No external tool binary is required
 
 ## Installation Steps

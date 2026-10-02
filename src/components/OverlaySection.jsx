@@ -68,7 +68,7 @@ function OverlaySection({ pairs = [], activePairId = "", onPairsChange, streamin
     load();
   }, []);
 
-  // The General tab enumerates capture devices and broadcasts them; use the list to label
+  // The Devices tab enumerates capture devices and broadcasts them; use the list to label
   // the window selector. Registered once (no cleanup) — removeListener is channel-wide.
   useEffect(() => {
     const handleSharedChannel = (_, message) => {

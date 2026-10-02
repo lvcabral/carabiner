@@ -112,9 +112,10 @@ carabiner/
 │   ├── App.js                   # Root component — tab layout
 │   ├── index.js                 # React entry point
 │   └── components/              # One component per settings tab
-│       ├── GeneralSection.js    # Capture-device grid: link control + Enabled per window
+│       ├── GeneralSection.js    # App-wide options and the adb / atvremote tool paths
+│       ├── DevicesSection.js    # Video + Control lists: link control, Active per window
+│       ├── devices/             # Choose video / Choose devices dialogs and their pure model
 │       ├── DisplaySection.js    # Per-window appearance (Editing Window selector)
-│       ├── ControlSection.js    # Add/remove Roku, Android, Apple TV, and Xumo (RDK) devices
 │       ├── AutomationSection.js # Script recording, playback, and step editing
 │       ├── OverlaySection.js    # Reference image overlay with opacity control
 │       ├── FilesSection.js      # Default save paths for screenshots/recordings

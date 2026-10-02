@@ -88,6 +88,56 @@ function startSimulator(source, emit) {
 }
 
 
+// ---- WebRTC stream URL (WHEP) ------------------------------------------------------------
+// A stream URL the user entered by hand is treated as a WHEP endpoint (RFC 9725): unlike the
+// other sources, the viewer makes the offer. The window is asked for a complete (non-trickle)
+// offer, which is POSTed as application/sdp; the SDP answer comes back in the response body and
+// the session resource (Location header) is DELETEd when the viewer stops.
+function startWhep(source, emit) {
+  let cancelled = false;
+  let resourceUrl = null;
+  const fail = (message, noRetry = false) => {
+    if (!cancelled) emit({ type: "failure", message, noRetry });
+  };
+  const deleteSession = () => {
+    if (resourceUrl) fetch(resourceUrl, { method: "DELETE", signal: AbortSignal.timeout(4000) }).catch(() => {});
+    resourceUrl = null;
+  };
+  emit({ type: "request-offer", iceServers: [] });
+
+  return {
+    async send(msg) {
+      if (msg.type !== "local-offer" || cancelled) return;
+      try {
+        const res = await fetch(source.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/sdp", Accept: "application/sdp" },
+          body: msg.sdp?.sdp || "",
+          signal: AbortSignal.timeout(API_REQUEST_TIMEOUT),
+        });
+        if (!res.ok) {
+          // A client error (bad URL, auth, unsupported) won't fix itself; only timeouts/rate limits can.
+          const permanent = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
+          return fail(`Stream server refused the connection (HTTP ${res.status})`, permanent);
+        }
+        const location = res.headers.get("location");
+        if (location) resourceUrl = new URL(location, source.url).toString();
+        const sdp = await res.text();
+        // Stopped while the POST was in flight: the server session exists now, so end it.
+        if (cancelled) return deleteSession();
+        emit({ type: "answer", sdp: { type: "answer", sdp } });
+      } catch (err) {
+        fail(err.name === "TimeoutError" ? "Timed out contacting the stream server" : err.cause?.message || err.message);
+      }
+    },
+    close() {
+      cancelled = true;
+      deleteSession();
+    },
+  };
+}
+
+
 // ---- Roku Cloud Emulator -----------------------------------------------------------------
 // The management API (bearer PAT) resolves a device to its live Janus stream details, then the
 // Janus streaming plugin negotiates over a WebSocket that needs an Authorization header on the
@@ -112,7 +162,9 @@ async function rceGet(source, path) {
 async function listRceDevices(source) {
   if (!source?.token) throw new Error("Enter your Cloud Emulator access token first");
   const devices = await rceGet(source, "/devices?items=0");
-  return (Array.isArray(devices) ? devices : []).map((d) => ({
+  // An unexpected body must not read as "no devices": callers drop devices missing from the list.
+  if (!Array.isArray(devices)) throw new Error("Unexpected response from the Cloud Emulator API");
+  return devices.map((d) => ({
     id: d.id,
     name: d.name || `Device ${d.id}`,
     status: d.status,
@@ -446,6 +498,7 @@ async function sendControlKey(source, key, mod = -1) {
 const STARTERS = {
   sim: startSimulator,
   rce: startRce,
+  webrtc: startWhep,
 };
 
 function stopSession(pairId) {
@@ -472,7 +525,7 @@ function relayFromWindow(pairId, msg) {
   sessions.get(pairId)?.send(msg);
 }
 
-// Reachability check used by the Streams tab "Test" button.
+// Reachability check (simulator detection and ECP port probe on the Devices tab).
 async function testSource(source) {
   if (source?.type === "rce") {
     try {
