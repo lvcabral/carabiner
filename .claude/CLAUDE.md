@@ -20,6 +20,9 @@ npm run build       # Compile React app (Vite) to build/
 npm run forge       # Start Electron via electron-forge (loads from build/, requires build first)
 npm run electron    # Run Electron directly (electron .) — also needs a prior build
 npm run debug       # build + run with ELECTRON_IS_DEV=1 (build + electron .)
+npm run dev         # watch build + live reload (scripts/dev.js): src/ edits reload Settings,
+                    # display.html/render.js edits reload Display windows (drops in-progress
+                    # recording/playback), other public/*.js edits restart Electron
 
 # Testing (Vitest + jsdom)
 npm test            # Run React component tests (vitest run)

@@ -48,6 +48,7 @@ The first command builds the React frontend, and the second starts the Electron 
 - **`npm run forge`**: Run the Electron app via electron-forge (requires a prior `build`)
 - **`npm run electron`**: Run the Electron app directly with `electron .` (also requires a prior `build`)
 - **`npm run debug`**: Build and run with `ELECTRON_IS_DEV=1` for development logging
+- **`npm run dev`**: Build in watch mode and run with `ELECTRON_IS_DEV=1`, with live reload: `src/` edits rebuild and reload the settings window, `public/display.html`/`public/render.js` edits reload the Display windows (dropping any in-progress recording or script playback), and other `public/*.js` edits restart Electron
 - **`npm run test`**: Run React component tests
 - **`npm run package`**: Package the app without building an installer (output: `out/`)
 - **`npm run make`**: Create an installer for the current platform (output: `out/make/`)

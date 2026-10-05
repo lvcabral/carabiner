@@ -464,10 +464,29 @@ function createMainWindow() {
   );
 
   win.loadURL(`file://${path.join(__dirname, "../build/index.html")}`);
-
   win.removeMenu();
   win.setMenuBarVisibility(false);
   return win;
+}
+
+// `npm run dev` live reload: scripts/dev.js messages us over its IPC channel once a src/
+// rebuild has finished ("reload-settings") or display.html/render.js changed ("reload-display").
+// Main-process files are handled by dev.js restarting Electron.
+function startDevReload() {
+  if (!isDev || !process.send) return;
+  process.on("message", (msg) => {
+    const displayWindows = new Set(pairWindows.values());
+    let targets;
+    if (msg === "reload-settings") {
+      targets = BrowserWindow.getAllWindows().filter((w) => !displayWindows.has(w));
+    } else if (msg === "reload-display") {
+      targets = [...displayWindows];
+    } else {
+      return;
+    }
+    console.log(`[dev] ${msg}: reloading ${targets.length} window(s)`);
+    targets.forEach((w) => w.isDestroyed() || w.webContents.reloadIgnoringCache());
+  });
 }
 
 // Resolve the RDK connection config ({host,port,token}) for a "<host:port>|rdk" device id.
@@ -1068,6 +1087,7 @@ app.whenReady().then(async () => {
   }
 
   mainWindow = createMainWindow();
+  startDevReload();
   syncManagedControls(); // create the controls of stream sources saved by an earlier version
   // Single-window mode (default) keeps only one window; collapse any stray extra-visible
   // pairs before opening so we never open more than one on launch.
