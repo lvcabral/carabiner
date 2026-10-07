@@ -118,6 +118,13 @@ test("Choose video lists Cloud Emulator accounts before Simulators, and an accou
       .getAllByRole("button", { expanded: true })
       .map((b) => b.textContent);
     expect(groups).toEqual(["This computer", "Default", "BrightScript Simulators", "Stream URLs"]);
+    // Account actions are the same icon buttons as on the Video tab (named for screen readers, no text).
+    for (const action of ["Refresh", "Rename", "Remove"]) {
+      const button = within(dialog).getByRole("button", { name: `${action} Default` });
+      expect(button).toHaveClass("icon-btn");
+      expect(button).toHaveTextContent("");
+      expect(button.querySelector("svg")).not.toBeNull();
+    }
 
     // Escape cancels the rename without closing the dialog.
     userEvent.click(within(dialog).getByRole("button", { name: "Rename Default" }));

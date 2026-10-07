@@ -12,7 +12,7 @@ import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Spinner from "react-bootstrap/Spinner";
-import { Dot, ExternalLink, SourceIcon, currentTheme } from "./ui";
+import { Dot, ExternalLink, PencilIcon, RefreshIcon, SourceIcon, TrashIcon, currentTheme } from "./ui";
 import { isMissingRce, rceStatusText } from "./devicesModel";
 
 const RCE_DOCS_URL = "https://developer.roku.com/dev/docs/rce";
@@ -95,9 +95,9 @@ function PickRow({ entry, checked, onToggle, detail, live, onRemove, confirming,
         </label>
         {live !== undefined && <Dot live={live} />}
         {onRemove && (
-          <Button size="sm" variant="link" className="p-0 ms-1" aria-label={`Remove ${entry.name}`} onClick={() => onRemove(entry)}>
-            Remove
-          </Button>
+          <button type="button" className="icon-btn danger ms-1" aria-label={`Remove ${entry.name}`} title="Remove" onClick={() => onRemove(entry)}>
+            <TrashIcon />
+          </button>
         )}
       </div>
       {confirming && (
@@ -360,42 +360,42 @@ function ChooseVideoDialog({
               metaTitle={`Roku Cloud Emulator account${account.tail ? `, token ending ${account.tail}` : ""}`}
               actions={
                 <>
-                  <Button
-                    size="sm"
-                    variant="link"
-                    className="p-0"
+                  <button
+                    type="button"
+                    className="icon-btn"
                     disabled={refreshing === account.id}
                     onClick={() => handleRefresh(account)}
                     aria-label={`Refresh ${account.label}`}
+                    title="Refresh devices and status"
                   >
-                    {refreshing === account.id ? <Spinner animation="border" size="sm" /> : "Refresh"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="link"
-                    className="p-0 ms-2"
+                    {refreshing === account.id ? <Spinner animation="border" size="sm" /> : <RefreshIcon />}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
                     onClick={() => {
                       if (collapsed.has(account.id)) toggleGroup(account.id);
                       setConfirmId("");
                       setRenamingId(account.id);
                     }}
                     aria-label={`Rename ${account.label}`}
+                    title="Rename"
                   >
-                    Rename
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="link"
-                    className="p-0 ms-2"
+                    <PencilIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn danger"
                     onClick={() => {
                       if (collapsed.has(account.id)) toggleGroup(account.id);
                       setRenamingId("");
                       setConfirmId(account.id);
                     }}
                     aria-label={`Remove ${account.label}`}
+                    title="Remove account"
                   >
-                    Remove
-                  </Button>
+                    <TrashIcon />
+                  </button>
                 </>
               }
             >
