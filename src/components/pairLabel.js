@@ -12,7 +12,7 @@
 export const STREAM_PREFIX = "stream:";
 export const isStreamDeviceId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
 export const streamDeviceId = (source) => STREAM_PREFIX + source.id;
-const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator" };
+const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator", webrtc: "WebRTC" };
 
 // Label for a window (pair) in the Display / Overlay / Automation window selectors.
 // Capture cards read "<card> → <control>". A stream's control is built in and shares its name,
