@@ -14,7 +14,7 @@ Devices are set up on two tabs: **Video** (what you watch) and **Control** (what
 
 ### 1. Choose Control Devices
 
-1. On the **Control** tab, click **Choose devices**. Carabiner scans your network for Roku devices and checks which known devices are reachable (green dot).
+1. On the **Control** tab, click **Choose devices**. Carabiner scans your network for Roku devices and checks which known devices are reachable (green dot). BrightScript Simulators also answer the scan but are left out: their control comes with their video (see [Choose Video](#2-choose-video)).
 2. Check the devices you want. **Select all** checks or unchecks them all; **Scan again** repeats the scan.
 3. For a device a scan can't find (Fire TV, Google TV, Apple TV, Xumo, or a Roku on another network), click **Add by hand**, pick the **type**, enter its address and an optional name, and click **Add**:
    - **Roku**, **Fire TV**, **Google TV** and **Xumo** use an IP address; **Apple TV** also accepts a UUID or MAC address.

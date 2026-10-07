@@ -327,8 +327,10 @@ export default function useDevices({
   const handleScan = async () => {
     const res = await electronAPI.invoke("discover-roku-devices", 3000).catch((e) => ({ success: false, error: e.message }));
     const error = res?.success ? "" : res?.error || "Roku discovery failed.";
-    const merged = mergeScanResults(latest.current.streamingDevices, res?.success ? res.devices : []);
-    if (merged.addedCount || merged.deviceList.some((d, i) => d !== latest.current.streamingDevices[i])) {
+    const before = latest.current.streamingDevices;
+    const merged = mergeScanResults(before, res?.success ? res.devices : []);
+    // Changed when a device was added, renamed, or dropped (a simulator saved by an earlier scan).
+    if (merged.deviceList.length !== before.length || merged.deviceList.some((d, i) => d !== before[i])) {
       onUpdateStreamingDevices(merged.deviceList);
     }
     const reach = await checkReachability(userControls(merged.deviceList));

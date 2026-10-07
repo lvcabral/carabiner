@@ -175,6 +175,23 @@ test("Remove in Choose control devices deletes the device for good, after confir
   await waitFor(() => expect(within(dialog).queryByText("Bench 3")).not.toBeInTheDocument());
 });
 
+test("a BrightScript Simulator saved by an earlier scan is dropped when Choose devices scans", async () => {
+  const sim = { id: "192.168.1.60|ecp", ipAddress: "192.168.1.60", alias: "BrightScript Simulator", deviceName: "BrightScript Simulator", linked: "", type: "Roku" };
+  settings.control.deviceList.push(sim);
+  try {
+    renderTab("Control");
+    expect(await within(panel("Control")).findByText("BrightScript Simulator")).toBeInTheDocument();
+    userEvent.click(screen.getByRole("button", { name: "Choose devices" }));
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByText("Scan finished");
+    await waitFor(() => expect(within(dialog).queryByText("BrightScript Simulator")).not.toBeInTheDocument());
+    const lists = calls.filter(([k, , msg]) => k === "sendSync" && msg?.type === "set-control-list");
+    expect(lists[lists.length - 1][2].payload.map((d) => d.id)).toEqual(["192.168.1.43|ecp"]);
+  } finally {
+    settings.control.deviceList.pop();
+  }
+});
+
 test("Choose control devices scans on open and keeps typed input when the scan finishes", async () => {
   renderTab("Control");
   await screen.findByText("usb video");

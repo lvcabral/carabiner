@@ -7,6 +7,7 @@ import {
   defaultControlName,
   isChosen,
   isMissingRce,
+  isSimulatorName,
   mergeScanResults,
   rceStatusText,
   removeControlDevice,
@@ -86,6 +87,29 @@ describe("dedupe by address", () => {
     expect(res.deviceList[1]).toMatchObject({ id: "192.168.1.50|ecp", alias: "Bench", chosen: false });
     expect(res.addedCount).toBe(1);
     expect([...res.foundIds]).toEqual(["192.168.1.50|ecp"]);
+  });
+
+  test("a BrightScript Simulator found by the scan is never added as a control device", () => {
+    const res = mergeScanResults([roku("192.168.1.41")], [
+      { ipAddress: "192.168.1.60", name: "BrightScript Simulator" },
+      { ipAddress: "192.168.1.41", name: " brightscript simulator " }, // not even to rename a known Roku
+      { ipAddress: "192.168.1.44", name: "Bench 4" },
+    ]);
+    expect(res.deviceList.map((d) => d.id)).toEqual(["192.168.1.41|ecp", "192.168.1.44|ecp"]);
+    expect(res.deviceList[0].alias).toBe("Roku 192.168.1.41");
+    expect(res.addedCount).toBe(1);
+    expect(res.foundIds.has("192.168.1.60|ecp")).toBe(false);
+  });
+
+  test("a scan drops simulators an earlier scan saved, but keeps devices named by hand", () => {
+    const list = [
+      roku("192.168.1.60", { alias: "BrightScript Simulator", deviceName: "BrightScript Simulator", chosen: false }),
+      roku("192.168.1.61", { alias: "BrightScript Simulator" }), // typed in by hand: no reported name
+      { id: "streamctl:sim-1|ecp", alias: "BrightScript Simulator", deviceName: "BrightScript Simulator", managedBy: "sim-1" },
+    ];
+    expect(mergeScanResults(list, []).deviceList.map((d) => d.id)).toEqual(["192.168.1.61|ecp", "streamctl:sim-1|ecp"]);
+    expect(isSimulatorName("BrightScript Simulator")).toBe(true);
+    expect(isSimulatorName("Living Room")).toBe(false);
   });
 
   test("adding an address by hand that already exists returns the existing entry", () => {

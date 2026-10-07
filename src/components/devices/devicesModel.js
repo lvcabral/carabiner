@@ -96,16 +96,22 @@ export function addManualDevice(deviceList, { typeKey, address, name = "", port,
 export const defaultControlName = (device) => device?.deviceName || null;
 export const renameControl = (device, name) => ({ ...device, alias: name || device.deviceName || device.alias });
 
+// A BrightScript Simulator answers Roku discovery too (reporting its app name as the device
+// name), but its control is built into its video source, so it's never a control device.
+const SIMULATOR_DEVICE_NAME = "brightscript simulator";
+export const isSimulatorName = (name) => String(name || "").trim().toLowerCase() === SIMULATOR_DEVICE_NAME;
+
 // Fold a network scan (Roku SSDP results: [{ ipAddress, name }]) into the catalog. A found
 // address that is already known updates that entry instead of adding another one; a device
-// that was never renamed follows the name it reports. Returns { deviceList, foundIds, addedCount }.
+// that was never renamed follows the name it reports. BrightScript Simulators are skipped, and
+// entries an earlier scan saved for one are dropped. Returns { deviceList, foundIds, addedCount }.
 export function mergeScanResults(deviceList, found = []) {
-  let list = [...deviceList];
+  let list = deviceList.filter((d) => d.managedBy || !isSimulatorName(d.deviceName));
   const foundIds = new Set();
   let addedCount = 0;
   for (const hit of found) {
     const ip = String(hit.ipAddress || "").trim();
-    if (!ip) continue;
+    if (!ip || isSimulatorName(hit.name)) continue;
     // Roku discovery only finds Rokus, so only an ECP entry at that address can be the same device.
     const key = addressKey({ id: `${ip}|ecp`, ipAddress: ip });
     const idx = list.findIndex((d) => !d.managedBy && addressKey(d) === key);
