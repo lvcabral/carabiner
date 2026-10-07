@@ -13,7 +13,7 @@ import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Spinner from "react-bootstrap/Spinner";
 import Alert from "react-bootstrap/Alert";
-import { Dot, currentTheme } from "./ui";
+import { Dot, TrashIcon, currentTheme } from "./ui";
 import {
   CONTROL_TYPES,
   RDK_DEFAULT_PORT,
@@ -381,15 +381,15 @@ function ChooseControlDialog({
                 </label>
                 <span className="type">{controlTypeOf(d).label}</span>
                 <Dot live={online[d.id] === true} />
-                <Button
-                  size="sm"
-                  variant="link"
-                  className="p-0 ms-1"
+                <button
+                  type="button"
+                  className="icon-btn danger ms-1"
                   aria-label={`Remove ${controlName(d)}`}
+                  title="Remove"
                   onClick={() => setConfirmId(d.id)}
                 >
-                  Remove
-                </Button>
+                  <TrashIcon />
+                </button>
               </div>
               {confirmId === d.id && (
                 <div className="pick-inline align-items-center" role="alert">

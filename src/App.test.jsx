@@ -207,7 +207,10 @@ test("Remove in Choose control devices deletes the device for good, after confir
   await screen.findByText("Controls usb video");
   userEvent.click(screen.getByRole("button", { name: "Choose devices" }));
   const dialog = await screen.findByRole("dialog");
-  userEvent.click(within(dialog).getByRole("button", { name: "Remove Bench 3" }));
+  const trash = within(dialog).getByRole("button", { name: "Remove Bench 3" });
+  expect(trash).toHaveClass("icon-btn"); // the same trash icon as the Control tab
+  expect(trash).toHaveTextContent("");
+  userEvent.click(trash);
   userEvent.click(await within(dialog).findByRole("button", { name: "Remove" }));
   const lists = calls.filter(([k, , msg]) => k === "sendSync" && msg?.type === "set-control-list");
   expect(lists[lists.length - 1][2].payload).toEqual([]);
