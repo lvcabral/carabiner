@@ -86,6 +86,26 @@ test("General, Video, Control; Video lists the chosen sources and Control the ch
   expect(within(control).queryByLabelText("Control for usb video")).not.toBeInTheDocument();
 });
 
+test("a Simulator's built-in control shows on its Video row, not on the Control tab", async () => {
+  const sim = { id: "sim-1", type: "sim", name: "Desk Sim", host: "localhost", port: 8090, controlId: "streamctl:sim-1|ecp" };
+  settings.streams.sources = [sim];
+  settings.control.deviceList.push({ id: "streamctl:sim-1|ecp", ipAddress: "localhost:8060", alias: "Desk Sim", type: "Roku", managedBy: "sim-1" });
+  try {
+    renderTab("Video");
+    const video = panel("Video");
+    expect(await within(video).findByText("Desk Sim")).toBeInTheDocument();
+    expect(within(video).getByText("Included with the stream")).toBeInTheDocument();
+    userEvent.click(screen.getByRole("tab", { name: "Control" }));
+    const control = panel("Control");
+    expect(await within(control).findByText("Bench 3")).toBeInTheDocument();
+    expect(within(control).queryByText("Desk Sim")).not.toBeInTheDocument();
+    expect(within(control).queryByText("Comes with its video")).not.toBeInTheDocument();
+  } finally {
+    settings.streams.sources = [];
+    settings.control.deviceList.pop();
+  }
+});
+
 test("Choose more devices… on a Video row opens Choose control devices", async () => {
   renderTab("Video");
   const select = await within(panel("Video")).findByLabelText("Control for usb video");

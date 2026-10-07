@@ -12,9 +12,12 @@ import Form from "react-bootstrap/Form";
 import Spinner from "react-bootstrap/Spinner";
 import { Dot, PencilIcon, RefreshIcon, SourceIcon, TrashIcon } from "./devices/ui";
 import { CONTROL_TYPES, controlName, controlTypeOf, controlValueOf, hostOf, rceStatusText } from "./devices/devicesModel";
-import { streamControlNote } from "./ControlSection";
 
 const isLocalHost = (host) => ["localhost", "127.0.0.1"].includes(host);
+
+// Why a Cloud Emulator / Simulator source needs no separate control device.
+const streamControlNote = (entry) =>
+  `Carabiner sends key presses to the ${entry.kind === "rce" ? "Cloud Emulator" : "Simulator"} over the same connection as its video, so control comes with it.`;
 
 // The Video tab: what you watch. The chosen video sources, each with its control link and Active
 // switch, managed through the Choose video dialog. State and actions come from useDevices().

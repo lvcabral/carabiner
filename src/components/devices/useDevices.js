@@ -353,8 +353,6 @@ export default function useDevices({
   };
 
 
-  const builtIn = chosenEntries.filter((e) => e.kind === "rce" || e.kind === "simulator");
-
   return {
     // data
     pairs,
@@ -365,7 +363,6 @@ export default function useDevices({
     entries,
     chosenEntries,
     chosenControls,
-    builtIn,
     online,
     refreshing,
     accountOf,
