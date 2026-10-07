@@ -28,7 +28,9 @@ import {
   defaultControlName,
   hostOf,
   isChosen,
+  isMissingRce,
   mergeScanResults,
+  rceStatusText,
   removeControlDevice,
   renameControl,
   setPairFor,
@@ -163,6 +165,10 @@ function DevicesSection({
 
   // ----- video rows -----
   const handleActive = (entry, on) => {
+    if (on && isMissingRce(entry.source)) {
+      toast(`${entry.name} is no longer on its Cloud Emulator account, so it can't be shown. Remove it in Choose video.`);
+      return;
+    }
     if (on && entry.kind === "rce" && entry.source.status && entry.source.status !== "running") {
       toast(`${entry.name} is ${entry.source.status}. Start it in the Cloud Emulator portal; Carabiner connects once it's running.`);
     }
@@ -369,7 +375,7 @@ function DevicesSection({
       return (
         <>
           <Dot live={entry.source.status === "running"} />
-          <span className="text">{entry.source.status || "Cloud Emulator"}</span>
+          <span className="text">{rceStatusText(entry.source.status)}</span>
           {account && <span className="acct-tag">{account.label}</span>}
         </>
       );

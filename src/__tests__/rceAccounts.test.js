@@ -1,4 +1,5 @@
 import {
+  RCE_MISSING,
   mergeWindowSources,
   findAccountByToken,
   normalizeRceAccounts,
@@ -6,6 +7,11 @@ import {
   removeAccount,
   publicAccount,
 } from "../../public/rce-accounts";
+import { RCE_MISSING as UI_RCE_MISSING } from "../components/devices/devicesModel";
+
+test("the settings UI uses the same 'missing' status as main", () => {
+  expect(UI_RCE_MISSING).toBe(RCE_MISSING);
+});
 
 // Stand-in for safeStorage: "enc:<token>" decrypts to <token>.
 const unseal = (t) => (t && t.startsWith("enc:") ? t.slice(4) : t || "");
@@ -71,6 +77,28 @@ describe("stream sources sent by the settings window", () => {
     expect(merged.every((s) => !("hasToken" in s))).toBe(true);
   });
 
+  test("the window can remove a device that is missing from its account, but not one still on it", () => {
+    const withMissing = [...stored, rce("m1", 3, "enc:t", { accountId: "a1", status: RCE_MISSING })];
+    const sent = [{ id: "s1", type: "sim", name: "Sim", host: "localhost", port: 8090 }]; // r1, r2, m1 left out
+    expect(mergeWindowSources(withMissing, sent).map((s) => s.id).sort()).toEqual(["r1", "r2", "s1"]);
+  });
+
+  test("tokens sent by the window are ignored; every source keeps its stored token", () => {
+    const merged = mergeWindowSources(
+      [stored[0], { id: "w", type: "webrtc", url: "http://x", token: "kept" }],
+      [
+        { id: "r1", type: "rce", name: "Box", token: "plain-from-window" },
+        { id: "w", type: "webrtc", url: "http://x", token: "plain-from-window" },
+        { id: "w2", type: "webrtc", url: "http://y", token: "plain-from-window" },
+      ]
+    );
+    expect(merged.map((s) => [s.id, s.token])).toEqual([
+      ["r1", "enc:t"],
+      ["w", "kept"],
+      ["w2", ""],
+    ]);
+  });
+
   test("re-checking a device clears its chosen flag; other sources keep their stored token", () => {
     const merged = mergeWindowSources([{ ...stored[0], chosen: false }, { id: "w", type: "webrtc", url: "http://x", token: "" }], [
       { id: "r1", type: "rce", name: "Box" },
@@ -93,14 +121,34 @@ describe("duplicate token rejection", () => {
 
 describe("account device listing", () => {
   const account = { id: "a1", label: "Work", token: "enc:t" };
-  test("adds new devices unchosen, refreshes status, drops devices no longer on the account", () => {
-    const sources = [rce("keep", 1, "enc:t", { accountId: "a1", status: "shutdown" }), rce("gone", 2, "enc:t", { accountId: "a1" }), rce("other", 9, "enc:x", { accountId: "a2" })];
+  test("adds new devices unchosen, refreshes status, keeps devices no longer on the account as missing", () => {
+    const sources = [rce("keep", 1, "enc:t", { accountId: "a1", status: "shutdown" }), rce("gone", 2, "enc:t", { accountId: "a1", name: "Mine", chosen: false }), rce("other", 9, "enc:x", { accountId: "a2" })];
     const res = applyAccountDevices(sources, account, [{ id: 1, name: "Dev 1", status: "running" }, { id: 3, name: "New", status: "shutdown" }], ids());
-    expect(res.removedIds).toEqual(["gone"]);
+    expect(res.missingIds).toEqual(["gone"]);
     expect(res.addedCount).toBe(1);
     expect(res.sources.find((s) => s.id === "keep").status).toBe("running");
+    // Kept (so its pair and window settings survive) with its name and chosen flag untouched.
+    expect(res.sources.find((s) => s.id === "gone")).toMatchObject({ status: RCE_MISSING, name: "Mine", chosen: false, deviceId: 2 });
     expect(res.sources.find((s) => s.name === "New")).toMatchObject({ accountId: "a1", chosen: false, deviceId: 3, token: "enc:t" });
     expect(res.sources.find((s) => s.id === "other")).toBe(sources[2]);
+  });
+
+  test("a missing device that is listed again comes back as the same source", () => {
+    const sources = [rce("dev", 4, "enc:t", { accountId: "a1", status: RCE_MISSING })];
+    const res = applyAccountDevices(sources, account, [{ id: 4, name: "Dev 4", status: "running" }], ids());
+    expect(res.sources).toHaveLength(1);
+    expect(res.sources[0]).toMatchObject({ id: "dev", status: "running" });
+    expect(res.missingIds).toEqual([]);
+    expect(res.addedCount).toBe(0);
+  });
+
+  test("an empty listing marks every device missing instead of removing it", () => {
+    const sources = [rce("a", 1, "enc:t", { accountId: "a1" }), rce("b", 2, "enc:t", { accountId: "a1" })];
+    const res = applyAccountDevices(sources, account, [], ids());
+    expect(res.sources.map((s) => [s.id, s.status])).toEqual([
+      ["a", RCE_MISSING],
+      ["b", RCE_MISSING],
+    ]);
   });
 
   test("names follow the account unless renamed; names saved by older builds are kept", () => {

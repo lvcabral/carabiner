@@ -159,6 +159,15 @@ export function applyControlSelection(deviceList, chosenIds, pairs) {
 
 export const STREAM_KIND = { sim: "simulator", rce: "rce", webrtc: "webrtc" };
 
+// A Cloud Emulator device no longer on its account's listing is kept with this status (so its
+// window settings survive) until the user removes it. Same value as RCE_MISSING in
+// public/rce-accounts.js.
+export const RCE_MISSING = "missing";
+export const isMissingRce = (source) => source?.type === "rce" && source.status === RCE_MISSING;
+// What to show for a Cloud Emulator device's status.
+export const rceStatusText = (status) =>
+  status === RCE_MISSING ? "no longer on this account" : status || "Cloud Emulator";
+
 export const hostOf = (url) => {
   try {
     return new URL(url).hostname;

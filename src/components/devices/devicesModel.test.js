@@ -6,7 +6,9 @@ import {
   controlValueOf,
   defaultControlName,
   isChosen,
+  isMissingRce,
   mergeScanResults,
+  rceStatusText,
   removeControlDevice,
   renameControl,
   resetPairingsFor,
@@ -208,4 +210,13 @@ test("stream URL validation and capture labels", () => {
   expect(validateStreamUrl("wss://x/y")).toMatch(/WebSocket/);
   expect(splitCaptureLabel("usb video (534d:2109)")).toEqual({ name: "usb video", hardwareId: "534d:2109" });
   expect(splitCaptureLabel("OBS Virtual Camera")).toEqual({ name: "OBS Virtual Camera", hardwareId: "" });
+});
+
+test("Cloud Emulator status text, and a device missing from its account", () => {
+  expect(rceStatusText("running")).toBe("running");
+  expect(rceStatusText(undefined)).toBe("Cloud Emulator");
+  expect(rceStatusText("missing")).toBe("no longer on this account");
+  expect(isMissingRce({ type: "rce", status: "missing" })).toBe(true);
+  expect(isMissingRce({ type: "rce", status: "shutdown" })).toBe(false);
+  expect(isMissingRce({ type: "sim", status: "missing" })).toBe(false);
 });

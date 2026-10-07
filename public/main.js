@@ -259,6 +259,26 @@ function broadcastControlList() {
   mainWindow?.webContents?.send("pairs-updated", settings.pairs);
 }
 
+// Replace the stream-source catalog: close and drop the pairs of removed sources, re-sync the
+// sources' built-in controls, save, then tell every window.
+function commitStreamSources(sources) {
+  settings.streams = { ...(settings.streams || {}), sources };
+  const remaining = new Set(sources.map(streamDeviceId));
+  const removed = (settings.pairs || []).filter(
+    (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
+  );
+  removed.forEach((p) => closePair(p.id));
+  settings.pairs = (settings.pairs || []).filter((p) => !removed.includes(p));
+  if (removed.length && !getPair(activePairId)) {
+    activePairId = settings.pairs[0]?.id || "";
+    settings.activePairId = activePairId;
+  }
+  syncManagedControls();
+  saveSettings(settings);
+  broadcastControlList();
+  rebuildMenus();
+}
+
 // Video sources chosen on the Devices tab (unchecked ones are hidden from menus and MCP too).
 function getAllSources() {
   const hidden = new Set(settings?.video?.hiddenCaptureIds || []);
@@ -1395,39 +1415,10 @@ app.whenReady().then(async () => {
       if (listChanged) rebuildMenus();
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
     } else if (arg.type && arg.type === "set-stream-sources") {
-      // The stream-source catalog is global. Drop pairs bound to a deleted source.
-      // Encrypt any newly entered token. If secure storage isn't available, storing it as plain
-      // text needs the user's explicit consent (remembered once given).
-      const sealed = new Map();
-      let payload = arg.payload;
-      for (const src of payload) {
-        if (!src.token) continue;
-        const stored = sealTokenWithConsent(src.token);
-        if (stored === null) {
-          // Declined: discard the change (re-applying the saved catalog is a no-op).
-          payload = getStreamSources().map(publicSource);
-          sealed.clear();
-          break;
-        }
-        sealed.set(src.id, stored);
-      }
+      // The stream-source catalog is global; pairs bound to a deleted source are dropped. Tokens
+      // never come from the window (Cloud Emulator tokens are added via rce-add-account), and
       // Cloud Emulator sources stay owned by their account (see mergeWindowSources).
-      const sources = mergeWindowSources(getStreamSources(), payload, sealed);
-      settings.streams = { ...(settings.streams || {}), sources };
-      const remaining = new Set(sources.map(streamDeviceId));
-      const removed = (settings.pairs || []).filter(
-        (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
-      );
-      removed.forEach((p) => closePair(p.id));
-      settings.pairs = (settings.pairs || []).filter((p) => !removed.includes(p));
-      if (removed.length) {
-        if (!getPair(activePairId)) activePairId = settings.pairs[0]?.id || "";
-        settings.activePairId = activePairId;
-      }
-      // Create/refresh/remove the control device that belongs to each stream source.
-      syncManagedControls();
-      broadcastControlList();
-      rebuildMenus();
+      commitStreamSources(mergeWindowSources(getStreamSources(), arg.payload));
     } else if (arg.type && arg.type === "set-control-selected") {
       if (pair) {
         const prev = pair.controlDeviceId;
@@ -1584,25 +1575,6 @@ app.whenReady().then(async () => {
   });
 
   // ----- Devices tab: Cloud Emulator accounts ------------------------------------------------
-  // Replace the stream-source catalog from main (account changes), closing the windows of
-  // removed sources, then tell every window.
-  const commitStreamSources = (sources) => {
-    settings.streams = { ...(settings.streams || {}), sources };
-    const remaining = new Set(sources.map(streamDeviceId));
-    const removed = (settings.pairs || []).filter(
-      (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
-    );
-    removed.forEach((p) => closePair(p.id));
-    settings.pairs = (settings.pairs || []).filter((p) => !removed.includes(p));
-    if (removed.length && !getPair(activePairId)) {
-      activePairId = settings.pairs[0]?.id || "";
-      settings.activePairId = activePairId;
-    }
-    syncManagedControls();
-    saveSettings(settings);
-    broadcastControlList();
-    rebuildMenus();
-  };
   // Re-list one account's devices (names, running/shutdown status, new or removed devices).
   const refreshAccount = async (account) => {
     const devices = await streamSignaling.listRceDevices({ token: unsealToken(account.token), apiUrl: account.apiUrl || "" });

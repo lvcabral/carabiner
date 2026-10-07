@@ -13,6 +13,7 @@ import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Spinner from "react-bootstrap/Spinner";
 import { Dot, ExternalLink, SourceIcon, currentTheme } from "./ui";
+import { isMissingRce, rceStatusText } from "./devicesModel";
 
 const RCE_DOCS_URL = "https://developer.roku.com/dev/docs/rce";
 const SIMULATOR_RELEASES_URL = "https://github.com/lvcabral/brs-desktop/releases";
@@ -409,8 +410,10 @@ function ChooseVideoDialog({
                   <PickRow
                     key={e.id}
                     {...rowProps(e)}
-                    detail={e.source.status || ""}
+                    detail={e.source.status ? rceStatusText(e.source.status) : ""}
                     live={e.source.status === "running"}
+                    // Devices still on the account are managed by it; one that left can be removed.
+                    onRemove={isMissingRce(e.source) ? askRemove : undefined}
                   />
                 ))}
               </div>

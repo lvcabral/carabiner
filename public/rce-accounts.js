@@ -62,12 +62,17 @@ function normalizeRceAccounts(settings, { unseal, newId }) {
   return changed;
 }
 
+// Status of a Cloud Emulator source whose device is no longer on its account's listing.
+const RCE_MISSING = "missing";
+
 // Merge an account's current device listing into the stream-source catalog: known devices get
-// their name/status refreshed, new ones are added unchosen, and devices no longer on the account
-// are dropped. Returns { sources, removedIds, addedCount }.
+// their name/status refreshed and new ones are added unchosen. A device no longer listed is kept
+// with status "missing" rather than dropped, so its window settings (the pair) survive a partial
+// or transient listing and come back if the device does; the user removes it explicitly.
+// Returns { sources, missingIds, addedCount }.
 function applyAccountDevices(sources, account, devices, newId) {
   const listed = new Map((devices || []).map((d) => [String(d.id), d]));
-  const removedIds = [];
+  const missingIds = [];
   const next = [];
   for (const src of sources || []) {
     if (src.type !== "rce" || src.accountId !== account.id) {
@@ -76,7 +81,8 @@ function applyAccountDevices(sources, account, devices, newId) {
     }
     const d = listed.get(String(src.deviceId));
     if (!d) {
-      removedIds.push(src.id);
+      missingIds.push(src.id);
+      next.push({ ...src, status: RCE_MISSING, token: account.token });
       continue;
     }
     listed.delete(String(src.deviceId));
@@ -102,30 +108,32 @@ function applyAccountDevices(sources, account, devices, newId) {
     });
     addedCount++;
   }
-  return { sources: next, removedIds, addedCount };
+  return { sources: next, missingIds, addedCount };
 }
 
 // Merge the stream-source list sent by the settings window into the stored one. Cloud Emulator
 // sources belong to their account (main adds/removes them), so from the window only a rename or
 // check/uncheck is taken: a stale window list can't drop devices a refresh just added, nor bring
-// back removed ones. Other sources are taken as sent, keeping the stored token when none is sent
-// (`sealed` maps source id -> newly sealed token).
+// back removed ones. The one exception is a device that is missing from its account, which the
+// window may remove. Other sources are taken as sent. Tokens are never taken from the window:
+// every source keeps its stored token.
 const RCE_EDITABLE = ["name", "chosen"];
-function mergeWindowSources(stored = [], fromWindow = [], sealed = new Map()) {
+function mergeWindowSources(stored = [], fromWindow = []) {
   const byId = new Map(stored.map((src) => [src.id, src]));
   const sentIds = new Set(fromWindow.map((src) => src.id));
   const merged = fromWindow
     .filter((src) => src.type !== "rce" || byId.get(src.id)?.type === "rce")
-    .map(({ hasToken, ...src }) => {
+    .map(({ hasToken, token, ...src }) => {
       const prev = byId.get(src.id);
       if (src.type === "rce") {
         const next = { ...prev };
         RCE_EDITABLE.forEach((key) => (key in src ? (next[key] = src[key]) : delete next[key]));
         return next;
       }
-      return { ...src, token: src.token ? sealed.get(src.id) || src.token : prev?.token || "" };
+      return { ...src, token: prev?.token || "" };
     });
-  return [...merged, ...stored.filter((src) => src.type === "rce" && !sentIds.has(src.id))];
+  const kept = stored.filter((src) => src.type === "rce" && !sentIds.has(src.id) && src.status !== RCE_MISSING);
+  return [...merged, ...kept];
 }
 
 // Remove an account and every source that belongs to it. Returns the removed source ids.
@@ -138,6 +146,7 @@ function removeAccount(settings, accountId) {
 }
 
 module.exports = {
+  RCE_MISSING,
   tokenTail,
   publicAccount,
   defaultAccountLabel,
