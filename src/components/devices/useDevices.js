@@ -9,7 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "./ui";
-import { streamDeviceId } from "../pairLabel";
+import { streamControlId, streamDeviceId } from "../pairLabel";
 import {
   applyControlSelection,
   applyVideoSelection,
@@ -28,6 +28,13 @@ import {
 } from "./devicesModel";
 
 const { electronAPI } = window;
+
+// The control a stream's pair gets when it's created: the stream's built-in control (locked for a
+// Simulator / Cloud Emulator, the "Same host" default for a WebRTC stream URL). None for a card.
+const autoControlFor = (streamSources, sourceId) => {
+  const src = streamSources.find((s) => streamDeviceId(s) === sourceId);
+  return src ? streamControlId(src) : "";
+};
 
 // State and actions shared by the Video and Control tabs (VideoSection / ControlSection) and the
 // dialogs they open (DevicesDialogs). App calls this once, so capture-device enumeration, the IPC
@@ -110,10 +117,13 @@ export default function useDevices({
     // "Settings…" in the menus opens the first tab (General).
     electronAPI.onMessageReceived("open-display-tab", () => document.getElementById("settings-tabs-tab-display")?.click());
     // Tray "capture device" submenu makes that device's window visible.
+    // (Also how MCP select_capture_device activates a source, so a new pair gets its stream's
+    // built-in control just like the Active switch.)
     electronAPI.onMessageReceived("update-capture-device", (event, deviceId) => {
       if (!deviceId) return;
-      const { pairs: current, singleWindowMode: single } = latest.current;
-      onPairsChange?.(setPairFor(current, deviceId, { visible: true }, { singleWindowMode: single }));
+      const { pairs: current, singleWindowMode: single, streamSources: sources } = latest.current;
+      const opts = { singleWindowMode: single, autoControl: autoControlFor(sources, deviceId) };
+      onPairsChange?.(setPairFor(current, deviceId, { visible: true }, opts));
     });
 
     // Find a simulator running on this computer and refresh Cloud Emulator device status.
@@ -143,7 +153,7 @@ export default function useDevices({
   };
 
   const updatePair = (entry, patch) => {
-    const opts = { singleWindowMode, autoControl: entry.source?.controlId || "" };
+    const opts = { singleWindowMode, autoControl: autoControlFor(latest.current.streamSources, entry.id) };
     onPairsChange?.(setPairFor(latest.current.pairs, entry.id, patch, opts));
   };
 
@@ -164,7 +174,7 @@ export default function useDevices({
       setShowControl(true);
       return;
     }
-    updatePair(entry, controlPatch(value, { host: entry.kind === "webrtc" ? hostOf(entry.source.url) : "" }));
+    updatePair(entry, controlPatch(value, { source: entry.source }));
   };
 
   const persistHidden = (ids) => {
@@ -210,8 +220,8 @@ export default function useDevices({
     const host = hostOf(url);
     const src = { id: `webrtc-${Date.now().toString(36)}`, type: "webrtc", name: name || `Stream at ${host}`, url };
     onUpdateStreamSources([...current, src]);
-    // Default control: ECP to the stream's own host.
-    onPairsChange?.(setPairFor(latest.current.pairs, streamDeviceId(src), controlPatch("host", { host })));
+    // Default control: its built-in "Same host as stream" control (ECP to the URL's host).
+    onPairsChange?.(setPairFor(latest.current.pairs, streamDeviceId(src), controlPatch("host", { source: src })));
     return streamDeviceId(src);
   };
 
@@ -233,6 +243,8 @@ export default function useDevices({
     return { ok: true, message: "Connected" };
   };
 
+  // Simulators being added (probe in flight), so Enter + Add can't add the same one twice.
+  const addingSimulators = useRef(new Set());
   const handleAddSimulator = async ({ host, port, name }, setError) => {
     const problem = simulatorProblem(host, port);
     if (problem) {
@@ -240,13 +252,30 @@ export default function useDevices({
       return null;
     }
     const n = Number(port);
-    if (latest.current.streamSources.some((s) => s.type === "sim" && s.host === host && Number(s.port) === n)) {
+    const key = `${host}:${n}`;
+    const isKnown = () =>
+      latest.current.streamSources.some((s) => s.type === "sim" && s.host === host && Number(s.port) === n);
+    if (addingSimulators.current.has(key)) return null;
+    if (isKnown()) {
       setError("That simulator is already in the list.");
       return null;
     }
+    addingSimulators.current.add(key);
+    try {
+      return await addSimulator({ host, n, name }, setError, isKnown);
+    } finally {
+      addingSimulators.current.delete(key);
+    }
+  };
+  const addSimulator = async ({ host, n, name }, setError, isKnown) => {
     const src = { id: `sim-${Date.now().toString(36)}`, type: "sim", name: name || `Simulator at ${host}`, host, port: n };
     // The simulator's ECP port is reported by its remote screen; fall back to the default.
     const probe = await electronAPI.invoke("test-stream-source", src).catch(() => null);
+    // Added meanwhile (e.g. detected on this computer while the probe ran)?
+    if (isKnown()) {
+      setError("That simulator is already in the list.");
+      return null;
+    }
     if (probe?.ok && probe.config?.ecpPort) src.ecpPort = Number(probe.config.ecpPort);
     if (!probe?.ok) toast("The simulator could not be reached; the default ECP port 8060 is assumed.");
     else if (probe.config?.ecpEnabled === false) toast("ECP is disabled in the simulator, so keys won't work until you enable it.");

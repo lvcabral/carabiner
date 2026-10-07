@@ -126,7 +126,7 @@ field.
 | `show_display` / `hide_display` | Show or hide the floating display window; optional `deviceId` |
 | `toggle_fullscreen` | Toggle fullscreen; optional `deviceId` |
 | `toggle_on_top` | Toggle always-on-top; optional `deviceId` |
-| `get_settings` | Read-only settings snapshot (auth token redacted) |
+| `get_settings` | Read-only settings snapshot (auth and access tokens redacted) |
 | `get_app_info` | App version, OS, and MCP server status |
 
 ### Resources
@@ -134,7 +134,7 @@ field.
 |-----|-------------|
 | `carabiner://devices` | Device list + selected device |
 | `carabiner://scripts` | All saved scripts |
-| `carabiner://settings` | Settings snapshot (token redacted) |
+| `carabiner://settings` | Settings snapshot (auth and access tokens redacted) |
 | `carabiner://screenshot/latest` | Current frame as a PNG |
 
 ### Prompts

@@ -474,6 +474,12 @@ async function sendControlKey(source, key, mod = -1) {
     await postKey(`http://${source.host}:${Number(source.ecpPort) || 8060}/${command}/${key}`);
     return;
   }
+  if (source?.type === "webrtc") {
+    // "Same host as stream": plain ECP on the stream URL's host (an IP or a hostname).
+    const host = new URL(source.url).hostname;
+    await postKey(`http://${host}:8060/${command}/${key}`);
+    return;
+  }
   if (source?.type !== "rce") throw new Error("Unsupported stream source type");
   // The instance API sits behind a service mesh that reads the bearer token from X-Authorization
   // (the standard Authorization header is reserved for the emulated device's own digest auth).

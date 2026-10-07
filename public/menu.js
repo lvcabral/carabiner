@@ -761,14 +761,10 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
   if (!activePair) return;
 
   const activeControlId = activePair.controlDeviceId;
-  // A WebRTC stream in "same host" mode sends ECP to its URL's host ("<host>|ecp"), which isn't a
-  // catalog device even when a catalog Roku has that address.
-  const sameHost = activePair.controlMode === "host" && !!activeControlId;
-  // The header names the currently linked control device (not the capture card / stream).
-  const activeControl = sameHost ? null : deviceList.find((d) => d.id === activeControlId);
-  const headerSuffix = sameHost
-    ? ` (Same host: ${activeControlId.split("|")[0]})`
-    : ` (${activeControl ? activeControl.alias || activeControl.type : "None"})`;
+  // The header names the currently linked control device (not the capture card / stream). A
+  // WebRTC stream URL's own control is named "Same host: <host>".
+  const activeControl = deviceList.find((d) => d.id === activeControlId);
+  const headerSuffix = ` (${activeControl ? activeControl.alias || activeControl.type : "None"})`;
   // A stream has its own built-in control, so its link can't be changed from the menu.
   // (A WebRTC stream URL has no built-in control, so it links like a capture card.)
   const activeSource = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId);
@@ -785,7 +781,7 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
         .map((device) => ({
           label: controlLabel(device),
           type: "radio",
-          checked: !sameHost && activeControlId === device.id,
+          checked: activeControlId === device.id,
           click: () => onDeviceSelected?.(device.id),
         })),
     })

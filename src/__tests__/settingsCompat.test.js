@@ -1,5 +1,5 @@
 // settings.js only touches Electron when it loads/saves the file, so its pure helpers import directly.
-import { migrateSettings, makePair } from "../../public/settings";
+import { migrateSettings, makePair, redactSettings } from "../../public/settings";
 import { normalizeRceAccounts } from "../../public/rce-accounts";
 import {
   controlTypeOf,
@@ -130,18 +130,20 @@ describe("settings compatibility", () => {
       streams: { sources: [{ id: "webrtc-1", type: "webrtc", name: "Cam", url: "http://10.0.0.5:8889/whep" }] },
       pairs: [
         { id: "cap1", captureDeviceId: "cap1", controlDeviceId: "192.168.1.43|ecp", visible: true },
-        { id: "stream:webrtc-1", captureDeviceId: "stream:webrtc-1", controlDeviceId: "10.0.0.5|ecp", controlMode: "host", visible: false },
+        { id: "stream:webrtc-1", captureDeviceId: "stream:webrtc-1", controlDeviceId: "", controlMode: "viewer", visible: false },
       ],
     };
     migrateSettings(settings);
     expect(settings.pairs.map((p) => [p.id, p.controlDeviceId, p.controlMode, p.visible])).toEqual([
       ["cap1", "192.168.1.43|ecp", undefined, true],
-      ["stream:webrtc-1", "10.0.0.5|ecp", "host", false],
+      ["stream:webrtc-1", "", "viewer", false],
     ]);
   });
 
   test("unknown control modes are dropped rather than passed through", () => {
     expect(makePair({ id: "x", captureDeviceId: "x", controlMode: "bogus" }).controlMode).toBeUndefined();
+    // "host" is no longer a mode: "Same host" is the stream's built-in control (streamctl:<id>|ecp).
+    expect(makePair({ id: "x", captureDeviceId: "x", controlMode: "host" }).controlMode).toBeUndefined();
   });
 
   test("new optional fields survive a load/save round trip untouched", () => {
@@ -159,4 +161,21 @@ describe("settings compatibility", () => {
     expect(settings.control).toEqual(before.control);
     expect(settings.streams).toEqual(before.streams);
   });
+});
+
+test("the MCP settings snapshot carries no secrets", () => {
+  const settings = {
+    mcp: { enabled: true, port: 7734, token: "mcp-secret" },
+    rce: { accounts: [{ id: "a1", label: "Work", token: "plain-pat-c3f9", tail: "c3f9" }] },
+    streams: { sources: [{ id: "r1", type: "rce", deviceId: 7, token: "enc:sealed", accountId: "a1" }, { id: "s1", type: "sim", host: "localhost" }] },
+    control: { deviceList: [{ id: "10.0.0.9:9998|rdk", type: "Xumo Stream Box", token: "rdk-bearer" }, { id: "10.0.0.5|ecp", type: "Roku" }] },
+  };
+  const snap = redactSettings(settings);
+  const text = JSON.stringify(snap);
+  for (const secret of ["mcp-secret", "plain-pat-c3f9", "enc:sealed", "rdk-bearer"]) expect(text).not.toContain(secret);
+  expect(snap.rce.accounts[0]).toEqual({ id: "a1", label: "Work", tail: "c3f9" });
+  expect(snap.streams.sources.map((s) => s.hasToken)).toEqual([true, false]);
+  expect(snap.control.deviceList[0].token).toBe("***");
+  expect(snap.control.deviceList[1]).toEqual({ id: "10.0.0.5|ecp", type: "Roku" });
+  expect(settings.rce.accounts[0].token).toBe("plain-pat-c3f9"); // the live settings are untouched
 });

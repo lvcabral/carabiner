@@ -12,6 +12,9 @@
 export const STREAM_PREFIX = "stream:";
 export const isStreamDeviceId = (id) => typeof id === "string" && id.startsWith(STREAM_PREFIX);
 export const streamDeviceId = (source) => STREAM_PREFIX + source.id;
+// A stream source's built-in control device (created by main's syncManagedControls): the Cloud
+// Emulator / Simulator control, or a WebRTC stream URL's "Same host as stream" ECP target.
+export const streamControlId = (source) => `streamctl:${source.id}|ecp`;
 const STREAM_KIND_LABELS = { rce: "RCE", sim: "Simulator", webrtc: "WebRTC" };
 
 // Label for a window (pair) in the Display / Overlay / Automation window selectors.

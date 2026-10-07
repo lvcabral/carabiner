@@ -79,7 +79,7 @@ function VideoSection({ devices }) {
       );
     }
     const host = entry.kind === "webrtc" ? hostOf(entry.source.url) : "";
-    const value = controlValueOf(pairFor(entry.id));
+    const value = controlValueOf(pairFor(entry.id), entry.source);
     return (
       <Form.Control as="select" size="sm" aria-label={`Control for ${entry.name}`} value={value} onChange={(e) => handleControlChoice(entry, e.target.value)}>
         <option value="none">No control</option>

@@ -1970,8 +1970,7 @@ async function handleControlSelected(data) {
 }
 
 // The catalog only matters for labels here: main owns the pairing and sends set-control-selected ""
-// whenever this window's control leaves the catalog. (Clearing here too would also drop a stream's
-// "same host" target "<host>|ecp", which can share its id with a catalog Roku at that address.)
+// whenever this window's control leaves the catalog.
 function handleControlList(data) {
   controlList = data;
   // A rename of the control (or its stream) changes what the window's label should say.

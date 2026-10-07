@@ -22,7 +22,7 @@ const DEFAULT_PAIR_BORDER = { width: "0.1px", style: "solid", color: "#662D91" }
 const DEFAULT_WINDOW_WIDTH = 820;
 const DEFAULT_WINDOW_HEIGHT = 461;
 const DEFAULT_PAIR_RESOLUTION = "804px|452px";
-const CONTROL_MODES = ["host", "viewer"];
+const CONTROL_MODES = ["viewer"];
 
 function saveSettings(settings) {
   fs.writeFileSync(settingsFilePath(), JSON.stringify(settings, null, 2));
@@ -39,8 +39,9 @@ function makePair(partial = {}) {
     id: partial.id || newPairId(),
     captureDeviceId: partial.captureDeviceId || "",
     controlDeviceId: partial.controlDeviceId || "",
-    // Optional: "host" (ECP to a WebRTC stream's own host; controlDeviceId is "<host>|ecp") or
-    // "viewer" (picked in the viewer). Absent means controlDeviceId is used as is.
+    // Optional: "viewer" (control picked in the viewer; reserved, acts as no control for now).
+    // Absent means controlDeviceId is used as is. ("Same host as stream" for a WebRTC stream URL
+    // is its built-in control, streamctl:<sourceId>|ecp, not a mode.)
     ...(CONTROL_MODES.includes(partial.controlMode) ? { controlMode: partial.controlMode } : {}),
     visible: partial.visible !== false,
     bounds: partial.bounds || {
@@ -174,7 +175,24 @@ function loadSettings() {
   }
 }
 
+// Settings as MCP clients see them (get_settings / carabiner://settings), with every secret
+// removed: the MCP auth token, stream-source and Cloud Emulator account tokens (sealed or not),
+// and Xumo (RDK) bearer tokens.
+function redactSettings(settings) {
+  const snap = JSON.parse(JSON.stringify(settings));
+  if (snap.mcp?.token) snap.mcp.token = "***";
+  if (Array.isArray(snap.streams?.sources)) {
+    snap.streams.sources = snap.streams.sources.map(({ token, ...src }) => ({ ...src, hasToken: !!token }));
+  }
+  if (Array.isArray(snap.rce?.accounts)) snap.rce.accounts = snap.rce.accounts.map(({ token, ...account }) => account);
+  if (Array.isArray(snap.control?.deviceList)) {
+    snap.control.deviceList = snap.control.deviceList.map((d) => (d.token ? { ...d, token: "***" } : d));
+  }
+  return snap;
+}
+
 module.exports = {
+  redactSettings,
   saveSettings,
   loadSettings,
   migrateSettings,

@@ -157,8 +157,9 @@ describe("pairing reset on delete or uncheck", () => {
     expect(next[1]).toBe(pairs[1]);
   });
 
-  test("a stream's same-host control survives unchecking a Roku at that address", () => {
-    const withHost = [{ id: "stream:w", captureDeviceId: "stream:w", controlDeviceId: "10.0.0.5|ecp", controlMode: "host" }];
+  test("a stream URL's same-host control survives unchecking a Roku at that address", () => {
+    // Its own built-in control, not the catalog Roku's id, so there is nothing to special-case.
+    const withHost = [{ id: "stream:w", captureDeviceId: "stream:w", controlDeviceId: "streamctl:w|ecp" }];
     expect(resetPairingsFor(withHost, ["10.0.0.5|ecp"]).affected).toEqual([]);
   });
 
@@ -205,10 +206,17 @@ describe("video selection", () => {
 
 describe("control choice and pairs", () => {
   test("same host / viewer / device / none", () => {
-    expect(controlPatch("host", { host: "10.0.0.5" })).toEqual({ controlDeviceId: "10.0.0.5|ecp", controlMode: "host" });
+    const stream = { id: "webrtc-1", type: "webrtc", url: "http://mediamtx.local:8889/cam/whep" };
+    // "Same host" is the stream's built-in control (keys go to the URL's host, even a hostname).
+    expect(controlPatch("host", { source: stream })).toEqual({ controlDeviceId: "streamctl:webrtc-1|ecp", controlMode: undefined });
+    expect(controlPatch("host", { source: { id: "sim-1", type: "sim" } }).controlDeviceId).toBe(""); // only stream URLs have "same host"
     expect(controlPatch("192.168.1.41|ecp")).toEqual({ controlDeviceId: "192.168.1.41|ecp", controlMode: undefined });
     expect(controlPatch("none").controlDeviceId).toBe("");
-    expect(controlValueOf({ controlDeviceId: "10.0.0.5|ecp", controlMode: "host" })).toBe("host");
+    expect(controlPatch("viewer")).toEqual({ controlDeviceId: "", controlMode: "viewer" });
+    expect(controlValueOf({ controlDeviceId: "streamctl:webrtc-1|ecp" }, stream)).toBe("host");
+    // A catalog Roku at the stream's address is that Roku, not "same host".
+    expect(controlValueOf({ controlDeviceId: "10.0.0.5|ecp" }, { ...stream, url: "http://10.0.0.5:8889/whep" })).toBe("10.0.0.5|ecp");
+    expect(controlValueOf({ controlDeviceId: "", controlMode: "viewer" }, stream)).toBe("viewer");
     expect(controlValueOf(null)).toBe("none");
   });
 

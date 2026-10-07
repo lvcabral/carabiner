@@ -4,6 +4,7 @@ import {
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
+  applyAccountListings,
   renameAccount,
   removeAccount,
   publicAccount,
@@ -165,6 +166,27 @@ describe("account device listing", () => {
       ["Mine", "New"],
       ["Custom", "New"],
     ]);
+  });
+
+  test("refresh: an account removed while its listing was in flight isn't brought back", () => {
+    const work = { id: "a1", label: "Work", token: "enc:t" };
+    const personal = { id: "a2", label: "Personal", token: "enc:x" };
+    const sources = [rce("p1", 2, "enc:x", { accountId: "a2", status: "shutdown" })];
+    // Both were listed in parallel; Work was removed before the results came back.
+    const listings = [
+      { status: "fulfilled", value: [{ id: 1, name: "Work box", status: "running" }] },
+      { status: "fulfilled", value: [{ id: 2, name: "Dev 2", status: "running" }] },
+    ];
+    const res = applyAccountListings(sources, [personal], [work, personal], listings, ids());
+    expect(res.sources.map((s) => [s.id, s.accountId, s.status])).toEqual([["p1", "a2", "running"]]);
+    expect(res.errors).toEqual({});
+  });
+
+  test("refresh: a failed listing is reported and leaves that account's devices as they were", () => {
+    const sources = [rce("w1", 1, "enc:t", { accountId: "a1", status: "running" })];
+    const res = applyAccountListings(sources, [account], [account], [{ status: "rejected", reason: new Error("timed out") }], ids());
+    expect(res.sources).toBe(sources);
+    expect(res.errors).toEqual({ a1: "timed out" });
   });
 
   test("renaming an account changes only its label; an empty name or unknown account is refused", () => {

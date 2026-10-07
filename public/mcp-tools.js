@@ -412,7 +412,7 @@ function registerStateTools(server, ctx) {
     "get_settings",
     {
       title: "Get settings",
-      description: "Return a read-only snapshot of the current app settings (auth token redacted).",
+      description: "Return a read-only snapshot of the current app settings (auth and access tokens redacted).",
     },
     handler(async () => textResult(ctx.getSettingsSnapshot()))
   );
@@ -471,7 +471,7 @@ function registerResources(server, ctx) {
     "carabiner://settings",
     {
       title: "Settings",
-      description: "Full settings snapshot (auth token redacted).",
+      description: "Full settings snapshot (auth and access tokens redacted).",
       mimeType: "application/json",
     },
     async (uri) => ({

@@ -26,7 +26,7 @@ const {
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
-const { saveSettings, loadSettings, makePair, newPairId } = require("./settings");
+const { saveSettings, loadSettings, makePair, newPairId, redactSettings } = require("./settings");
 const { connectADB, disconnectADB, isADBConnected, sendADBKey, sendADBText } = require("./adb");
 const { connectATV, disconnectATV, isATVConnected, sendATVKey, sendATVText } = require("./appletv");
 const {
@@ -69,6 +69,7 @@ const {
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
+  applyAccountListings,
   mergeWindowSources,
   renameAccount,
   removeAccount,
@@ -192,13 +193,25 @@ function sealTokenWithConsent(token) {
 // Source with its token decrypted, for main-process use only.
 const withSecret = (source) => (source ? { ...source, token: unsealToken(source.token) } : source);
 
-// Every stream source brings its own control device (ECP): keys for a Cloud Emulator go through
-// its authenticated Device API and a Simulator's through its ECP port, both sent from main. The
-// device lives in the control catalog flagged `managedBy: <sourceId>` so it appears in the
-// pickers, but is created/updated/removed together with its stream source instead of by hand.
+// Every stream source brings its own control device (ECP), sent from main: keys for a Cloud
+// Emulator go through its authenticated Device API, a Simulator's to its ECP port, and a WebRTC
+// stream URL's to port 8060 on the URL's host ("Same host as stream"; a hostname works too). The
+// device lives in the control catalog flagged `managedBy: <sourceId>`, but is created/updated/
+// removed together with its stream source instead of by hand, and never listed as a device.
 const STREAM_CONTROL_PREFIX = "streamctl:";
 const streamControlId = (src) => `${STREAM_CONTROL_PREFIX}${src.id}|ecp`;
+const urlHost = (url) => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+};
 function managedControlFor(src) {
+  if (src.type === "webrtc") {
+    const host = urlHost(src.url);
+    return { id: streamControlId(src), ipAddress: `${host}:8060`, alias: `Same host: ${host}`, type: "Roku", linked: "", managedBy: src.id };
+  }
   return {
     id: streamControlId(src),
     ipAddress: src.type === "rce" ? `Cloud Emulator #${src.deviceId}` : `${src.host}:${src.ecpPort || 8060}`,
@@ -209,12 +222,11 @@ function managedControlFor(src) {
   };
 }
 // Reconcile the managed control devices with the stream-source catalog. Returns whether anything
-// changed. Pairs bound to a removed control are unbound; stream pairs are always linked to their
-// source's control.
+// changed. Pairs bound to a removed control are unbound; Simulator and Cloud Emulator pairs are
+// always linked to their source's control (a WebRTC stream URL's pair may link any device).
 function syncManagedControls() {
   if (!settings.control) settings.control = { deviceList: [] };
-  // A WebRTC stream URL has no built-in control; its pair is linked like a capture card's.
-  const sources = getStreamSources().filter((src) => src.type !== "webrtc");
+  const sources = getStreamSources();
   const wanted = new Map(sources.map((src) => [streamControlId(src), src]));
   const before = JSON.stringify(settings.control.deviceList || []);
   const removedIds = (settings.control.deviceList || [])
@@ -233,8 +245,9 @@ function syncManagedControls() {
       p.controlDeviceId = "";
       getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: "" });
     }
-    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId);
-    // A stream's control is built in and can't be changed, so keep its pair locked to it.
+    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId && x.type !== "webrtc");
+    // A Simulator / Cloud Emulator control is built in and can't be changed, so keep its pair
+    // locked to it.
     if (src && p.controlDeviceId !== streamControlId(src)) {
       p.controlDeviceId = streamControlId(src);
       connectPairControl(p.id);
@@ -902,7 +915,7 @@ function switchControlDevice(deviceId, pairId = activePairId) {
   if (!pair) return;
   const prevDeviceId = pair.controlDeviceId;
   pair.controlDeviceId = deviceId;
-  delete pair.controlMode; // linked to a catalog device now, not "same host" / "viewer"
+  delete pair.controlMode; // linked to a device now, not "viewer"
   saveSettings(settings);
   if (prevDeviceId && prevDeviceId !== deviceId) {
     disconnectPairControl(pairId, prevDeviceId);
@@ -1051,6 +1064,9 @@ function reconcilePairs(newPairs) {
   // Detect control-device changes before we overwrite settings.pairs.
   const prevById = new Map((settings.pairs || []).map((p) => [p.id, p]));
   settings.pairs = next;
+  // A Simulator / Cloud Emulator pair created by any path (Video tab, tray, MCP) is linked to its
+  // built-in control before its window opens.
+  syncManagedControls();
   if (!nextIds.has(activePairId)) {
     activePairId = next[0]?.id || "";
     settings.activePairId = activePairId;
@@ -1399,8 +1415,7 @@ app.whenReady().then(async () => {
       const remainingIds = new Set(arg.payload.map((d) => d.id));
       let clearedAny = false;
       (settings.pairs || []).forEach((p) => {
-        // A "same host" target ("<host>|ecp") is derived from the stream URL, never in the catalog.
-        if (p.controlDeviceId && p.controlMode !== "host" && !remainingIds.has(p.controlDeviceId)) {
+        if (p.controlDeviceId && !remainingIds.has(p.controlDeviceId)) {
           disconnectPairControl(p.id, p.controlDeviceId);
           p.controlDeviceId = "";
           clearedAny = true;
@@ -1424,7 +1439,7 @@ app.whenReady().then(async () => {
       if (pair) {
         const prev = pair.controlDeviceId;
         pair.controlDeviceId = arg.payload;
-        delete pair.controlMode; // linked to a catalog device now, not "same host" / "viewer"
+        delete pair.controlMode; // linked to a device now, not "viewer"
         if (prev && prev !== arg.payload) disconnectPairControl(pairId, prev);
         connectPairControl(pairId);
       }
@@ -1511,21 +1526,9 @@ app.whenReady().then(async () => {
 
   // WebRTC streams: catalog lookup + signaling relay (see stream-signaling.js).
   ipcMain.handle("get-stream-sources", async () => getStreamSources().map(publicSource));
-  // Forms send a token only when the user typed one; otherwise reuse the stored one by id.
-  const resolveFormSource = (source) => {
-    const stored = getStreamSources().find((src) => src.id === source?.id);
-    return { ...source, token: source?.token || unsealToken(stored?.token) };
-  };
-  ipcMain.handle("test-stream-source", async (_e, source) =>
-    streamSignaling.testSource(resolveFormSource(source))
-  );
-  ipcMain.handle("list-rce-devices", async (_e, source) => {
-    try {
-      return { ok: true, devices: await streamSignaling.listRceDevices(resolveFormSource(source)) };
-    } catch (error) {
-      return { ok: false, message: error.message };
-    }
-  });
+  // Reachability of a source typed into a form (the Simulator's Test/Add). Stored tokens are never
+  // looked up for it: Cloud Emulator accounts are checked by rce-add-account / rce-refresh-accounts.
+  ipcMain.handle("test-stream-source", async (_e, source) => streamSignaling.testSource({ ...source }));
   ipcMain.handle("stream-start", async (event, deviceId) => {
     const source = findStreamSource(deviceId);
     const sender = event.sender;
@@ -1576,12 +1579,6 @@ app.whenReady().then(async () => {
   });
 
   // ----- Video tab: Cloud Emulator accounts --------------------------------------------------
-  // Re-list one account's devices (names, running/shutdown status, new or removed devices).
-  const refreshAccount = async (account) => {
-    const devices = await streamSignaling.listRceDevices({ token: unsealToken(account.token), apiUrl: account.apiUrl || "" });
-    const { sources } = applyAccountDevices(getStreamSources(), account, devices, () => newSourceId("rce"));
-    return sources;
-  };
 
   // Tokens being added right now, so a double submit can't create the account twice.
   const addingTokens = new Set();
@@ -1622,19 +1619,17 @@ app.whenReady().then(async () => {
 
   // Refresh one account (accountId) or all of them. Accounts that fail are reported, not fatal.
   // Runs every time the settings window opens, so it only saves/broadcasts when something changed.
+  // The accounts are listed in parallel (a slow or unreachable one doesn't hold up the others),
+  // then merged into the catalog as it is once they're back (see applyAccountListings: an account
+  // removed meanwhile is skipped, so its devices aren't brought back).
   ipcMain.handle("rce-refresh-accounts", async (_e, accountId) => {
     const targets = getRceAccounts().filter((a) => !accountId || a.id === accountId);
-    const before = JSON.stringify(getStreamSources());
-    const errors = {};
-    for (const account of targets) {
-      try {
-        const sources = await refreshAccount(account);
-        settings.streams = { ...(settings.streams || {}), sources };
-      } catch (error) {
-        errors[account.id] = error.message;
-      }
-    }
-    if (JSON.stringify(getStreamSources()) !== before) commitStreamSources(getStreamSources());
+    const listings = await Promise.allSettled(
+      targets.map((a) => streamSignaling.listRceDevices({ token: unsealToken(a.token), apiUrl: a.apiUrl || "" }))
+    );
+    const before = getStreamSources();
+    const { sources, errors } = applyAccountListings(before, getRceAccounts(), targets, listings, () => newSourceId("rce"));
+    if (JSON.stringify(sources) !== JSON.stringify(before)) commitStreamSources(sources);
     return { ok: Object.keys(errors).length === 0, errors };
   });
 
@@ -2251,12 +2246,7 @@ app.whenReady().then(async () => {
   const mcpCtx = {
     getSettings: () => settings,
     getAuthToken: () => settings.mcp?.token || "",
-    getSettingsSnapshot: () => {
-      const snap = JSON.parse(JSON.stringify(settings));
-      if (snap.streams?.sources) snap.streams.sources = snap.streams.sources.map(publicSource);
-      if (snap.mcp && snap.mcp.token) snap.mcp.token = "***";
-      return snap;
-    },
+    getSettingsSnapshot: () => redactSettings(settings),
     getAppInfo: () => ({
       name: packageInfo.name,
       version: packageInfo.version,

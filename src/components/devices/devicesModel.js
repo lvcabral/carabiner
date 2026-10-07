@@ -12,7 +12,7 @@
 // Settings compatibility: "chosen" is stored as an optional `chosen: false` on stream sources and
 // control devices (absent = chosen) plus `settings.video.hiddenCaptureIds` for capture cards, so
 // settings from older builds show everything, as they did before.
-import { streamDeviceId } from "../pairLabel";
+import { streamControlId, streamDeviceId } from "../pairLabel";
 
 export const CONTROL_TYPES = [
   { key: "roku", label: "Roku", type: "Roku", proto: "ecp" },
@@ -134,13 +134,12 @@ export function mergeScanResults(deviceList, found = []) {
 }
 
 // Unlink every pair whose control is one of `ids`. Returns { pairs, affected } where affected is
-// the list of pairs that changed. A stream's "same host" target ("<host>|ecp") isn't a catalog
-// device even when a catalog Roku has the same address, so it is left alone.
+// the list of pairs that changed.
 export function resetPairingsFor(pairs = [], ids = []) {
   const gone = new Set(ids);
   const affected = [];
   const next = pairs.map((p) => {
-    if (!p.controlDeviceId || !gone.has(p.controlDeviceId) || p.controlMode === "host") return p;
+    if (!p.controlDeviceId || !gone.has(p.controlDeviceId)) return p;
     affected.push(p);
     const { controlMode, ...rest } = p;
     return { ...rest, controlDeviceId: "" };
@@ -230,10 +229,11 @@ export function applyVideoSelection({ entries, streamSources, hiddenCaptureIds =
 
 // ----- pairing -----------------------------------------------------------------------------
 
-// The value a row's Control select shows for a pair.
-export function controlValueOf(pair) {
+// The value a row's Control select shows for a source's pair: "host" when a WebRTC stream URL
+// uses its own built-in control (ECP to the URL's host).
+export function controlValueOf(pair, source = null) {
   if (!pair) return "none";
-  if (pair.controlMode === "host") return "host";
+  if (source?.type === "webrtc" && pair.controlDeviceId === streamControlId(source)) return "host";
   if (pair.controlMode === "viewer") return "viewer";
   return pair.controlDeviceId || "none";
 }
@@ -252,10 +252,13 @@ export function setPairFor(pairs, sourceId, patch, { singleWindowMode = false, a
   return next;
 }
 
-// Patch for a Control select choice: "none", "host" (ECP to the stream URL's host), "viewer",
-// or a control device id.
-export function controlPatch(value, { host = "" } = {}) {
-  if (value === "host" && host) return { controlDeviceId: `${host}|ecp`, controlMode: "host" };
+// Patch for a Control select choice: "none", "host" (a WebRTC stream URL's built-in control: ECP
+// to the URL's host), "viewer", or a control device id.
+export function controlPatch(value, { source = null } = {}) {
+  if (value === "host") {
+    // Only a WebRTC stream URL has a "same host"; anything else falls back to no control.
+    return { controlDeviceId: source?.type === "webrtc" ? streamControlId(source) : "", controlMode: undefined };
+  }
   if (value === "viewer") return { controlDeviceId: "", controlMode: "viewer" };
   return { controlDeviceId: value === "none" ? "" : value, controlMode: undefined };
 }

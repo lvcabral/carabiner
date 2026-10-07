@@ -111,6 +111,25 @@ function applyAccountDevices(sources, account, devices, newId) {
   return { sources: next, missingIds, addedCount };
 }
 
+// Merge refreshed listings into the catalog: `listings` are Promise.allSettled results, one per
+// account in `targets` (listed in parallel), and `accounts` is the account list as it is now.
+// An account removed while its listing was in flight is skipped, so its devices aren't brought
+// back. Returns { sources, errors } (errors: account id -> message).
+function applyAccountListings(sources, accounts, targets, listings, newId) {
+  let next = sources;
+  const errors = {};
+  listings.forEach((listing, i) => {
+    const account = (accounts || []).find((a) => a.id === targets[i].id);
+    if (!account) return;
+    if (listing.status === "rejected") {
+      errors[account.id] = listing.reason?.message || String(listing.reason);
+      return;
+    }
+    next = applyAccountDevices(next, account, listing.value, newId).sources;
+  });
+  return { sources: next, errors };
+}
+
 // Merge the stream-source list sent by the settings window into the stored one. Cloud Emulator
 // sources belong to their account (main adds/removes them), so from the window only a rename or
 // check/uncheck is taken: a stale window list can't drop devices a refresh just added, nor bring
@@ -163,6 +182,7 @@ module.exports = {
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
+  applyAccountListings,
   mergeWindowSources,
   renameAccount,
   removeAccount,

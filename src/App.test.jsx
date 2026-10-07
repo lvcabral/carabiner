@@ -30,6 +30,8 @@ const invoke = async (channel, ...args) => {
   if (channel === "get-mcp-status") return { running: false, port: 7734 };
   if (channel === "get-capture-devices") return [];
   if (channel === "get-largest-display-size") return { width: 1920, height: 1080 };
+  // A slow probe, so a second Add can arrive while the first is still waiting on it.
+  if (channel === "test-stream-source") return new Promise((r) => setTimeout(() => r({ ok: true, config: { ecpPort: 8060 } }), 50));
   if (channel === "rce-rename-account") return { ok: true, account: { id: args[0].accountId, label: args[0].label } };
   if (channel === "get-package-info") return { version: "0.0.0", repository: { url: "" } };
   return null;
@@ -143,6 +145,41 @@ test("Choose video lists Cloud Emulator accounts before Simulators, and an accou
   } finally {
     settings.rce.accounts = [];
   }
+});
+
+test("a stream URL defaults to its own Same host control, even with a hostname", async () => {
+  renderTab("Video");
+  await within(panel("Video")).findByText("usb video");
+  userEvent.click(screen.getByRole("button", { name: "Choose video" }));
+  const dialog = await screen.findByRole("dialog");
+  userEvent.type(within(dialog).getByLabelText("Stream URL"), "http://mediamtx.local:8889/cam/whep");
+  userEvent.type(within(dialog).getByLabelText("Stream name"), "Cam");
+  userEvent.click(within(dialog).getAllByRole("button", { name: "Add" }).pop());
+  const pairsSent = calls.filter(([k, c]) => k === "send" && c === "set-pairs");
+  const pair = pairsSent[pairsSent.length - 1][2].find((p) => p.captureDeviceId.startsWith("stream:webrtc-"));
+  const sourceId = pair.captureDeviceId.slice("stream:".length);
+  expect(pair.controlDeviceId).toBe(`streamctl:${sourceId}|ecp`); // its built-in control, not "mediamtx.local|ecp"
+  expect(pair.controlMode).toBeUndefined();
+  userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  const select = within(panel("Video")).getByLabelText("Control for Cam");
+  expect(select).toHaveValue("host");
+  expect(within(select).getByRole("option", { name: "Same host as stream (mediamtx.local)" })).toBeInTheDocument();
+});
+
+test("pressing Enter and then Add while a simulator is being checked adds it once", async () => {
+  renderTab("Video");
+  await within(panel("Video")).findByText("usb video");
+  userEvent.click(screen.getByRole("button", { name: "Choose video" }));
+  const dialog = await screen.findByRole("dialog");
+  userEvent.type(within(dialog).getByLabelText("Simulator host"), "192.168.1.70{enter}");
+  userEvent.click(within(dialog).getAllByRole("button", { name: "Add" })[0]);
+  await within(dialog).findByText("192.168.1.70:8090");
+  await new Promise((r) => setTimeout(r, 120)); // both probes have settled
+  const sent = calls.filter(([k, , msg]) => k === "sendSync" && msg?.type === "set-stream-sources");
+  const simsSent = sent.map(([, , msg]) => msg.payload.filter((src) => src.type === "sim" && src.host === "192.168.1.70").length);
+  expect(Math.max(...simsSent)).toBe(1);
+  expect(within(dialog).getAllByText("192.168.1.70:8090")).toHaveLength(1);
 });
 
 test("Choose more devices… on a Video row opens Choose control devices", async () => {
