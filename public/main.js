@@ -517,9 +517,9 @@ function createMainWindow() {
   const win = createWindow(
     "mainWindow",
     {
-      height: isMacOS ? 620 : 645,
+      height: isMacOS ? 650 : 675,
       width: 820,
-      minHeight: isMacOS ? 620 : 645,
+      minHeight: isMacOS ? 650 : 675,
       minWidth: 820,
       maximizable: false,
       resizable: false,
