@@ -69,16 +69,34 @@ describe("dedupe by address", () => {
     expect(defaultControlName(roku("10.0.0.1"))).toBeNull(); // typed in by hand, no reported name
   });
 
-  test("a scan matches a manually added device at the same address (no discovered/manual distinction)", () => {
-    const list = [{ id: "192.168.1.50|adb", ipAddress: "192.168.1.50", alias: "Shield", type: "Google TV" }];
+  test("a scan matches a manually added Roku at the same address (no discovered/manual distinction)", () => {
+    const list = [{ id: "192.168.1.50|ecp", ipAddress: "192.168.1.50", alias: "", linked: "", type: "Roku" }];
     const res = mergeScanResults(list, [{ ipAddress: "192.168.1.50", name: "Something" }]);
-    expect(res.deviceList).toEqual([{ ...list[0], deviceName: "Something" }]);
+    expect(res.deviceList).toEqual([{ ...list[0], alias: "Something", deviceName: "Something" }]);
     expect(res.addedCount).toBe(0);
+  });
+
+  test("a Roku found at an address another kind of device uses is a new device", () => {
+    // e.g. the router handed the Fire TV's old IP to a Roku
+    const list = [{ id: "192.168.1.50|adb", ipAddress: "192.168.1.50", alias: "", type: "Fire TV" }];
+    const res = mergeScanResults(list, [{ ipAddress: "192.168.1.50", name: "Bench" }]);
+    expect(res.deviceList[0]).toEqual(list[0]); // not renamed after the Roku
+    expect(res.deviceList[1]).toMatchObject({ id: "192.168.1.50|ecp", alias: "Bench", chosen: false });
+    expect(res.addedCount).toBe(1);
+    expect([...res.foundIds]).toEqual(["192.168.1.50|ecp"]);
   });
 
   test("adding an address by hand that already exists returns the existing entry", () => {
     const list = [roku("192.168.1.41")];
-    expect(addManualDevice(list, { typeKey: "firetv", address: "192.168.1.41" }).duplicate.id).toBe("192.168.1.41|ecp");
+    expect(addManualDevice(list, { typeKey: "roku", address: "192.168.1.41" }).duplicate.id).toBe("192.168.1.41|ecp");
+  });
+
+  test("adding a different kind of device at a known Roku's address adds it", () => {
+    const list = [roku("192.168.1.41", { chosen: false })];
+    const res = addManualDevice(list, { typeKey: "firetv", address: "192.168.1.41" });
+    expect(res.duplicate).toBeUndefined();
+    expect(res.device).toMatchObject({ id: "192.168.1.41|adb", type: "Fire TV" });
+    expect(res.deviceList).toHaveLength(2);
   });
 
   test("a new manual device gets a default name and is chosen", () => {

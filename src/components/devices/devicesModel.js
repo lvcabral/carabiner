@@ -40,11 +40,13 @@ export const controlTypeOf = (device) =>
 // Stream sources' built-in controls live in the same catalog but are never shown as devices.
 export const userControls = (deviceList = []) => deviceList.filter((d) => !d.managedBy);
 
-// The same address is the same device, whether it was scanned or typed in (an RDK box also
-// needs its port, since that is part of its id).
+// The same protocol at the same address is the same device, whether it was scanned or typed in
+// (an RDK box also needs its port, since that is part of its id). The protocol is part of the key
+// because an address can change hands: a Roku found at an IP a Fire TV used to have is a new device.
 export const addressKey = (device) => {
+  const proto = protoOf(device);
   const ip = String(device?.ipAddress || "").trim().toLowerCase();
-  return protoOf(device) === "rdk" ? `${ip}:${Number(device.port) || RDK_DEFAULT_PORT}` : ip;
+  return `${proto}:${proto === "rdk" ? `${ip}:${Number(device.port) || RDK_DEFAULT_PORT}` : ip}`;
 };
 
 export const controlName = (device) => device?.alias || `${controlTypeOf(device).label} ${device?.ipAddress || ""}`.trim();
@@ -104,7 +106,9 @@ export function mergeScanResults(deviceList, found = []) {
   for (const hit of found) {
     const ip = String(hit.ipAddress || "").trim();
     if (!ip) continue;
-    const idx = list.findIndex((d) => !d.managedBy && protoOf(d) !== "rdk" && addressKey(d) === ip.toLowerCase());
+    // Roku discovery only finds Rokus, so only an ECP entry at that address can be the same device.
+    const key = addressKey({ id: `${ip}|ecp`, ipAddress: ip });
+    const idx = list.findIndex((d) => !d.managedBy && addressKey(d) === key);
     if (idx >= 0) {
       const existing = list[idx];
       if (hit.name && existing.deviceName !== hit.name) {
