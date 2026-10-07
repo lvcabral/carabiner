@@ -262,6 +262,12 @@ export default function useDevices({
 
   const handleAddAccount = (form) => electronAPI.invoke("rce-add-account", form);
   const handleRefreshAccount = (id) => electronAPI.invoke("rce-refresh-accounts", id);
+  // Returns { ok, message? } so the dialog can keep the rename bar open on an error.
+  const handleRenameAccount = async (account, label) => {
+    const res = await electronAPI.invoke("rce-rename-account", { accountId: account.id, label });
+    if (res?.ok) toast(`Renamed ${account.label} to ${res.account.label}.`);
+    return res || { ok: false, message: "Couldn't rename the account." };
+  };
   const handleRemoveAccount = async (account) => {
     await electronAPI.invoke("rce-remove-account", account.id);
     toast(`Removed ${account.label} and its devices.`);
@@ -393,6 +399,7 @@ export default function useDevices({
     handleRemoveStream,
     handleAddAccount,
     handleRefreshAccount,
+    handleRenameAccount,
     handleRemoveAccount,
     onSingleWindowModeChange,
     onUpdateStreamingDevices,

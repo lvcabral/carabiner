@@ -70,6 +70,7 @@ const {
   normalizeRceAccounts,
   applyAccountDevices,
   mergeWindowSources,
+  renameAccount,
   removeAccount,
 } = require("./rce-accounts");
 const { startMcpServer, stopMcpServer, isRunning: isMcpRunning, getPort: getMcpPort } = require("./mcp-server");
@@ -1635,6 +1636,14 @@ app.whenReady().then(async () => {
     }
     if (JSON.stringify(getStreamSources()) !== before) commitStreamSources(getStreamSources());
     return { ok: Object.keys(errors).length === 0, errors };
+  });
+
+  ipcMain.handle("rce-rename-account", async (_e, { accountId, label } = {}) => {
+    const account = renameAccount(settings, accountId, label);
+    if (!account) return { ok: false, message: "Enter a name for the account." };
+    saveSettings(settings);
+    mainWindow?.webContents?.send("rce-accounts-updated", publicAccounts());
+    return { ok: true, account: publicAccount(account) };
   });
 
   ipcMain.handle("rce-remove-account", async (_e, accountId) => {

@@ -4,6 +4,7 @@ import {
   findAccountByToken,
   normalizeRceAccounts,
   applyAccountDevices,
+  renameAccount,
   removeAccount,
   publicAccount,
 } from "../../public/rce-accounts";
@@ -164,6 +165,15 @@ describe("account device listing", () => {
       ["Mine", "New"],
       ["Custom", "New"],
     ]);
+  });
+
+  test("renaming an account changes only its label; an empty name or unknown account is refused", () => {
+    const settings = { rce: { accounts: [{ ...account }, { id: "a2", label: "Personal", token: "enc:x" }] } };
+    expect(renameAccount(settings, "a1", "  Staging ")).toMatchObject({ id: "a1", label: "Staging", token: "enc:t" });
+    expect(settings.rce.accounts.map((a) => a.label)).toEqual(["Staging", "Personal"]);
+    expect(renameAccount(settings, "a1", "   ")).toBeNull();
+    expect(renameAccount(settings, "nope", "X")).toBeNull();
+    expect(settings.rce.accounts[0].label).toBe("Staging");
   });
 
   test("removing an account removes only its devices", () => {

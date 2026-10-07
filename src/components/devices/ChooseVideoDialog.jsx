@@ -33,6 +33,52 @@ function ConfirmBar({ message, onConfirm, onCancel }) {
   );
 }
 
+// Inline rename for a Cloud Emulator account (the dialog can't open a second modal either).
+// Enter saves, Escape cancels without closing the dialog. onSave resolves to { ok, message? }.
+function RenameBar({ initialValue, onSave, onCancel }) {
+  const [value, setValue] = useState(initialValue);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (saving) return;
+    if (!value.trim()) {
+      setError("Enter a name for the account.");
+      return;
+    }
+    setSaving(true);
+    const res = await onSave(value.trim());
+    setSaving(false);
+    if (!res?.ok) setError(res?.message || "Couldn't rename the account.");
+  };
+  return (
+    <>
+      <div className="pick-inline align-items-center">
+        <Form.Control
+          size="sm"
+          aria-label="Account name"
+          value={value}
+          autoFocus
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") {
+              e.stopPropagation(); // cancel the rename, not the whole dialog
+              onCancel();
+            }
+          }}
+        />
+        <Button size="sm" variant="primary" onClick={save} disabled={saving || !value.trim()}>
+          Save
+        </Button>
+        <Button size="sm" variant="link" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      {error && <div className="pick-error">{error}</div>}
+    </>
+  );
+}
+
 function PickRow({ entry, checked, onToggle, detail, live, onRemove, confirming, onConfirmRemove, onCancelRemove }) {
   return (
     <div className="pick-item">
@@ -141,6 +187,7 @@ function ChooseVideoDialog({
   onToggle,
   onAddAccount,
   onRefreshAccount,
+  onRenameAccount,
   onRemoveAccount,
   onAddStream,
   onAddSimulator,
@@ -149,6 +196,7 @@ function ChooseVideoDialog({
   toast,
 }) {
   const [confirmId, setConfirmId] = useState(""); // entry or account id awaiting "Remove?"
+  const [renamingId, setRenamingId] = useState(""); // account being renamed
   const [acctForm, setAcctForm] = useState(false);
   const [token, setToken] = useState("");
   const [label, setLabel] = useState("");
@@ -179,6 +227,7 @@ function ChooseVideoDialog({
   useEffect(() => {
     if (!show) return;
     setConfirmId("");
+    setRenamingId("");
     setAcctForm(false);
     setSimError("");
     setSimTest(null);
@@ -294,64 +343,6 @@ function ChooseVideoDialog({
           </div>
         </PickGroup>
 
-        <PickGroup
-          {...groupProps("simulators")}
-          title="BrightScript Simulators"
-          meta={simulators.length ? countOf(simulators) : ""}
-          metaTitle="Simulators checked"
-        >
-          <div className="pick-box">
-            {simulators.map((e) => (
-              <PickRow key={e.id} {...rowProps(e)} detail={simulatorDetail(e)} onRemove={askRemove} />
-            ))}
-            <div className="pick-inline">
-              <Form.Control
-                size="sm"
-                placeholder="Host or IP address"
-                aria-label="Simulator host"
-                value={simHost}
-                onChange={(e) => setSimHost(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
-              />
-              <Form.Control
-                size="sm"
-                placeholder="Port"
-                aria-label="Simulator port"
-                value={simPort}
-                onChange={(e) => setSimPort(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
-                style={{ flex: "0 1 80px" }}
-              />
-              <Form.Control
-                size="sm"
-                placeholder="Name (optional)"
-                aria-label="Simulator name"
-                value={simName}
-                onChange={(e) => setSimName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
-                style={{ flex: "0 1 130px" }}
-              />
-              <Button size="sm" variant="outline-secondary" onClick={handleTestSimulator}>
-                Test
-              </Button>
-              <Button size="sm" variant="outline-secondary" onClick={handleAddSimulator}>
-                Add
-              </Button>
-            </div>
-            {simError && <div className="pick-error">{simError}</div>}
-            {simTest && (
-              <div className={simTest.ok ? "pick-hint" : "pick-error"} role="status">
-                {simTest.message}
-              </div>
-            )}
-            <div className="pick-hint">
-              Run the <ExternalLink url={SIMULATOR_RELEASES_URL}>BrightScript Simulator</ExternalLink> and enable its
-              remote screen (WebRTC), then enter its host and port. One running on this computer shows up here
-              automatically.
-            </div>
-          </div>
-        </PickGroup>
-
         {accounts.map((account) => {
           const devices = entries.filter((e) => e.kind === "rce" && e.source.accountId === account.id);
           return (
@@ -385,6 +376,20 @@ function ChooseVideoDialog({
                     className="p-0 ms-2"
                     onClick={() => {
                       if (collapsed.has(account.id)) toggleGroup(account.id);
+                      setConfirmId("");
+                      setRenamingId(account.id);
+                    }}
+                    aria-label={`Rename ${account.label}`}
+                  >
+                    Rename
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="link"
+                    className="p-0 ms-2"
+                    onClick={() => {
+                      if (collapsed.has(account.id)) toggleGroup(account.id);
+                      setRenamingId("");
                       setConfirmId(account.id);
                     }}
                     aria-label={`Remove ${account.label}`}
@@ -395,6 +400,17 @@ function ChooseVideoDialog({
               }
             >
               <div className="pick-box">
+                {renamingId === account.id && (
+                  <RenameBar
+                    initialValue={account.label}
+                    onSave={async (label) => {
+                      const res = await onRenameAccount(account, label);
+                      if (res?.ok) setRenamingId("");
+                      return res;
+                    }}
+                    onCancel={() => setRenamingId("")}
+                  />
+                )}
                 {confirmId === account.id && (
                   <ConfirmBar
                     message={`Remove ${account.label} and its ${devices.length} device${devices.length === 1 ? "" : "s"} from Carabiner? The token is deleted too.`}
@@ -495,6 +511,64 @@ function ChooseVideoDialog({
             </Button>
           </div>
         )}
+
+        <PickGroup
+          {...groupProps("simulators")}
+          title="BrightScript Simulators"
+          meta={simulators.length ? countOf(simulators) : ""}
+          metaTitle="Simulators checked"
+        >
+          <div className="pick-box">
+            {simulators.map((e) => (
+              <PickRow key={e.id} {...rowProps(e)} detail={simulatorDetail(e)} onRemove={askRemove} />
+            ))}
+            <div className="pick-inline">
+              <Form.Control
+                size="sm"
+                placeholder="Host or IP address"
+                aria-label="Simulator host"
+                value={simHost}
+                onChange={(e) => setSimHost(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
+              />
+              <Form.Control
+                size="sm"
+                placeholder="Port"
+                aria-label="Simulator port"
+                value={simPort}
+                onChange={(e) => setSimPort(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
+                style={{ flex: "0 1 80px" }}
+              />
+              <Form.Control
+                size="sm"
+                placeholder="Name (optional)"
+                aria-label="Simulator name"
+                value={simName}
+                onChange={(e) => setSimName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddSimulator()}
+                style={{ flex: "0 1 130px" }}
+              />
+              <Button size="sm" variant="outline-secondary" onClick={handleTestSimulator}>
+                Test
+              </Button>
+              <Button size="sm" variant="outline-secondary" onClick={handleAddSimulator}>
+                Add
+              </Button>
+            </div>
+            {simError && <div className="pick-error">{simError}</div>}
+            {simTest && (
+              <div className={simTest.ok ? "pick-hint" : "pick-error"} role="status">
+                {simTest.message}
+              </div>
+            )}
+            <div className="pick-hint">
+              Run the <ExternalLink url={SIMULATOR_RELEASES_URL}>BrightScript Simulator</ExternalLink> and enable its
+              remote screen (WebRTC), then enter its host and port. One running on this computer shows up here
+              automatically.
+            </div>
+          </div>
+        </PickGroup>
 
         <PickGroup
           {...groupProps("streams")}

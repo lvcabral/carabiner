@@ -136,6 +136,16 @@ function mergeWindowSources(stored = [], fromWindow = []) {
   return [...merged, ...kept];
 }
 
+// Rename an account (its label only). Returns the renamed account, or null when there is no such
+// account or the label is empty.
+function renameAccount(settings, accountId, label) {
+  const name = String(label || "").trim();
+  const account = (settings?.rce?.accounts || []).find((a) => a.id === accountId);
+  if (!account || !name) return null;
+  account.label = name;
+  return account;
+}
+
 // Remove an account and every source that belongs to it. Returns the removed source ids.
 function removeAccount(settings, accountId) {
   const sources = settings?.streams?.sources || [];
@@ -154,5 +164,6 @@ module.exports = {
   normalizeRceAccounts,
   applyAccountDevices,
   mergeWindowSources,
+  renameAccount,
   removeAccount,
 };

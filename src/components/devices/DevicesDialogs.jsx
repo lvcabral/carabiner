@@ -33,6 +33,7 @@ function DevicesDialogs({ devices }) {
     setVideoChosen,
     handleAddAccount,
     handleRefreshAccount,
+    handleRenameAccount,
     handleRemoveAccount,
     handleAddStream,
     handleAddSimulator,
@@ -56,6 +57,7 @@ function DevicesDialogs({ devices }) {
         onToggle={setVideoChosen}
         onAddAccount={handleAddAccount}
         onRefreshAccount={handleRefreshAccount}
+        onRenameAccount={handleRenameAccount}
         onRemoveAccount={handleRemoveAccount}
         onAddStream={handleAddStream}
         onAddSimulator={handleAddSimulator}

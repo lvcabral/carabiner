@@ -30,6 +30,7 @@ const invoke = async (channel, ...args) => {
   if (channel === "get-mcp-status") return { running: false, port: 7734 };
   if (channel === "get-capture-devices") return [];
   if (channel === "get-largest-display-size") return { width: 1920, height: 1080 };
+  if (channel === "rce-rename-account") return { ok: true, account: { id: args[0].accountId, label: args[0].label } };
   if (channel === "get-package-info") return { version: "0.0.0", repository: { url: "" } };
   return null;
 };
@@ -103,6 +104,37 @@ test("a Simulator's built-in control shows on its Video row, not on the Control 
   } finally {
     settings.streams.sources = [];
     settings.control.deviceList.pop();
+  }
+});
+
+test("Choose video lists Cloud Emulator accounts before Simulators, and an account can be renamed", async () => {
+  settings.rce.accounts = [{ id: "a1", label: "Default", tail: "c3f9" }];
+  try {
+    renderTab("Video");
+    await within(panel("Video")).findByText("usb video");
+    userEvent.click(screen.getByRole("button", { name: "Choose video" }));
+    const dialog = await screen.findByRole("dialog");
+    const groups = within(dialog)
+      .getAllByRole("button", { expanded: true })
+      .map((b) => b.textContent);
+    expect(groups).toEqual(["This computer", "Default", "BrightScript Simulators", "Stream URLs"]);
+
+    // Escape cancels the rename without closing the dialog.
+    userEvent.click(within(dialog).getByRole("button", { name: "Rename Default" }));
+    userEvent.type(within(dialog).getByLabelText("Account name"), "{esc}");
+    expect(within(dialog).queryByLabelText("Account name")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    userEvent.click(within(dialog).getByRole("button", { name: "Rename Default" }));
+    const input = within(dialog).getByLabelText("Account name");
+    expect(input).toHaveValue("Default");
+    userEvent.clear(input);
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    userEvent.type(input, "Staging{enter}");
+    await waitFor(() => expect(within(dialog).queryByLabelText("Account name")).not.toBeInTheDocument());
+    expect(calls).toContainEqual(["invoke", "rce-rename-account", { accountId: "a1", label: "Staging" }]);
+  } finally {
+    settings.rce.accounts = [];
   }
 });
 
