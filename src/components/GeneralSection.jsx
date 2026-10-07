@@ -11,10 +11,11 @@ import { useEffect, useState } from "react";
 import { Container, Form, Row, Col, Card, Button } from "react-bootstrap";
 
 import ShortcutInput from "./select/ShortcutInput";
+import { ExternalLink } from "./devices/ui";
 
 const { electronAPI } = window;
 
-// App-wide options. Video sources and control devices live on the Devices tab.
+// App-wide options. Video sources and control devices live on the Video and Control tabs.
 function GeneralSection() {
   const [shortcut, setShortcut] = useState("");
   const [launchAppAtLogin, setLaunchAppAtLogin] = useState(false);
@@ -24,11 +25,13 @@ function GeneralSection() {
   const [checkForUpdates, setCheckForUpdates] = useState(true);
   const [adbPath, setAdbPath] = useState("");
   const [atvremotePath, setAtvremotePath] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
 
   const isMacOS = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const isWindows = navigator.platform.toUpperCase().indexOf("WIN") >= 0;
 
   useEffect(() => {
+    electronAPI.getPackageInfo().then((info) => setRepoUrl(info?.repository?.url || ""));
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.display?.shortcut) setShortcut(settings.display.shortcut);
       if (settings.display?.launchAppAtLogin !== undefined)
@@ -92,6 +95,14 @@ function GeneralSection() {
     const path = await electronAPI.invoke("select-atv-path", atvremotePath);
     if (path) handleAtvPathChange(path);
   };
+
+  // Link to a setup guide in the repository's docs folder, shown under a tool path.
+  const setupGuide = (doc, label) =>
+    repoUrl && (
+      <Form.Text className="d-block" style={{ fontSize: "0.75rem" }}>
+        <ExternalLink url={`${repoUrl}/blob/main/docs/${doc}.md`}>{label} ↗</ExternalLink>
+      </Form.Text>
+    );
 
   return (
     <Container fluid className="p-2" style={{ fontSize: "0.85rem" }}>
@@ -177,6 +188,7 @@ function GeneralSection() {
                 </Button>
               </Col>
             </Row>
+            {setupGuide("setup-android-firetv", "Android TV, Fire TV and Google TV setup guide")}
           </Form.Group>
           <Form.Group controlId="formAtvremotePath" className="form-group-spacing mb-0">
             <Form.Label>atvremote Tool Path (Apple TV control)</Form.Label>
@@ -196,6 +208,7 @@ function GeneralSection() {
                 </Button>
               </Col>
             </Row>
+            {setupGuide("setup-apple-tv", "Apple TV setup guide")}
           </Form.Group>
         </Card.Body>
       </Card>

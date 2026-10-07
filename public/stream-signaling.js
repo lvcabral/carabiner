@@ -525,7 +525,7 @@ function relayFromWindow(pairId, msg) {
   sessions.get(pairId)?.send(msg);
 }
 
-// Reachability check (simulator detection and ECP port probe on the Devices tab).
+// Reachability check (simulator detection and ECP port probe on the Video tab).
 async function testSource(source) {
   if (source?.type === "rce") {
     try {

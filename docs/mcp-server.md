@@ -74,7 +74,7 @@ field.
 
 ## Tool reference
 
-> **Window modes.** Carabiner runs in one of two modes (**Allow multiple active** on the Devices tab):
+> **Window modes.** Carabiner runs in one of two modes (**Allow multiple active** on the Video tab):
 >
 > - **Single-window (default)** — one Display window at a time. Device/window tools act on
 >   that window. To drive a *different* configured device, call `select_device` first (or
@@ -240,13 +240,13 @@ This re-runs the same QA task every 30 minutes without any external scheduler.
 
 - **`take_screenshot` / recording errors with "No active video stream"** — select a capture device
   first (the display window must be streaming). Use `select_capture_device` or turn one on in the
-  Devices tab.
+  Video tab.
 - **A device or capture source is "unknown"** — MCP only sees video sources and control devices that
-  are checked on the Devices tab (the same ones the menus list). Check it in *Choose video* /
-  *Choose devices*.
+  are checked on the Video and Control tabs (the same ones the menus list). Check it in
+  *Choose video* (Video tab) / *Choose devices* (Control tab).
 - **`send_key` returns "No control device selected"** — call `select_device` first.
 - **"Single-window mode shows one window at a time…"** — you passed a `deviceId` for a device that
   isn't the currently shown window. Call `select_device` (or `show_display`) with that id to switch
-  the single window to it first, or check **Allow multiple active** on the Devices tab.
+  the single window to it first, or check **Allow multiple active** on the Video tab.
 - **Port already in use** — change the port in the MCP Server card and reconnect your client.
 - **401 Unauthorized** — your client is missing the `Authorization: Bearer <token>` header.

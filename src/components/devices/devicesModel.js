@@ -7,7 +7,7 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-// Pure state helpers for the Devices tab: no React, no IPC, so they are unit tested directly.
+// Pure state helpers for the Video and Control tabs: no React, no IPC, so they are unit tested directly.
 //
 // Settings compatibility: "chosen" is stored as an optional `chosen: false` on stream sources and
 // control devices (absent = chosen) plus `settings.video.hiddenCaptureIds` for capture cards, so

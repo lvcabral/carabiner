@@ -77,7 +77,7 @@ describe("settings from 2.x", () => {
     expect(JSON.stringify(settings)).toBe(before);
   });
 
-  test("every 2.x capture card and control device shows on the Devices tab", () => {
+  test("every 2.x capture card and control device shows on the Video and Control tabs", () => {
     const settings = migrateSettings(settings23());
     const entries = videoEntries({
       captureDevices: [{ deviceId: "capA", label: "usb video (534d:2109)" }, { deviceId: "capB", label: "Cam Link 4K" }],

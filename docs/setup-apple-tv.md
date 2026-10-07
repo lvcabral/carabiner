@@ -83,7 +83,7 @@ A PIN will appear on screen — enter it in the terminal. Once paired, Carabiner
 
 1. Open the **General** tab in Carabiner settings.
 2. Type the path for the `atvremote` binary or click **…** next to **atvremote Tool Path** to select it.
-3. On the **Devices** tab, click **Choose devices** → **Add by hand**, select **Apple TV** and enter the Apple TV's Identifier and an optional name.
+3. On the **Control** tab, click **Choose devices** → **Add by hand**, select **Apple TV** and enter the Apple TV's Identifier and an optional name.
 4. Click **Add** to add the device.
 
 ---

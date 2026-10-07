@@ -132,7 +132,7 @@ function PickGroup({ id, title, meta, metaTitle, actions, collapsed, onToggle, c
 const countOf = (list) => `${list.filter((e) => e.chosen).length} of ${list.length}`;
 
 // "Choose video" checklist. Every change applies right away: checking a box shows the source on
-// the Devices page, and accounts, stream URLs and simulators are saved as they are added.
+// the Video tab, and accounts, stream URLs and simulators are saved as they are added.
 function ChooseVideoDialog({
   show,
   entries,
@@ -275,7 +275,7 @@ function ChooseVideoDialog({
             Choose video
           </Modal.Title>
           <div className="text-muted" style={{ fontSize: "0.78rem" }}>
-            Checked items show on the Devices page.
+            Checked items show on the Video tab.
           </div>
         </div>
       </Modal.Header>

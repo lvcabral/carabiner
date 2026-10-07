@@ -279,7 +279,7 @@ function commitStreamSources(sources) {
   rebuildMenus();
 }
 
-// Video sources chosen on the Devices tab (unchecked ones are hidden from menus and MCP too).
+// Video sources chosen on the Video tab (unchecked ones are hidden from menus and MCP too).
 function getAllSources() {
   const hidden = new Set(settings?.video?.hiddenCaptureIds || []);
   const streams = getStreamSources()
@@ -1574,7 +1574,7 @@ app.whenReady().then(async () => {
     if (pairId) streamSignaling.stopSession(pairId);
   });
 
-  // ----- Devices tab: Cloud Emulator accounts ------------------------------------------------
+  // ----- Video tab: Cloud Emulator accounts --------------------------------------------------
   // Re-list one account's devices (names, running/shutdown status, new or removed devices).
   const refreshAccount = async (account) => {
     const devices = await streamSignaling.listRceDevices({ token: unsealToken(account.token), apiUrl: account.apiUrl || "" });
@@ -1643,7 +1643,7 @@ app.whenReady().then(async () => {
     return { ok: true };
   });
 
-  // ----- Devices tab: discovery ----------------------------------------------------------------
+  // ----- Video/Control tabs: discovery ---------------------------------------------------------
   // A BrightScript Simulator on this computer shows up in Choose video without being typed in.
   ipcMain.handle("detect-simulator", async () => {
     const probe = await streamSignaling.testSource({ type: "sim", host: "localhost", port: 8090 });
@@ -2284,7 +2284,7 @@ app.whenReady().then(async () => {
       } else if (type === "ecp") connected = !!ip;
       return { id, ip, type, connected, pairId };
     },
-    // Only devices checked on the Devices tab (unchecked ones are hidden there and in the menus).
+    // Only devices checked on the Control tab (unchecked ones are hidden there and in the menus).
     listDevices: () => {
       const activeControl = getActivePair()?.controlDeviceId;
       return (settings.control.deviceList || []).filter((d) => d.chosen !== false).map((d) => ({

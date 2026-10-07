@@ -128,7 +128,7 @@ function SelectAll({ checked, indeterminate, onChange, label }) {
 }
 
 // "Choose control devices" checklist. Opening it scans the network. Every change applies right
-// away: checking a device shows it on the Devices page, and devices added by hand are checked.
+// away: checking a device shows it on the Control tab, and devices added by hand are checked.
 function ChooseControlDialog({
   show,
   deviceList,
@@ -250,7 +250,7 @@ function ChooseControlDialog({
             Choose control devices
           </Modal.Title>
           <div className="text-muted" style={{ fontSize: "0.78rem" }}>
-            Checked devices show on the Devices page.
+            Checked devices show on the Control tab.
           </div>
         </div>
       </Modal.Header>

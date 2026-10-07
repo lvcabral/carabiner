@@ -39,8 +39,8 @@ window.electronAPI = {
   sendSync: record("sendSync"),
   onMessageReceived: () => {},
   removeListener: () => {},
-  getPackageInfo: async () => ({ version: "0.0.0", repository: { url: "" } }),
-  openExternal: () => {},
+  getPackageInfo: async () => ({ version: "0.0.0", repository: { url: "https://github.com/lvcabral/carabiner" } }),
+  openExternal: record("openExternal"),
   log: () => {},
 };
 const sent = (kind, channel) => calls.some(([k, c]) => k === kind && c === channel);
@@ -61,26 +61,52 @@ beforeAll(async () => {
   App = (await import("./App")).default;
 });
 
-// General opens first; switch to Devices.
-const renderDevicesTab = () => {
+// General opens first; switch to another tab.
+const renderTab = (name) => {
   render(<App />);
-  userEvent.click(screen.getByRole("tab", { name: "Devices" }));
+  userEvent.click(screen.getByRole("tab", { name }));
 };
+const panel = (name) => screen.getByRole("tabpanel", { name });
 
-test("General then Devices; Devices lists the chosen video and control devices", async () => {
+test("General, Video, Control; Video lists the chosen sources and Control the chosen devices", async () => {
   render(<App />);
   const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-  expect(tabs.slice(0, 2)).toEqual(["General", "Devices"]);
+  expect(tabs.slice(0, 3)).toEqual(["General", "Video", "Control"]);
+  expect(tabs).not.toContain("Devices");
   expect(tabs).not.toContain("Streams");
-  expect(tabs).not.toContain("Control");
-  userEvent.click(screen.getByRole("tab", { name: "Devices" }));
-  expect(await screen.findByText("usb video")).toBeInTheDocument();
-  expect(screen.getByLabelText("Control for usb video")).toHaveValue("192.168.1.43|ecp");
-  expect(await screen.findByText("Controls usb video")).toBeInTheDocument();
+  userEvent.click(screen.getByRole("tab", { name: "Video" }));
+  const video = panel("Video");
+  expect(await within(video).findByText("usb video")).toBeInTheDocument();
+  expect(within(video).getByLabelText("Control for usb video")).toHaveValue("192.168.1.43|ecp");
+  expect(within(video).queryByText("Bench 3")).not.toBeInTheDocument(); // only as a Control option
+  userEvent.click(screen.getByRole("tab", { name: "Control" }));
+  const control = panel("Control");
+  expect(await within(control).findByText("Controls usb video")).toBeInTheDocument();
+  expect(within(control).getByText("Bench 3")).toBeInTheDocument();
+  expect(within(control).queryByLabelText("Control for usb video")).not.toBeInTheDocument();
+});
+
+test("Choose more devices… on a Video row opens Choose control devices", async () => {
+  renderTab("Video");
+  const select = await within(panel("Video")).findByLabelText("Control for usb video");
+  userEvent.selectOptions(select, "__choose");
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("Choose control devices")).toBeInTheDocument();
+  expect(select).toHaveValue("192.168.1.43|ecp"); // the link didn't change
+});
+
+test("General links the Android and Apple TV setup guides under the tool paths", async () => {
+  render(<App />);
+  const android = await screen.findByRole("link", { name: /Android TV, Fire TV and Google TV setup guide/ });
+  const apple = screen.getByRole("link", { name: /Apple TV setup guide/ });
+  expect(android).toHaveAttribute("href", "https://github.com/lvcabral/carabiner/blob/main/docs/setup-android-firetv.md");
+  expect(apple).toHaveAttribute("href", "https://github.com/lvcabral/carabiner/blob/main/docs/setup-apple-tv.md");
+  userEvent.click(apple);
+  expect(calls).toContainEqual(["openExternal", "https://github.com/lvcabral/carabiner/blob/main/docs/setup-apple-tv.md"]);
 });
 
 test("Choose video: a checkbox applies right away, Done and Escape close", async () => {
-  renderDevicesTab();
+  renderTab("Video");
   await screen.findByText("usb video");
   userEvent.click(screen.getByRole("button", { name: "Choose video" }));
   const dialog = await screen.findByRole("dialog");
@@ -101,7 +127,7 @@ test("Choose video: a checkbox applies right away, Done and Escape close", async
 });
 
 test("deleting a control device asks first; Cancel keeps it", async () => {
-  renderDevicesTab();
+  renderTab("Control");
   await screen.findByText("Controls usb video");
   userEvent.click(screen.getByRole("button", { name: "Delete Bench 3" }));
   const confirm = await screen.findByRole("dialog");
@@ -113,11 +139,12 @@ test("deleting a control device asks first; Cancel keeps it", async () => {
   userEvent.click(screen.getByRole("button", { name: "Delete Bench 3" }));
   userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove" }));
   await waitFor(() => expect(screen.queryByText("Controls usb video")).not.toBeInTheDocument());
-  expect(screen.getByLabelText("Control for usb video")).toHaveValue("none");
+  userEvent.click(screen.getByRole("tab", { name: "Video" }));
+  expect(within(panel("Video")).getByLabelText("Control for usb video")).toHaveValue("none");
 });
 
 test("Remove in Choose control devices deletes the device for good, after confirming", async () => {
-  renderDevicesTab();
+  renderTab("Control");
   await screen.findByText("Controls usb video");
   userEvent.click(screen.getByRole("button", { name: "Choose devices" }));
   const dialog = await screen.findByRole("dialog");
@@ -129,7 +156,7 @@ test("Remove in Choose control devices deletes the device for good, after confir
 });
 
 test("Choose control devices scans on open and keeps typed input when the scan finishes", async () => {
-  renderDevicesTab();
+  renderTab("Control");
   await screen.findByText("usb video");
   userEvent.click(screen.getByRole("button", { name: "Choose devices" }));
   const dialog = await screen.findByRole("dialog");

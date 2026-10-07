@@ -1958,7 +1958,7 @@ let controlType = "ecp";
 
 async function handleControlSelected(data) {
   if (data === "") {
-    // Unlinked (e.g. its control device was deleted or unchecked on the Devices tab).
+    // Unlinked (e.g. its control device was deleted or unchecked on the Control tab).
     controlIp = "";
     controlType = "ecp";
   } else if (typeof data === "string" && data.includes("|")) {

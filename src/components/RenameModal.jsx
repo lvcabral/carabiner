@@ -12,7 +12,7 @@ import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 
-// Small "enter a new name" dialog used by the Devices tab. It owns the text being
+// Small "enter a new name" dialog used by the Video and Control tabs. It owns the text being
 // edited; the parent only says whether it is shown and what to do with the confirmed name.
 // With a `defaultName` (the name the device reports), the field may be left empty to go back
 // to it: the placeholder shows it and onConfirm receives "".

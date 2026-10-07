@@ -14,7 +14,10 @@ import logo from "./carabiner-icon.png";
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 
-import DevicesSection from "./components/DevicesSection";
+import VideoSection from "./components/VideoSection";
+import ControlSection from "./components/ControlSection";
+import DevicesDialogs from "./components/devices/DevicesDialogs";
+import useDevices from "./components/devices/useDevices";
 import GeneralSection from "./components/GeneralSection";
 import DisplaySection from "./components/DisplaySection";
 import OverlaySection from "./components/OverlaySection";
@@ -128,6 +131,19 @@ function App() {
     electronAPI.send("set-pairs", newPairs);
   };
 
+  // Shared by the Video and Control tabs and their dialogs (one instance, see useDevices).
+  const devices = useDevices({
+    pairs,
+    onPairsChange: handlePairsChange,
+    streamingDevices,
+    onUpdateStreamingDevices: handleUpdateStreamingDevices,
+    streamSources,
+    onUpdateStreamSources: handleUpdateStreamSources,
+    rceAccounts,
+    singleWindowMode,
+    onSingleWindowModeChange: handleSingleWindowModeChange,
+  });
+
   return (
     <div className="p-3 custom-container">
       <div className="p-3 bg-light rounded-3">
@@ -141,19 +157,14 @@ function App() {
               <GeneralSection />
             </div>
           </Tab>
-          <Tab eventKey="devices" title="Devices">
+          <Tab eventKey="video" title="Video">
             <div className="tab-content-container">
-              <DevicesSection
-                pairs={pairs}
-                onPairsChange={handlePairsChange}
-                streamingDevices={streamingDevices}
-                onUpdateStreamingDevices={handleUpdateStreamingDevices}
-                streamSources={streamSources}
-                onUpdateStreamSources={handleUpdateStreamSources}
-                rceAccounts={rceAccounts}
-                singleWindowMode={singleWindowMode}
-                onSingleWindowModeChange={handleSingleWindowModeChange}
-              />
+              <VideoSection devices={devices} />
+            </div>
+          </Tab>
+          <Tab eventKey="control" title="Control">
+            <div className="tab-content-container">
+              <ControlSection devices={devices} />
             </div>
           </Tab>
           <Tab eventKey="border" title="Display">
@@ -204,6 +215,7 @@ function App() {
             </div>
           </Tab>
         </Tabs>
+        <DevicesDialogs devices={devices} />
       </div>
     </div>
   );

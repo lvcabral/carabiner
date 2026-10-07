@@ -8,49 +8,33 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { useEffect, useRef, useState } from "react";
-import Button from "react-bootstrap/Button";
-import Form from "react-bootstrap/Form";
-import RenameModal from "./RenameModal";
-import ChooseVideoDialog from "./devices/ChooseVideoDialog";
-import ChooseControlDialog from "./devices/ChooseControlDialog";
-import Spinner from "react-bootstrap/Spinner";
-import { Dot, PencilIcon, RefreshIcon, SourceIcon, TrashIcon, useToast } from "./devices/ui";
-import { streamDeviceId } from "./pairLabel";
-import ConfirmModal from "./devices/ConfirmModal";
+import { useToast } from "./ui";
+import { streamDeviceId } from "../pairLabel";
 import {
-  CONTROL_TYPES,
   applyControlSelection,
   applyVideoSelection,
   controlName,
   controlPatch,
-  controlTypeOf,
-  controlValueOf,
-  defaultControlName,
   hostOf,
   isChosen,
   isMissingRce,
   mergeScanResults,
-  rceStatusText,
   removeControlDevice,
   renameControl,
   setPairFor,
   userControls,
   validateStreamUrl,
   videoEntries,
-} from "./devices/devicesModel";
+} from "./devicesModel";
 
 const { electronAPI } = window;
 
-const isLocalHost = (host) => ["localhost", "127.0.0.1"].includes(host);
-
-// Why a Cloud Emulator / Simulator source needs no separate control device.
-const streamControlNote = (entry) =>
-  `Carabiner sends key presses to the ${entry.kind === "rce" ? "Cloud Emulator" : "Simulator"} over the same connection as its video, so control comes with it.`;
-
-// The Devices tab: what you watch (Video) and what you send remote presses to (Control), each
-// managed through one checklist dialog. A video source's pair (settings.pairs) holds its Active
+// State and actions shared by the Video and Control tabs (VideoSection / ControlSection) and the
+// dialogs they open (DevicesDialogs). App calls this once, so capture-device enumeration, the IPC
+// listeners and the startup refresh run once, and either tab can open the other's dialog (e.g.
+// a Video row's "Choose more devices…"). A video source's pair (settings.pairs) holds its Active
 // flag (pair.visible) and its control link.
-function DevicesSection({
+export default function useDevices({
   pairs = [],
   onPairsChange,
   streamingDevices = [],
@@ -203,7 +187,7 @@ function DevicesSection({
   const handleDeleteVideo = (entry) =>
     setConfirm({
       title: `Remove ${entry.name}?`,
-      body: "It leaves the Devices page and its window closes. You can check it again in Choose video.",
+      body: "It leaves the Video tab and its window closes. You can check it again in Choose video.",
       confirmLabel: "Remove",
       onConfirm: () => {
         setVideoChosen(entry.id, false);
@@ -328,7 +312,7 @@ function DevicesSection({
     const users = pairs.filter((p) => p.controlDeviceId === device.id).map((p) => entryName(p.captureDeviceId));
     setConfirm({
       title: `Remove ${controlName(device)}?`,
-      body: `It leaves the Devices page${users.length ? ` and ${users.join(", ")} will have no control` : ""}. You can check it again in Choose devices.`,
+      body: `It leaves the Control tab${users.length ? ` and ${users.join(", ")} will have no control` : ""}. You can check it again in Choose devices.`,
       confirmLabel: "Remove",
       onConfirm: () => {
         const affected = setControlChosen(device.id, false);
@@ -368,271 +352,57 @@ function DevicesSection({
     setRename(null);
   };
 
-  // ----- render -----
-  const statusLine = (entry) => {
-    if (entry.kind === "rce") {
-      const account = accountOf(entry.source.accountId);
-      return (
-        <>
-          <Dot live={entry.source.status === "running"} />
-          <span className="text">{rceStatusText(entry.source.status)}</span>
-          {account && <span className="acct-tag">{account.label}</span>}
-        </>
-      );
-    }
-    if (entry.kind === "simulator") {
-      const { host, port } = entry.source;
-      return (
-        <>
-          <Dot live />
-          <span className="text">{isLocalHost(host) ? "running on this computer" : `${host}:${port}`}</span>
-        </>
-      );
-    }
-    if (entry.kind === "webrtc") {
-      return (
-        <>
-          <Dot live />
-          <span className="text">{entry.source.url}</span>
-        </>
-      );
-    }
-    return <span className="text">{entry.hardwareId || "capture device"}</span>;
-  };
-
-  const controlCell = (entry) => {
-    if (entry.kind === "rce" || entry.kind === "simulator") {
-      return (
-        <span className="text-muted" title={streamControlNote(entry)}>
-          Included with the stream
-        </span>
-      );
-    }
-    const host = entry.kind === "webrtc" ? hostOf(entry.source.url) : "";
-    const value = controlValueOf(pairFor(entry.id));
-    return (
-      <Form.Control as="select" size="sm" aria-label={`Control for ${entry.name}`} value={value} onChange={(e) => handleControlChoice(entry, e.target.value)}>
-        <option value="none">No control</option>
-        {host && <option value="host">Same host as stream ({host})</option>}
-        <option value="viewer" disabled>
-          Switch in viewer (coming soon)
-        </option>
-        {CONTROL_TYPES.map((t) => {
-          const list = chosenControls.filter((d) => controlTypeOf(d).key === t.key);
-          return list.length ? (
-            <optgroup key={t.key} label={t.label}>
-              {list.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {controlName(d)} ({d.port ? `${d.ipAddress}:${d.port}` : d.ipAddress})
-                </option>
-              ))}
-            </optgroup>
-          ) : null;
-        })}
-        <optgroup label="More">
-          <option value="__detect" disabled>
-            Find which device this is… (coming soon)
-          </option>
-          <option value="__choose">Choose more devices…</option>
-        </optgroup>
-      </Form.Control>
-    );
-  };
 
   const builtIn = chosenEntries.filter((e) => e.kind === "rce" || e.kind === "simulator");
 
-  return (
-    <div className="p-2" style={{ fontSize: "0.85rem" }}>
-      <section aria-labelledby="video-heading">
-        <div className="devices-bar">
-          <h2 id="video-heading">Video</h2>
-          <span className="hint">What you watch</span>
-          <span className="spacer" />
-          {/* Single-window mode: turning one source on turns the others off. */}
-          <Form.Check
-            type="checkbox"
-            id="multiple-windows"
-            label="Allow multiple active"
-            checked={!singleWindowMode}
-            onChange={(e) => onSingleWindowModeChange?.(!e.target.checked)}
-            className="mb-0 me-2"
-            style={{ fontSize: "0.78rem" }}
-            title="Show each active source in its own window. When off, turning one on turns the others off."
-          />
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-label="Refresh device status"
-            title="Refresh Cloud Emulator devices, status and reachability"
-          >
-            {refreshing ? <Spinner animation="border" size="sm" /> : <RefreshIcon />}
-          </button>
-          <Button size="sm" variant="primary" onClick={() => setShowVideo(true)}>
-            Choose video
-          </Button>
-        </div>
-        <div className="devices-list">
-          {chosenEntries.length === 0 && (
-            <div className="device-empty">Nothing chosen. Choose video to pick from your accounts and this computer.</div>
-          )}
-          {chosenEntries.map((entry) => {
-            const pair = pairFor(entry.id);
-            return (
-              <div className="device-row" key={entry.id}>
-                <div style={{ minWidth: 0 }}>
-                  <div className="device-name" title={entry.name}>
-                    <SourceIcon kind={entry.kind} />
-                    {entry.name}
-                  </div>
-                  <div className="device-sub">{statusLine(entry)}</div>
-                </div>
-                <div>{controlCell(entry)}</div>
-                <Form.Check
-                  type="switch"
-                  id={`active-${entry.id}`}
-                  aria-label={`Active: ${entry.name}`}
-                  checked={pair?.visible === true}
-                  onChange={(e) => handleActive(entry, e.target.checked)}
-                  className="mb-0"
-                />
-                <div className="device-actions">
-                  {entry.kind !== "capture" && (
-                    <button type="button" className="icon-btn" aria-label={`Rename ${entry.name}`} title="Rename" onClick={() => setRename({ kind: "stream", id: entry.id, name: entry.name, defaultName: entry.source?.deviceName || "" })}>
-                      <PencilIcon />
-                    </button>
-                  )}
-                  <button type="button" className="icon-btn danger" aria-label={`Delete ${entry.name}`} title="Delete" onClick={() => handleDeleteVideo(entry)}>
-                    <TrashIcon />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section aria-labelledby="control-heading">
-        <div className="devices-bar">
-          <h2 id="control-heading">Control</h2>
-          <span className="hint">What you send remote presses to</span>
-          <span className="spacer" />
-          <Button size="sm" variant="primary" onClick={() => setShowControl(true)}>
-            Choose devices
-          </Button>
-        </div>
-        <div className="devices-list">
-          {chosenControls.length === 0 && builtIn.length === 0 && (
-            <div className="device-empty">No control devices chosen. Choose devices to scan your network or enter one by hand.</div>
-          )}
-          {CONTROL_TYPES.map((t) => {
-            const list = chosenControls.filter((d) => controlTypeOf(d).key === t.key);
-            // Cloud Emulator and simulator controls are Rokus too (ECP); they come with their video.
-            const builtInHere = t.key === "roku" ? builtIn : [];
-            if (!list.length && !builtInHere.length) return null;
-            return [
-              <div className="device-typehead" key={`h-${t.key}`}>
-                {t.label}
-              </div>,
-              ...list.map((d) => {
-                const users = pairs
-                  .filter((p) => p.controlDeviceId === d.id && chosenEntries.some((e) => e.id === p.captureDeviceId))
-                  .map((p) => entryName(p.captureDeviceId));
-                const reachable = online[d.id];
-                return (
-                  <div className="device-row control" key={d.id}>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="device-name" title={controlName(d)}>
-                        <SourceIcon kind="device" />
-                        {controlName(d)}
-                      </div>
-                      <div className="device-sub">
-                        <Dot live={reachable === true} />
-                        <span className="text">
-                          {d.port ? `${d.ipAddress}:${d.port}` : d.ipAddress}
-                          {reachable === false ? ", not reachable" : ""}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="device-used">{users.length ? `Controls ${users.join(", ")}` : ""}</span>
-                    <div className="device-actions">
-                      <button type="button" className="icon-btn" aria-label={`Rename ${controlName(d)}`} title="Rename" onClick={() => setRename({ kind: "control", id: d.id, name: d.alias || "", defaultName: defaultControlName(d) || "" })}>
-                        <PencilIcon />
-                      </button>
-                      <button type="button" className="icon-btn danger" aria-label={`Delete ${controlName(d)}`} title="Delete" onClick={() => handleDeleteControl(d)}>
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  </div>
-                );
-              }),
-              ...builtInHere.map((entry) => {
-                const account = entry.kind === "rce" ? accountOf(entry.source.accountId) : null;
-                return (
-                  <div className="device-row control" key={`b-${entry.id}`}>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="device-name" title={entry.name}>
-                        <SourceIcon kind={entry.kind} />
-                        {entry.name}
-                      </div>
-                      <div className="device-sub">
-                        <Dot live={entry.kind === "simulator" || entry.source.status === "running"} />
-                        <span className="text">{entry.kind === "rce" ? "Cloud Emulator" : "Simulator"}</span>
-                        {account && <span className="acct-tag">{account.label}</span>}
-                      </div>
-                    </div>
-                    <span className="device-used" title={`${streamControlNote(entry)} Remove it from Video to remove it here.`}>
-                      Comes with its video
-                    </span>
-                    <span />
-                  </div>
-                );
-              }),
-            ];
-          })}
-        </div>
-      </section>
-
-      <ChooseVideoDialog
-        show={showVideo}
-        entries={entries}
-        accounts={rceAccounts}
-        onHide={() => setShowVideo(false)}
-        onToggle={setVideoChosen}
-        onAddAccount={handleAddAccount}
-        onRefreshAccount={handleRefreshAccount}
-        onRemoveAccount={handleRemoveAccount}
-        onAddStream={handleAddStream}
-        onAddSimulator={handleAddSimulator}
-        onTestSimulator={handleTestSimulator}
-        onRemoveStream={handleRemoveStream}
-        toast={toast}
-      />
-      <ChooseControlDialog
-        show={showControl}
-        deviceList={streamingDevices}
-        online={online}
-        onHide={() => setShowControl(false)}
-        onToggle={handleToggleControl}
-        onSetAll={handleSetAllControls}
-        onRemove={handleRemoveControl}
-        onDeviceListChange={onUpdateStreamingDevices}
-        onScan={handleScan}
-        toast={toast}
-      />
-      <RenameModal
-        show={!!rename}
-        title={rename?.kind === "control" ? "Rename Device" : "Rename Stream"}
-        initialValue={rename?.name || ""}
-        defaultName={rename?.defaultName || ""}
-        onConfirm={handleRename}
-        onHide={() => setRename(null)}
-      />
-      <ConfirmModal request={confirm} onHide={() => setConfirm(null)} />
-      {toastNode}
-    </div>
-  );
+  return {
+    // data
+    pairs,
+    streamingDevices,
+    streamSources,
+    rceAccounts,
+    singleWindowMode,
+    entries,
+    chosenEntries,
+    chosenControls,
+    builtIn,
+    online,
+    refreshing,
+    accountOf,
+    pairFor,
+    entryName,
+    // dialogs and messages
+    showVideo,
+    setShowVideo,
+    showControl,
+    setShowControl,
+    rename,
+    setRename,
+    confirm,
+    setConfirm,
+    toast,
+    toastNode,
+    // video
+    handleRefresh,
+    handleActive,
+    handleControlChoice,
+    handleDeleteVideo,
+    setVideoChosen,
+    handleAddStream,
+    handleTestSimulator,
+    handleAddSimulator,
+    handleRemoveStream,
+    handleAddAccount,
+    handleRefreshAccount,
+    handleRemoveAccount,
+    onSingleWindowModeChange,
+    onUpdateStreamingDevices,
+    // control
+    handleToggleControl,
+    handleSetAllControls,
+    handleRemoveControl,
+    handleDeleteControl,
+    handleScan,
+    handleRename,
+  };
 }
-
-export default DevicesSection;

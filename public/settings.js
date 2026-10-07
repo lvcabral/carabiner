@@ -67,7 +67,7 @@ function makePair(partial = {}) {
 // Convert the legacy single-window settings (display.deviceId + control.deviceId +
 // displayWindow bounds + global border/transparency/resolution) into one pair.
 // Each pair maps to exactly one capture device (pair.id === captureDeviceId); the
-// Devices tab lists the available video sources rather than free-form "pairs".
+// Video tab lists the available video sources rather than free-form "pairs".
 // Idempotent and legacy keys are left in place so a downgrade keeps working.
 function migrateSettings(settings) {
   if (Array.isArray(settings.pairs) && settings.pairs.length > 0) {
@@ -99,7 +99,7 @@ function migrateSettings(settings) {
   }
 
   // Only create a pair when there is a legacy capture device to carry over. On a
-  // truly fresh install pairs stays empty — the Devices tab is populated from the
+  // truly fresh install pairs stays empty — the Video tab is populated from the
   // enumerated capture devices instead.
   if (captureDeviceId) {
     const migratedPair = makePair({
@@ -154,7 +154,7 @@ function loadSettings() {
     },
     streams: {
       // WebRTC stream sources, type "sim" | "rce" | "webrtc". Optional `chosen: false` hides one
-      // from the Devices tab (absent = shown, so older settings look as before).
+      // from the Video tab (absent = shown, so older settings look as before).
       sources: [],
     },
     rce: {

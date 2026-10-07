@@ -11,7 +11,7 @@ import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import { currentTheme } from "./ui";
 
-// Confirmation for a delete on the Devices page. `request` is { title, body, confirmLabel, onConfirm }
+// Confirmation for a delete on the Video or Control tab. `request` is { title, body, confirmLabel, onConfirm }
 // or null (hidden).
 function ConfirmModal({ request, onHide }) {
   return (

@@ -404,7 +404,7 @@ select.form-control:disabled {
   background-color: #adb5bd;
 }
 
-/* ----- Devices tab ----- */
+/* ----- Video and Control tabs ----- */
 :root {
   --dev-line: #dee2e6;
   --dev-raised: #f8f9fa;

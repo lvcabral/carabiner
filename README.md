@@ -62,8 +62,8 @@ Perfect for developers and QA engineers who need to test streaming applications 
    ```
    See the [Installation Guide](./docs/installation.md) for all platforms and options.
 2. **Launch** Carabiner
-3. On the **Devices** tab, click **Choose devices** and check your streaming device(s) (Rokus are found automatically; others can be added by hand)
-4. Click **Choose video** and check your capture card (or a Cloud Emulator device, Simulator or stream), **link** a control device to it, and turn on **Active** to open its window
+3. On the **Control** tab, click **Choose devices** and check your streaming device(s) (Rokus are found automatically; others can be added by hand)
+4. On the **Video** tab, click **Choose video** and check your capture card (or a Cloud Emulator device, Simulator or stream), **link** a control device to it, and turn on **Active** to open its window
 5. Check **Allow multiple active** to run several devices at once — then start controlling!
 
 For detailed setup and usage instructions, see our comprehensive guides:
