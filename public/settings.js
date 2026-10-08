@@ -23,7 +23,6 @@ const DEFAULT_PAIR_BORDER = { width: "0.1px", style: "solid", color: "#662D91" }
 const DEFAULT_WINDOW_WIDTH = 820;
 const DEFAULT_WINDOW_HEIGHT = 461;
 const DEFAULT_PAIR_RESOLUTION = "804px|452px";
-const CONTROL_MODES = ["viewer"];
 
 function saveSettings(settings) {
   fs.writeFileSync(settingsFilePath(), JSON.stringify(settings, null, 2));
@@ -45,10 +44,6 @@ function makePair(partial = {}) {
     id: partial.id || newPairId(),
     captureDeviceId: partial.captureDeviceId || "",
     controlDeviceId: partial.controlDeviceId || "",
-    // Optional: "viewer" (control picked in the viewer; reserved, acts as no control for now).
-    // Absent means controlDeviceId is used as is. ("Same host as stream" for a WebRTC stream URL
-    // is its built-in control, streamctl:<sourceId>|ecp, not a mode.)
-    ...(CONTROL_MODES.includes(partial.controlMode) ? { controlMode: partial.controlMode } : {}),
     visible: partial.visible !== false,
     bounds: partial.bounds || {
       x: undefined,

@@ -91,9 +91,6 @@ function VideoSection({ devices }) {
       <Form.Control as="select" size="sm" aria-label={`Control for ${entry.name}`} value={value} onChange={(e) => handleControlChoice(entry, e.target.value)}>
         <option value="none">No control</option>
         {host && <option value="host">Same host as stream ({host})</option>}
-        <option value="viewer" disabled>
-          Switch in viewer (coming soon)
-        </option>
         {controlsByType(chosenControls).map(({ type, devices }) => (
           <optgroup key={type.key} label={type.label}>
             {devices.map((d) => (
@@ -104,9 +101,6 @@ function VideoSection({ devices }) {
           </optgroup>
         ))}
         <optgroup label="More">
-          <option value="__detect" disabled>
-            Find which device this is… (coming soon)
-          </option>
           <option value="__choose">Choose more devices…</option>
         </optgroup>
       </Form.Control>

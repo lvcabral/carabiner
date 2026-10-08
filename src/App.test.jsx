@@ -159,7 +159,6 @@ test("a stream URL defaults to its own Same host control, even with a hostname",
   const pair = pairsSent[pairsSent.length - 1][2].find((p) => p.captureDeviceId.startsWith("stream:webrtc-"));
   const sourceId = pair.captureDeviceId.slice("stream:".length);
   expect(pair.controlDeviceId).toBe(`streamctl:${sourceId}|ecp`); // its built-in control, not "mediamtx.local|ecp"
-  expect(pair.controlMode).toBeUndefined();
   userEvent.click(within(dialog).getByRole("button", { name: "Done" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   const select = within(panel("Video")).getByLabelText("Control for Cam");
@@ -187,6 +186,12 @@ test("a simulator already in the list can't be added again, even as 127.0.0.1", 
 test("Choose more devices… on a Video row opens Choose control devices", async () => {
   renderTab("Video");
   const select = await within(panel("Video")).findByLabelText("Control for usb video");
+  // Only real choices: no placeholder ("coming soon") options.
+  expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+    "No control",
+    "Bench 3 (192.168.1.43)",
+    "Choose more devices…",
+  ]);
   userEvent.selectOptions(select, "__choose");
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText("Choose control devices")).toBeInTheDocument();

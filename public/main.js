@@ -914,7 +914,6 @@ function switchControlDevice(deviceId, pairId = activePairId) {
   if (!pair) return;
   const prevDeviceId = pair.controlDeviceId;
   pair.controlDeviceId = deviceId;
-  delete pair.controlMode; // linked to a device now, not "viewer"
   saveSettings(settings);
   if (prevDeviceId && prevDeviceId !== deviceId) {
     disconnectPairControl(pairId, prevDeviceId);
@@ -1440,7 +1439,6 @@ app.whenReady().then(async () => {
       if (pair) {
         const prev = pair.controlDeviceId;
         pair.controlDeviceId = arg.payload;
-        delete pair.controlMode; // linked to a device now, not "viewer"
         if (prev && prev !== arg.payload) disconnectPairControl(pairId, prev);
         connectPairControl(pairId);
       }

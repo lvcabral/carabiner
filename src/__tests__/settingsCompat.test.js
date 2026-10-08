@@ -125,25 +125,26 @@ describe("settings from 2.x", () => {
 });
 
 describe("settings compatibility", () => {
-  test("pairs keep their control link, and a stream's control mode survives normalization", () => {
+  test("pairs keep their control link, including a stream URL's built-in Same host control", () => {
     const settings = {
       streams: { sources: [{ id: "webrtc-1", type: "webrtc", name: "Cam", url: "http://10.0.0.5:8889/whep" }] },
       pairs: [
         { id: "cap1", captureDeviceId: "cap1", controlDeviceId: "192.168.1.43|ecp", visible: true },
-        { id: "stream:webrtc-1", captureDeviceId: "stream:webrtc-1", controlDeviceId: "", controlMode: "viewer", visible: false },
+        { id: "stream:webrtc-1", captureDeviceId: "stream:webrtc-1", controlDeviceId: "streamctl:webrtc-1|ecp", visible: false },
       ],
     };
     migrateSettings(settings);
-    expect(settings.pairs.map((p) => [p.id, p.controlDeviceId, p.controlMode, p.visible])).toEqual([
-      ["cap1", "192.168.1.43|ecp", undefined, true],
-      ["stream:webrtc-1", "", "viewer", false],
+    expect(settings.pairs.map((p) => [p.id, p.controlDeviceId, p.visible])).toEqual([
+      ["cap1", "192.168.1.43|ecp", true],
+      ["stream:webrtc-1", "streamctl:webrtc-1|ecp", false],
     ]);
   });
 
-  test("unknown control modes are dropped rather than passed through", () => {
-    expect(makePair({ id: "x", captureDeviceId: "x", controlMode: "bogus" }).controlMode).toBeUndefined();
-    // "host" is no longer a mode: "Same host" is the stream's built-in control (streamctl:<id>|ecp).
-    expect(makePair({ id: "x", captureDeviceId: "x", controlMode: "host" }).controlMode).toBeUndefined();
+  test("a control mode saved by an earlier build of 3.x is dropped", () => {
+    // "host" became the stream's built-in control (streamctl:<id>|ecp); "viewer" was never offered.
+    for (const controlMode of ["host", "viewer", "bogus"]) {
+      expect(makePair({ id: "x", captureDeviceId: "x", controlMode })).not.toHaveProperty("controlMode");
+    }
   });
 
   test("new optional fields survive a load/save round trip untouched", () => {

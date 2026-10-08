@@ -155,8 +155,7 @@ export function resetPairingsFor(pairs = [], ids = []) {
   const next = pairs.map((p) => {
     if (!p.controlDeviceId || !gone.has(p.controlDeviceId)) return p;
     affected.push(p);
-    const { controlMode, ...rest } = p;
-    return { ...rest, controlDeviceId: "" };
+    return { ...p, controlDeviceId: "" };
   });
   return { pairs: next, affected };
 }
@@ -254,7 +253,6 @@ export function applyVideoSelection({ entries, streamSources, hiddenCaptureIds =
 export function controlValueOf(pair, source = null) {
   if (!pair) return "none";
   if (source?.type === "webrtc" && pair.controlDeviceId === streamControlId(source)) return "host";
-  if (pair.controlMode === "viewer") return "viewer";
   return pair.controlDeviceId || "none";
 }
 
@@ -273,12 +271,11 @@ export function setPairFor(pairs, sourceId, patch, { singleWindowMode = false, a
 }
 
 // Patch for a Control select choice: "none", "host" (a WebRTC stream URL's built-in control: ECP
-// to the URL's host), "viewer", or a control device id.
+// to the URL's host), or a control device id.
 export function controlPatch(value, { source = null } = {}) {
   if (value === "host") {
     // Only a WebRTC stream URL has a "same host"; anything else falls back to no control.
-    return { controlDeviceId: source?.type === "webrtc" ? streamControlId(source) : "", controlMode: undefined };
+    return { controlDeviceId: source?.type === "webrtc" ? streamControlId(source) : "" };
   }
-  if (value === "viewer") return { controlDeviceId: "", controlMode: "viewer" };
-  return { controlDeviceId: value === "none" ? "" : value, controlMode: undefined };
+  return { controlDeviceId: value === "none" ? "" : value };
 }

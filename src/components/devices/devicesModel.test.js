@@ -147,7 +147,7 @@ describe("pairing reset on delete or uncheck", () => {
   const pairs = [
     { id: "usb", captureDeviceId: "usb", controlDeviceId: "192.168.1.43|ecp", visible: true },
     { id: "c920", captureDeviceId: "c920", controlDeviceId: "192.168.1.41|ecp", visible: false },
-    { id: "stream:w", captureDeviceId: "stream:w", controlDeviceId: "10.0.0.5|ecp", controlMode: "host", visible: true },
+    { id: "stream:w", captureDeviceId: "stream:w", controlDeviceId: "streamctl:w|ecp", visible: true },
   ];
   test("resetPairingsFor unlinks and reports only the affected pairs", () => {
     const { pairs: next, affected } = resetPairingsFor(pairs, ["192.168.1.43|ecp"]);
@@ -174,7 +174,7 @@ describe("pairing reset on delete or uncheck", () => {
     const res = applyControlSelection(list, new Set(["192.168.1.41|ecp"]), pairs);
     expect(res.deviceList.map((d) => isChosen(d))).toEqual([true, false]);
     expect(res.affected.map((p) => p.id)).toEqual(["usb"]);
-    expect(res.pairs.find((p) => p.id === "stream:w").controlMode).toBe("host");
+    expect(res.pairs.find((p) => p.id === "stream:w").controlDeviceId).toBe("streamctl:w|ecp");
   });
 });
 
@@ -204,18 +204,16 @@ describe("video selection", () => {
 });
 
 describe("control choice and pairs", () => {
-  test("same host / viewer / device / none", () => {
+  test("same host / device / none", () => {
     const stream = { id: "webrtc-1", type: "webrtc", url: "http://mediamtx.local:8889/cam/whep" };
     // "Same host" is the stream's built-in control (keys go to the URL's host, even a hostname).
-    expect(controlPatch("host", { source: stream })).toEqual({ controlDeviceId: "streamctl:webrtc-1|ecp", controlMode: undefined });
+    expect(controlPatch("host", { source: stream })).toEqual({ controlDeviceId: "streamctl:webrtc-1|ecp" });
     expect(controlPatch("host", { source: { id: "sim-1", type: "sim" } }).controlDeviceId).toBe(""); // only stream URLs have "same host"
-    expect(controlPatch("192.168.1.41|ecp")).toEqual({ controlDeviceId: "192.168.1.41|ecp", controlMode: undefined });
+    expect(controlPatch("192.168.1.41|ecp")).toEqual({ controlDeviceId: "192.168.1.41|ecp" });
     expect(controlPatch("none").controlDeviceId).toBe("");
-    expect(controlPatch("viewer")).toEqual({ controlDeviceId: "", controlMode: "viewer" });
     expect(controlValueOf({ controlDeviceId: "streamctl:webrtc-1|ecp" }, stream)).toBe("host");
     // A catalog Roku at the stream's address is that Roku, not "same host".
     expect(controlValueOf({ controlDeviceId: "10.0.0.5|ecp" }, { ...stream, url: "http://10.0.0.5:8889/whep" })).toBe("10.0.0.5|ecp");
-    expect(controlValueOf({ controlDeviceId: "", controlMode: "viewer" }, stream)).toBe("viewer");
     expect(controlValueOf(null)).toBe("none");
   });
 
