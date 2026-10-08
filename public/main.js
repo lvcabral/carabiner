@@ -1121,22 +1121,33 @@ function setAlwaysOnTop(alwaysOnTop, window) {
   updateAlwaysOnTopMenuItem(alwaysOnTop);
 }
 
-// Global shortcut toggles all Display windows together: if any is visible, hide them
-// all; otherwise show them all. Deterministic regardless of which window has focus.
 function registerShortcut(shortcut) {
   globalShortcut.unregisterAll();
   if (!shortcut) return;
-  globalShortcut.register(shortcut, () => {
-    const wins = getDisplayWindows();
-    if (wins.length === 0) return;
-    if (wins.some((w) => w.isVisible())) {
-      wins.forEach((w) => {
-        if (w.isVisible()) hideWindowSafely(w, settings);
-      });
-    } else {
-      wins.forEach((w) => w.show());
-    }
-  });
+  // An invalid accelerator (e.g. a modifier alone, saved by an older build) makes
+  // register() throw; log it instead of crashing the app.
+  let registered = false;
+  try {
+    registered = globalShortcut.register(shortcut, toggleDisplayWindows);
+  } catch (err) {
+    console.warn(`Invalid shortcut "${shortcut}": ${err.message}`);
+    return;
+  }
+  if (!registered) console.warn(`Shortcut "${shortcut}" is already in use by another app`);
+}
+
+// Global shortcut toggles all Display windows together: if any is visible, hide them
+// all; otherwise show them all. Deterministic regardless of which window has focus.
+function toggleDisplayWindows() {
+  const wins = getDisplayWindows();
+  if (wins.length === 0) return;
+  if (wins.some((w) => w.isVisible())) {
+    wins.forEach((w) => {
+      if (w.isVisible()) hideWindowSafely(w, settings);
+    });
+  } else {
+    wins.forEach((w) => w.show());
+  }
 }
 
 app.whenReady().then(async () => {
