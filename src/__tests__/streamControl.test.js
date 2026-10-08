@@ -1,5 +1,23 @@
 // Keys for a stream's built-in control are sent from main (public/stream-signaling.js).
 import { sendControlKey } from "../../public/stream-signaling";
+import { dropDuplicateSimulators, simulatorKey } from "../../public/stream-utils";
+import { simulatorKey as uiSimulatorKey } from "../components/devices/devicesModel";
+
+test("main keeps one simulator per address, however it was added", () => {
+  // Enter then Add while the probe ran, by hand after detection (127.0.0.1 = localhost), or a
+  // default port: only the first one at an address is kept.
+  const sources = [
+    { id: "sim-a", type: "sim", host: "localhost", port: 8090 },
+    { id: "sim-b", type: "sim", host: "127.0.0.1", port: 8090 },
+    { id: "sim-c", type: "sim", host: "LOCALHOST" },
+    { id: "sim-d", type: "sim", host: "localhost", port: 8091 },
+    { id: "sim-e", type: "sim", host: "10.0.0.2", port: 8090 },
+    { id: "rce-1", type: "rce" },
+  ];
+  expect(dropDuplicateSimulators(sources).map((s) => s.id)).toEqual(["sim-a", "sim-d", "sim-e", "rce-1"]);
+  // The settings window's copy of the rule (for its error message) matches main's.
+  for (const src of sources.slice(0, 5)) expect(uiSimulatorKey(src)).toBe(simulatorKey(src));
+});
 
 describe("stream URL built-in control (Same host as stream)", () => {
   const posted = [];

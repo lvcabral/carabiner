@@ -105,9 +105,8 @@ describe("dedupe by address", () => {
     const list = [
       roku("192.168.1.60", { alias: "BrightScript Simulator", deviceName: "BrightScript Simulator", chosen: false }),
       roku("192.168.1.61", { alias: "BrightScript Simulator" }), // typed in by hand: no reported name
-      { id: "streamctl:sim-1|ecp", alias: "BrightScript Simulator", deviceName: "BrightScript Simulator", managedBy: "sim-1" },
     ];
-    expect(mergeScanResults(list, []).deviceList.map((d) => d.id)).toEqual(["192.168.1.61|ecp", "streamctl:sim-1|ecp"]);
+    expect(mergeScanResults(list, []).deviceList.map((d) => d.id)).toEqual(["192.168.1.61|ecp"]);
     expect(isSimulatorName("BrightScript Simulator")).toBe(true);
     expect(isSimulatorName("Living Room")).toBe(false);
   });

@@ -18,6 +18,7 @@ import VideoSection from "./components/VideoSection";
 import ControlSection from "./components/ControlSection";
 import DevicesDialogs from "./components/devices/DevicesDialogs";
 import useDevices from "./components/devices/useDevices";
+import { userControls } from "./components/devices/devicesModel";
 import GeneralSection from "./components/GeneralSection";
 import DisplaySection from "./components/DisplaySection";
 import OverlaySection from "./components/OverlaySection";
@@ -37,15 +38,19 @@ function App() {
   const [singleWindowMode, setSingleWindowMode] = useState(true);
 
   useEffect(() => {
+    // "Settings…" in the menus opens the first tab (General).
+    electronAPI.onMessageReceived("open-display-tab", () => document.getElementById("settings-tabs-tab-display")?.click());
     electronAPI.onMessageReceived("rce-accounts-updated", (event, accounts) => {
       if (Array.isArray(accounts)) setRceAccounts(accounts);
     });
     electronAPI.onMessageReceived("single-window-mode-changed", (event, single) => {
       setSingleWindowMode(!!single);
     });
+    // The settings UI only works with the user's control devices; stream sources' built-in
+    // controls stay in main (which keeps them whatever list it's sent).
     electronAPI.onMessageReceived("update-control-device", (event, data) => {
       if (data?.deviceList) {
-        setStreamingDevices(data.deviceList);
+        setStreamingDevices(userControls(data.deviceList));
       }
     });
     electronAPI.onMessageReceived("stream-sources-updated", (event, sources) => {
@@ -69,7 +74,7 @@ function App() {
     // Load initial settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.deviceList) {
-        handleUpdateStreamingDevices(settings.control.deviceList);
+        handleUpdateStreamingDevices(userControls(settings.control.deviceList));
       }
       if (Array.isArray(settings.streams?.sources)) {
         setStreamSources(settings.streams.sources);

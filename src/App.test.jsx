@@ -167,19 +167,21 @@ test("a stream URL defaults to its own Same host control, even with a hostname",
   expect(within(select).getByRole("option", { name: "Same host as stream (mediamtx.local)" })).toBeInTheDocument();
 });
 
-test("pressing Enter and then Add while a simulator is being checked adds it once", async () => {
-  renderTab("Video");
-  await within(panel("Video")).findByText("usb video");
-  userEvent.click(screen.getByRole("button", { name: "Choose video" }));
-  const dialog = await screen.findByRole("dialog");
-  userEvent.type(within(dialog).getByLabelText("Simulator host"), "192.168.1.70{enter}");
-  userEvent.click(within(dialog).getAllByRole("button", { name: "Add" })[0]);
-  await within(dialog).findByText("192.168.1.70:8090");
-  await new Promise((r) => setTimeout(r, 120)); // both probes have settled
-  const sent = calls.filter(([k, , msg]) => k === "sendSync" && msg?.type === "set-stream-sources");
-  const simsSent = sent.map(([, , msg]) => msg.payload.filter((src) => src.type === "sim" && src.host === "192.168.1.70").length);
-  expect(Math.max(...simsSent)).toBe(1);
-  expect(within(dialog).getAllByText("192.168.1.70:8090")).toHaveLength(1);
+test("a simulator already in the list can't be added again, even as 127.0.0.1", async () => {
+  settings.streams.sources = [{ id: "sim-1", type: "sim", name: "BrightScript Simulator", host: "localhost", port: 8090, chosen: false }];
+  const sourcesSent = () => calls.filter(([k, , msg]) => k === "sendSync" && msg?.type === "set-stream-sources").length;
+  try {
+    renderTab("Video");
+    await within(panel("Video")).findByText("usb video");
+    userEvent.click(screen.getByRole("button", { name: "Choose video" }));
+    const dialog = await screen.findByRole("dialog");
+    const before = sourcesSent();
+    userEvent.type(within(dialog).getByLabelText("Simulator host"), "127.0.0.1{enter}");
+    expect(await within(dialog).findByText("That simulator is already in the list.")).toBeInTheDocument();
+    expect(sourcesSent()).toBe(before);
+  } finally {
+    settings.streams.sources = [];
+  }
 });
 
 test("Choose more devices… on a Video row opens Choose control devices", async () => {
@@ -199,6 +201,20 @@ test("General links the Android and Apple TV setup guides under the tool paths",
   expect(apple).toHaveAttribute("href", "https://github.com/lvcabral/carabiner/blob/main/docs/setup-apple-tv.md");
   userEvent.click(apple);
   expect(calls).toContainEqual(["openExternal", "https://github.com/lvcabral/carabiner/blob/main/docs/setup-apple-tv.md"]);
+});
+
+test("status probes run once the settings window is shown, not again within a minute", async () => {
+  const count = (channel) => calls.filter(([k, c]) => k === "invoke" && c === channel).length;
+  const probes = () => count("detect-simulator");
+  const before = probes();
+  const reachBefore = count("check-control-devices");
+  render(<App />); // the test document is visible, like a settings window that's shown
+  await waitFor(() => expect(probes()).toBe(before + 1));
+  // ...including the reachability check of the chosen devices, once App has loaded them.
+  await waitFor(() => expect(count("check-control-devices")).toBe(reachBefore + 1));
+  expect(calls.filter(([k, c]) => k === "invoke" && c === "check-control-devices").pop()[2].map((d) => d.id)).toEqual(["192.168.1.43|ecp"]);
+  document.dispatchEvent(new Event("visibilitychange")); // shown again right away: throttled
+  expect(probes()).toBe(before + 1);
 });
 
 test("Choose video: a checkbox applies right away, Done and Escape close", async () => {

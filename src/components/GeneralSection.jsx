@@ -216,28 +216,4 @@ function GeneralSection() {
   );
 }
 
-// Start/refresh the capture stream for a specific pair's Display window (used by the
-// Display tab when changing capture resolution).
-export function notifyCaptureChange({
-  pairId,
-  deviceId,
-  captureWidth,
-  captureHeight,
-  showDisplayWindow = false,
-}) {
-  const constraints = {
-    video: {
-      deviceId: { exact: deviceId },
-      width: captureWidth || 1280,
-      height: captureHeight || 720,
-    },
-    showDisplayWindow,
-  };
-  electronAPI.sendSync("shared-window-channel", {
-    type: "set-video-stream",
-    payload: constraints,
-    pairId,
-  });
-}
-
 export default GeneralSection;

@@ -9,7 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 const { Menu, BrowserWindow, app, shell, Tray, MenuItem } = require("electron");
 const path = require("path");
-const { streamLabel } = require("./stream-utils");
+const { streamLabel, hasLockedControl } = require("./stream-utils");
 
 let alwaysOnTopMenuItem;
 let copyScreenshotMenuItem;
@@ -765,10 +765,10 @@ function appendLinkedDeviceMenu(menu, onDeviceSelected, settings, captureDevices
   // WebRTC stream URL's own control is named "Same host: <host>".
   const activeControl = deviceList.find((d) => d.id === activeControlId);
   const headerSuffix = ` (${activeControl ? activeControl.alias || activeControl.type : "None"})`;
-  // A stream has its own built-in control, so its link can't be changed from the menu.
-  // (A WebRTC stream URL has no built-in control, so it links like a capture card.)
+  // A Simulator / Cloud Emulator stream is locked to its built-in control, so its link can't be
+  // changed from the menu. (A WebRTC stream URL links like a capture card.)
   const activeSource = (captureDevices || []).find((d) => d.deviceId === activePair.captureDeviceId);
-  const isStream = activeSource?.kind === "stream" && activeSource.streamType !== "webrtc";
+  const isStream = activeSource?.kind === "stream" && hasLockedControl(activeSource.streamType);
 
   menu.append(new MenuItem({ type: "separator" }));
   menu.append(

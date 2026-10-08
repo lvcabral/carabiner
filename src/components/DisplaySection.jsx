@@ -17,7 +17,6 @@ import Alert from "react-bootstrap/Alert";
 import SelectBorderWidth from "./select/BorderWidth";
 import SelectBorderStyle from "./select/BorderStyle";
 import SelectResolution, { resolutionOptions } from "./select/Resolution";
-import { notifyCaptureChange } from "./GeneralSection";
 
 const { electronAPI } = window;
 
@@ -50,6 +49,30 @@ const getPredefinedSizes = (maxWidth, maxHeight) => {
       return `${width}x${height}`;
     });
 };
+
+// Start/refresh the capture stream for a specific pair's Display window (when its capture
+// resolution changes).
+function notifyCaptureChange({
+  pairId,
+  deviceId,
+  captureWidth,
+  captureHeight,
+  showDisplayWindow = false,
+}) {
+  const constraints = {
+    video: {
+      deviceId: { exact: deviceId },
+      width: captureWidth || 1280,
+      height: captureHeight || 720,
+    },
+    showDisplayWindow,
+  };
+  electronAPI.sendSync("shared-window-channel", {
+    type: "set-video-stream",
+    payload: constraints,
+    pairId,
+  });
+}
 
 function DisplaySection({
   pairs = [],

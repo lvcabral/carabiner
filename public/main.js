@@ -26,7 +26,7 @@ const {
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
-const { saveSettings, loadSettings, makePair, newPairId, redactSettings } = require("./settings");
+const { saveSettings, loadSettings, makePair, newPairId, newId, redactSettings } = require("./settings");
 const { connectADB, disconnectADB, isADBConnected, sendADBKey, sendADBText } = require("./adb");
 const { connectATV, disconnectATV, isATVConnected, sendATVKey, sendATVText } = require("./appletv");
 const {
@@ -61,7 +61,17 @@ const {
 } = require("./menu");
 const { checkForUpdates } = require("./updater");
 const streamSignaling = require("./stream-signaling");
-const { isStreamDeviceId, streamDeviceId, streamLabel } = require("./stream-utils");
+const {
+  SIM_DEFAULT_PORT,
+  isStreamDeviceId,
+  streamDeviceId,
+  streamLabel,
+  hasLockedControl,
+  urlHost,
+  simulatorKey,
+  dropDuplicateSimulators,
+  publicSource,
+} = require("./stream-utils");
 const {
   tokenTail,
   publicAccount,
@@ -160,8 +170,6 @@ function unsealToken(token) {
     return "";
   }
 }
-const publicSource = ({ token, ...rest }) => ({ ...rest, hasToken: !!token });
-const newSourceId = (prefix) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const getRceAccounts = () => settings?.rce?.accounts || [];
 const publicAccounts = () => getRceAccounts().map(publicAccount);
 
@@ -200,13 +208,6 @@ const withSecret = (source) => (source ? { ...source, token: unsealToken(source.
 // removed together with its stream source instead of by hand, and never listed as a device.
 const STREAM_CONTROL_PREFIX = "streamctl:";
 const streamControlId = (src) => `${STREAM_CONTROL_PREFIX}${src.id}|ecp`;
-const urlHost = (url) => {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "";
-  }
-};
 function managedControlFor(src) {
   if (src.type === "webrtc") {
     const host = urlHost(src.url);
@@ -224,7 +225,8 @@ function managedControlFor(src) {
 // Reconcile the managed control devices with the stream-source catalog. Returns whether anything
 // changed. Pairs bound to a removed control are unbound; Simulator and Cloud Emulator pairs are
 // always linked to their source's control (a WebRTC stream URL's pair may link any device).
-function syncManagedControls() {
+// `notify: false` only fixes the pairs' links (reconcilePairs connects and tells the windows itself).
+function syncManagedControls({ notify = true } = {}) {
   if (!settings.control) settings.control = { deviceList: [] };
   const sources = getStreamSources();
   const wanted = new Map(sources.map((src) => [streamControlId(src), src]));
@@ -240,22 +242,18 @@ function syncManagedControls() {
     managed.push(managedControlFor(src));
   }
   settings.control.deviceList = [...list, ...managed];
+  const relink = (p, controlDeviceId) => {
+    p.controlDeviceId = controlDeviceId;
+    if (!notify) return;
+    if (controlDeviceId) connectPairControl(p.id);
+    getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: controlDeviceId });
+  };
   for (const p of settings.pairs || []) {
-    if (removedIds.includes(p.controlDeviceId)) {
-      p.controlDeviceId = "";
-      getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: "" });
-    }
-    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId && x.type !== "webrtc");
+    if (removedIds.includes(p.controlDeviceId)) relink(p, "");
     // A Simulator / Cloud Emulator control is built in and can't be changed, so keep its pair
     // locked to it.
-    if (src && p.controlDeviceId !== streamControlId(src)) {
-      p.controlDeviceId = streamControlId(src);
-      connectPairControl(p.id);
-      getWindow(p.id)?.webContents?.send("shared-window-channel", {
-        type: "set-control-selected",
-        payload: p.controlDeviceId,
-      });
-    }
+    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId && hasLockedControl(x.type));
+    if (src && p.controlDeviceId !== streamControlId(src)) relink(p, streamControlId(src));
   }
   return before !== JSON.stringify(settings.control.deviceList) || removedIds.length > 0;
 }
@@ -276,6 +274,7 @@ function broadcastControlList() {
 // Replace the stream-source catalog: close and drop the pairs of removed sources, re-sync the
 // sources' built-in controls, save, then tell every window.
 function commitStreamSources(sources) {
+  sources = dropDuplicateSimulators(sources);
   settings.streams = { ...(settings.streams || {}), sources };
   const remaining = new Set(sources.map(streamDeviceId));
   const removed = (settings.pairs || []).filter(
@@ -1065,8 +1064,8 @@ function reconcilePairs(newPairs) {
   const prevById = new Map((settings.pairs || []).map((p) => [p.id, p]));
   settings.pairs = next;
   // A Simulator / Cloud Emulator pair created by any path (Video tab, tray, MCP) is linked to its
-  // built-in control before its window opens.
-  syncManagedControls();
+  // built-in control before its window opens (the loop below connects it and tells the window).
+  syncManagedControls({ notify: false });
   if (!nextIds.has(activePairId)) {
     activePairId = next[0]?.id || "";
     settings.activePairId = activePairId;
@@ -1174,7 +1173,7 @@ app.whenReady().then(async () => {
   startDevReload();
   // Group Cloud Emulator sources saved by an earlier version into accounts (needs safeStorage,
   // so it runs once the app is ready rather than in loadSettings).
-  if (normalizeRceAccounts(settings, { unseal: unsealToken, newId: () => newSourceId("acct") })) {
+  if (normalizeRceAccounts(settings, { unseal: unsealToken, newId: () => newId("acct") })) {
     saveSettings(settings);
   }
   syncManagedControls(); // create the controls of stream sources saved by an earlier version
@@ -1434,7 +1433,9 @@ app.whenReady().then(async () => {
       // The stream-source catalog is global; pairs bound to a deleted source are dropped. Tokens
       // never come from the window (Cloud Emulator tokens are added via rce-add-account), and
       // Cloud Emulator sources stay owned by their account (see mergeWindowSources).
-      commitStreamSources(mergeWindowSources(getStreamSources(), arg.payload));
+      const sources = mergeWindowSources(getStreamSources(), arg.payload);
+      // A resend of what's stored needs no save, broadcast or menu rebuild.
+      if (JSON.stringify(sources) !== JSON.stringify(getStreamSources())) commitStreamSources(sources);
     } else if (arg.type && arg.type === "set-control-selected") {
       if (pair) {
         const prev = pair.controlDeviceId;
@@ -1605,20 +1606,21 @@ app.whenReady().then(async () => {
     const stored = sealTokenWithConsent(plain);
     if (stored === null) return { ok: false, message: "Not saved: the token can't be stored securely on this computer." };
     const account = {
-      id: newSourceId("acct"),
+      id: newId("acct"),
       label: String(label || "").trim() || defaultAccountLabel(getRceAccounts().length),
       token: stored,
       tail: tokenTail(plain),
       ...(apiUrl ? { apiUrl: String(apiUrl).trim() } : {}),
     };
     settings.rce = { ...(settings.rce || {}), accounts: [...getRceAccounts(), account] };
-    const { sources, addedCount } = applyAccountDevices(getStreamSources(), account, devices, () => newSourceId("rce"));
+    const { sources, addedCount } = applyAccountDevices(getStreamSources(), account, devices, () => newId("rce"));
     commitStreamSources(sources);
     return { ok: true, account: publicAccount(account), deviceCount: addedCount };
   };
 
   // Refresh one account (accountId) or all of them. Accounts that fail are reported, not fatal.
-  // Runs every time the settings window opens, so it only saves/broadcasts when something changed.
+  // Runs when the settings window is shown (at most once a minute), so it only saves/broadcasts
+  // when something changed.
   // The accounts are listed in parallel (a slow or unreachable one doesn't hold up the others),
   // then merged into the catalog as it is once they're back (see applyAccountListings: an account
   // removed meanwhile is skipped, so its devices aren't brought back).
@@ -1628,7 +1630,7 @@ app.whenReady().then(async () => {
       targets.map((a) => streamSignaling.listRceDevices({ token: unsealToken(a.token), apiUrl: a.apiUrl || "" }))
     );
     const before = getStreamSources();
-    const { sources, errors } = applyAccountListings(before, getRceAccounts(), targets, listings, () => newSourceId("rce"));
+    const { sources, errors } = applyAccountListings(before, getRceAccounts(), targets, listings, () => newId("rce"));
     if (JSON.stringify(sources) !== JSON.stringify(before)) commitStreamSources(sources);
     return { ok: Object.keys(errors).length === 0, errors };
   });
@@ -1650,22 +1652,19 @@ app.whenReady().then(async () => {
   // ----- Video/Control tabs: discovery ---------------------------------------------------------
   // A BrightScript Simulator on this computer shows up in Choose video without being typed in.
   ipcMain.handle("detect-simulator", async () => {
-    const probe = await streamSignaling.testSource({ type: "sim", host: "localhost", port: 8090 });
+    const local = { type: "sim", host: "localhost", port: SIM_DEFAULT_PORT };
+    const probe = await streamSignaling.testSource(local);
     // Any web server can answer /config with JSON; the simulator's remote screen reports its ECP.
     const cfg = probe?.config;
     const looksLikeSimulator = cfg && typeof cfg === "object" && ("ecpPort" in cfg || "ecpEnabled" in cfg);
     if (!probe?.ok || !looksLikeSimulator) return { found: false };
-    const isLocal = (s) =>
-      s.type === "sim" && ["localhost", "127.0.0.1"].includes(s.host) && Number(s.port || 8090) === 8090;
-    if (!getStreamSources().some(isLocal)) {
+    if (!getStreamSources().some((s) => s.type === "sim" && simulatorKey(s) === simulatorKey(local))) {
       commitStreamSources([
         ...getStreamSources(),
         {
-          id: newSourceId("sim"),
-          type: "sim",
+          ...local,
+          id: newId("sim"),
           name: "BrightScript Simulator",
-          host: "localhost",
-          port: 8090,
           ...(probe.config?.ecpPort ? { ecpPort: Number(probe.config.ecpPort) } : {}),
           chosen: false,
         },

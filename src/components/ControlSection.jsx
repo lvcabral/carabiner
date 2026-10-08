@@ -8,9 +8,8 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 import Button from "react-bootstrap/Button";
-import Spinner from "react-bootstrap/Spinner";
-import { Dot, PencilIcon, RefreshIcon, SourceIcon, TrashIcon } from "./devices/ui";
-import { CONTROL_TYPES, controlName, controlTypeOf, defaultControlName } from "./devices/devicesModel";
+import { Dot, RefreshButton, RowActions, SourceIcon } from "./devices/ui";
+import { controlAddress, controlName, controlsByType, defaultControlName } from "./devices/devicesModel";
 
 // The Control tab: what you send remote presses to. The chosen control devices grouped by type,
 // managed through the Choose devices dialog. Cloud Emulator / Simulator control is built into
@@ -36,16 +35,7 @@ function ControlSection({ devices }) {
           <h2 id="control-heading">Control</h2>
           <span className="hint">What you send remote presses to</span>
           <span className="spacer" />
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-label="Refresh device status"
-            title="Check which control devices are reachable"
-          >
-            {refreshing ? <Spinner animation="border" size="sm" /> : <RefreshIcon />}
-          </button>
+          <RefreshButton title="Check which control devices are reachable" refreshing={refreshing} onClick={handleRefresh} />
           <Button size="sm" variant="primary" onClick={() => setShowControl(true)}>
             Choose devices
           </Button>
@@ -54,47 +44,40 @@ function ControlSection({ devices }) {
           {chosenControls.length === 0 && (
             <div className="device-empty">No control devices chosen. Choose devices to scan your network or enter one by hand.</div>
           )}
-          {CONTROL_TYPES.map((t) => {
-            const list = chosenControls.filter((d) => controlTypeOf(d).key === t.key);
-            if (!list.length) return null;
-            return [
-              <div className="device-typehead" key={`h-${t.key}`}>
-                {t.label}
-              </div>,
-              ...list.map((d) => {
-                const users = pairs
-                  .filter((p) => p.controlDeviceId === d.id && chosenEntries.some((e) => e.id === p.captureDeviceId))
-                  .map((p) => entryName(p.captureDeviceId));
-                const reachable = online[d.id];
-                return (
-                  <div className="device-row control" key={d.id}>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="device-name" title={controlName(d)}>
-                        <SourceIcon kind="device" />
-                        {controlName(d)}
-                      </div>
-                      <div className="device-sub">
-                        <Dot live={reachable === true} />
-                        <span className="text">
-                          {d.port ? `${d.ipAddress}:${d.port}` : d.ipAddress}
-                          {reachable === false ? ", not reachable" : ""}
-                        </span>
-                      </div>
+          {controlsByType(chosenControls).map(({ type, devices }) => [
+            <div className="device-typehead" key={`h-${type.key}`}>
+              {type.label}
+            </div>,
+            ...devices.map((d) => {
+              const users = pairs
+                .filter((p) => p.controlDeviceId === d.id && chosenEntries.some((e) => e.id === p.captureDeviceId))
+                .map((p) => entryName(p.captureDeviceId));
+              const reachable = online[d.id];
+              return (
+                <div className="device-row control" key={d.id}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="device-name" title={controlName(d)}>
+                      <SourceIcon kind="device" />
+                      {controlName(d)}
                     </div>
-                    <span className="device-used">{users.length ? `Controls ${users.join(", ")}` : ""}</span>
-                    <div className="device-actions">
-                      <button type="button" className="icon-btn" aria-label={`Rename ${controlName(d)}`} title="Rename" onClick={() => setRename({ kind: "control", id: d.id, name: d.alias || "", defaultName: defaultControlName(d) || "" })}>
-                        <PencilIcon />
-                      </button>
-                      <button type="button" className="icon-btn danger" aria-label={`Delete ${controlName(d)}`} title="Delete" onClick={() => handleDeleteControl(d)}>
-                        <TrashIcon />
-                      </button>
+                    <div className="device-sub">
+                      <Dot live={reachable === true} />
+                      <span className="text">
+                        {controlAddress(d)}
+                        {reachable === false ? ", not reachable" : ""}
+                      </span>
                     </div>
                   </div>
-                );
-              }),
-            ];
-          })}
+                  <span className="device-used">{users.length ? `Controls ${users.join(", ")}` : ""}</span>
+                  <RowActions
+                    name={controlName(d)}
+                    onRename={() => setRename({ kind: "control", id: d.id, name: d.alias || "", defaultName: defaultControlName(d) || "" })}
+                    onDelete={() => handleDeleteControl(d)}
+                  />
+                </div>
+              );
+            }),
+          ])}
         </div>
       </section>
     </div>

@@ -110,19 +110,20 @@ carabiner/
 │   ├── mcp-tools.js             # MCP tool/resource/prompt registration
 │   └── updater.js               # GitHub Releases version check
 ├── src/                         # React frontend source (settings panel)
-│   ├── App.js                   # Root component — tab layout
-│   ├── index.js                 # React entry point
-│   └── components/              # One component per settings tab
-│       ├── GeneralSection.js    # App-wide options and the adb / atvremote tool paths
-│       ├── DevicesSection.js    # Video + Control lists: link control, Active per window
-│       ├── devices/             # Choose video / Choose devices dialogs and their pure model
-│       ├── DisplaySection.js    # Per-window appearance (Editing Window selector)
-│       ├── AutomationSection.js # Script recording, playback, and step editing
-│       ├── OverlaySection.js    # Reference image overlay with opacity control
-│       ├── FilesSection.js      # Default save paths for screenshots/recordings
-│       ├── MCPSection.js        # Enable/configure the embedded MCP server
-│       ├── AboutSection.js      # Version info and links
-│       └── select/              # Reusable form controls (capture, resolution, border, shortcut)
+│   ├── App.jsx                   # Root component — tab layout
+│   ├── index.jsx                 # React entry point
+│   └── components/               # One component per settings tab
+│       ├── GeneralSection.jsx    # App-wide options and the adb / atvremote tool paths
+│       ├── VideoSection.jsx      # Video tab: sources, their control link and Active switch
+│       ├── ControlSection.jsx    # Control tab: the control devices you send key presses to
+│       ├── devices/              # Shared state hook, Choose video / Choose devices dialogs, pure model
+│       ├── DisplaySection.jsx    # Per-window appearance (Editing Window selector)
+│       ├── AutomationSection.jsx # Script recording, playback, and step editing
+│       ├── OverlaySection.jsx    # Reference image overlay with opacity control
+│       ├── FilesSection.jsx      # Default save paths for screenshots/recordings
+│       ├── MCPSection.jsx        # Enable/configure the embedded MCP server
+│       ├── AboutSection.jsx      # Version info and links
+│       └── select/               # Reusable form controls (capture, resolution, border, shortcut)
 ├── docs/                        # Documentation (build, usage, setup, MCP, key mappings)
 ├── images/                      # Application icons and images
 ├── build/                       # Built React application (generated)

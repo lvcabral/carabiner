@@ -13,32 +13,23 @@ import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Spinner from "react-bootstrap/Spinner";
 import Alert from "react-bootstrap/Alert";
-import { Dot, TrashIcon, currentTheme } from "./ui";
+import { ConfirmBar, Dot, ExternalLink, IconButton, TrashIcon, currentTheme } from "./ui";
 import {
   CONTROL_TYPES,
   RDK_DEFAULT_PORT,
   addManualDevice,
+  controlAddress,
   controlName,
+  controlsByType,
   controlTypeOf,
   isChosen,
-  userControls,
 } from "./devicesModel";
 
 const { electronAPI } = window;
 
 // Setup notes per device type, as on the old Control tab (the tool paths now live on General).
 function TypeHint({ typeKey, repoUrl }) {
-  const guide = (doc) => (
-    <a
-      href={`#${doc}`}
-      onClick={(e) => {
-        e.preventDefault();
-        electronAPI.openExternal(`${repoUrl}/blob/main/docs/${doc}.md`);
-      }}
-    >
-      Setup Guide ↗
-    </a>
-  );
+  const guide = (doc) => <ExternalLink url={`${repoUrl}/blob/main/docs/${doc}.md`}>Setup Guide ↗</ExternalLink>;
   const note = (children) => (
     <Alert variant="warning" className="mt-2 mb-0 p-1" style={{ fontSize: "0.72rem" }}>
       {children}
@@ -226,11 +217,11 @@ function ChooseControlDialog({
     setRdkTest(r?.success ? "Connected ✓" : `Failed: ${r?.error || "no response"}`);
   };
 
-  const devices = CONTROL_TYPES.flatMap((t) => userControls(deviceList).filter((d) => controlTypeOf(d).key === t.key));
+  const devices = controlsByType(deviceList).flatMap((group) => group.devices);
   const checkedCount = devices.filter(isChosen).length;
 
   const detailFor = (d) => {
-    const addr = d.port ? `${d.ipAddress}:${d.port}` : d.ipAddress;
+    const addr = controlAddress(d);
     if (!scanning && lastFound && !lastFound.has(d.id)) return `${addr}, not found in this scan`;
     return addr;
   };
@@ -381,36 +372,19 @@ function ChooseControlDialog({
                 </label>
                 <span className="type">{controlTypeOf(d).label}</span>
                 <Dot live={online[d.id] === true} />
-                <button
-                  type="button"
-                  className="icon-btn danger ms-1"
-                  aria-label={`Remove ${controlName(d)}`}
-                  title="Remove"
-                  onClick={() => setConfirmId(d.id)}
-                >
+                <IconButton label={`Remove ${controlName(d)}`} title="Remove" danger className="ms-1" onClick={() => setConfirmId(d.id)}>
                   <TrashIcon />
-                </button>
+                </IconButton>
               </div>
               {confirmId === d.id && (
-                <div className="pick-inline align-items-center" role="alert">
-                  <span className="flex-grow-1">
-                    Remove {controlName(d)} from Carabiner? A scan may find it again if it's on your network.
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    autoFocus
-                    onClick={() => {
-                      setConfirmId("");
-                      onRemove(d);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                  <Button size="sm" variant="link" onClick={() => setConfirmId("")}>
-                    Cancel
-                  </Button>
-                </div>
+                <ConfirmBar
+                  message={`Remove ${controlName(d)} from Carabiner? A scan may find it again if it's on your network.`}
+                  onConfirm={() => {
+                    setConfirmId("");
+                    onRemove(d);
+                  }}
+                  onCancel={() => setConfirmId("")}
+                />
               )}
             </div>
           ))}

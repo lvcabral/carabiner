@@ -16,8 +16,7 @@
 //   main -> window: { type: "offer"|"candidate"|"failure"|"closed", ... }
 //   window -> main: `stream-signal-answer` / `stream-signal-candidate` (see main.js)
 const WebSocket = require("ws");
-
-const SIM_DEFAULT_PORT = 8090;
+const { SIM_DEFAULT_PORT, urlHost } = require("./stream-utils");
 const RCE_DEFAULT_API = "https://api.rce.roku.com/api/v1";
 const KEY_REQUEST_TIMEOUT = 4000;
 const API_REQUEST_TIMEOUT = 10000;
@@ -476,8 +475,7 @@ async function sendControlKey(source, key, mod = -1) {
   }
   if (source?.type === "webrtc") {
     // "Same host as stream": plain ECP on the stream URL's host (an IP or a hostname).
-    const host = new URL(source.url).hostname;
-    await postKey(`http://${host}:8060/${command}/${key}`);
+    await postKey(`http://${urlHost(source.url)}:8060/${command}/${key}`);
     return;
   }
   if (source?.type !== "rce") throw new Error("Unsupported stream source type");

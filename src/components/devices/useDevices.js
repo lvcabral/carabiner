@@ -18,16 +18,21 @@ import {
   hostOf,
   isChosen,
   isMissingRce,
+  isValidPort,
   mergeScanResults,
   removeControlDevice,
   renameControl,
   setPairFor,
-  userControls,
+  simulatorKey,
   validateStreamUrl,
   videoEntries,
 } from "./devicesModel";
 
 const { electronAPI } = window;
+
+// The status probes (Cloud Emulator devices, a simulator on this computer, control reachability)
+// run when the settings window is shown, at most this often; the refresh buttons run them anytime.
+const PROBE_INTERVAL = 60 * 1000;
 
 // The control a stream's pair gets when it's created: the stream's built-in control (locked for a
 // Simulator / Cloud Emulator, the "Same host" default for a WebRTC stream URL). None for a card.
@@ -69,24 +74,43 @@ export default function useDevices({
 
   const entries = videoEntries({ captureDevices, streamSources, hiddenCaptureIds });
   const chosenEntries = entries.filter((e) => e.chosen);
-  const chosenControls = userControls(streamingDevices).filter(isChosen);
+  const chosenControls = streamingDevices.filter(isChosen);
   const accountOf = (id) => rceAccounts.find((a) => a.id === id);
   const pairFor = (id) => pairs.find((p) => p.captureDeviceId === id) || null;
   const entryName = (id) => entries.find((e) => e.id === id)?.name || "A source";
 
-  const checkReachability = async (devices) => {
-    if (!devices.length) return {};
-    const result = await electronAPI.invoke("check-control-devices", devices);
-    setOnline((o) => ({ ...o, ...result }));
+  // Checks which `devices` are reachable; `foundIds` (just found by a scan) are online either way.
+  // One state update for the whole result.
+  const checkReachability = async (devices, foundIds = []) => {
+    const result = devices.length ? await electronAPI.invoke("check-control-devices", devices) : {};
+    const found = Object.fromEntries([...foundIds].map((id) => [id, true]));
+    setOnline((o) => ({ ...o, ...result, ...found }));
     return result;
   };
 
+  // The settings window is loaded hidden at launch, so probing on mount would do network work the
+  // user may never look at, and show stale status when the window is opened later.
+  const lastProbe = useRef(0);
   useEffect(() => {
-    electronAPI.invoke("load-settings").then((settings) => {
+    const settingsLoaded = electronAPI.invoke("load-settings").then((settings) => {
       setHiddenCaptureIds(settings.video?.hiddenCaptureIds || []);
-      checkReachability(userControls(settings.control?.deviceList || []).filter(isChosen));
     });
+    const probe = async () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastProbe.current < PROBE_INTERVAL) return;
+      lastProbe.current = Date.now();
+      electronAPI.invoke("detect-simulator");
+      electronAPI.invoke("rce-refresh-accounts");
+      // App's own load-settings (sent before ours) has filled the control catalog by then.
+      await settingsLoaded;
+      checkReachability(latest.current.streamingDevices.filter(isChosen));
+    };
+    probe();
+    document.addEventListener("visibilitychange", probe);
+    return () => document.removeEventListener("visibilitychange", probe);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  useEffect(() => {
     // Enumerate capture devices here so the list works even when no Display window is open.
     // Labels are only exposed after a getUserMedia grant, so unlock them once if missing.
     const enumerate = async () => {
@@ -114,8 +138,6 @@ export default function useDevices({
     enumerate();
     navigator.mediaDevices.addEventListener("devicechange", enumerate);
 
-    // "Settings…" in the menus opens the first tab (General).
-    electronAPI.onMessageReceived("open-display-tab", () => document.getElementById("settings-tabs-tab-display")?.click());
     // Tray "capture device" submenu makes that device's window visible.
     // (Also how MCP select_capture_device activates a source, so a new pair gets its stream's
     // built-in control just like the Active switch.)
@@ -126,13 +148,8 @@ export default function useDevices({
       onPairsChange?.(setPairFor(current, deviceId, { visible: true }, opts));
     });
 
-    // Find a simulator running on this computer and refresh Cloud Emulator device status.
-    electronAPI.invoke("detect-simulator");
-    electronAPI.invoke("rce-refresh-accounts");
-
     return () => {
       navigator.mediaDevices.removeEventListener("devicechange", enumerate);
-      electronAPI.removeListener("open-display-tab");
       electronAPI.removeListener("update-capture-device");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,6 +158,7 @@ export default function useDevices({
   // Refresh what can change behind our back: Cloud Emulator devices and their running status,
   // a simulator started on this computer, and whether control devices are reachable.
   const handleRefresh = async () => {
+    lastProbe.current = Date.now();
     setRefreshing(true);
     const [rce] = await Promise.all([
       electronAPI.invoke("rce-refresh-accounts"),
@@ -227,9 +245,8 @@ export default function useDevices({
 
   // Returns an error message for a simulator address, or null when it is valid.
   const simulatorProblem = (host, port) => {
-    const n = Number(port);
     if (!host) return "Enter the simulator's host name or IP address.";
-    if (!Number.isInteger(n) || n < 1 || n > 65535) return "The port has to be 1–65535.";
+    if (!isValidPort(port)) return "The port has to be 1–65535.";
     return null;
   };
 
@@ -243,39 +260,21 @@ export default function useDevices({
     return { ok: true, message: "Connected" };
   };
 
-  // Simulators being added (probe in flight), so Enter + Add can't add the same one twice.
-  const addingSimulators = useRef(new Set());
+  // Main drops any duplicate simulator that still gets through (e.g. Enter then Add while the
+  // probe runs, or one detected meanwhile); this check is for the error message.
   const handleAddSimulator = async ({ host, port, name }, setError) => {
     const problem = simulatorProblem(host, port);
     if (problem) {
       setError(problem);
       return null;
     }
-    const n = Number(port);
-    const key = `${host}:${n}`;
-    const isKnown = () =>
-      latest.current.streamSources.some((s) => s.type === "sim" && s.host === host && Number(s.port) === n);
-    if (addingSimulators.current.has(key)) return null;
-    if (isKnown()) {
+    const src = { id: `sim-${Date.now().toString(36)}`, type: "sim", name: name || `Simulator at ${host}`, host, port: Number(port) };
+    if (latest.current.streamSources.some((s) => s.type === "sim" && simulatorKey(s) === simulatorKey(src))) {
       setError("That simulator is already in the list.");
       return null;
     }
-    addingSimulators.current.add(key);
-    try {
-      return await addSimulator({ host, n, name }, setError, isKnown);
-    } finally {
-      addingSimulators.current.delete(key);
-    }
-  };
-  const addSimulator = async ({ host, n, name }, setError, isKnown) => {
-    const src = { id: `sim-${Date.now().toString(36)}`, type: "sim", name: name || `Simulator at ${host}`, host, port: n };
     // The simulator's ECP port is reported by its remote screen; fall back to the default.
     const probe = await electronAPI.invoke("test-stream-source", src).catch(() => null);
-    // Added meanwhile (e.g. detected on this computer while the probe ran)?
-    if (isKnown()) {
-      setError("That simulator is already in the list.");
-      return null;
-    }
     if (probe?.ok && probe.config?.ecpPort) src.ecpPort = Number(probe.config.ecpPort);
     if (!probe?.ok) toast("The simulator could not be reached; the default ECP port 8060 is assumed.");
     else if (probe.config?.ecpEnabled === false) toast("ECP is disabled in the simulator, so keys won't work until you enable it.");
@@ -315,12 +314,16 @@ export default function useDevices({
     return res.affected;
   };
 
-  // Check or uncheck one control device. Unchecking unlinks the sources it controlled.
-  const setControlChosen = (id, on) => {
+  // Make `chosen` (ids) the chosen control devices. Unchecking unlinks the sources they controlled.
+  const selectControls = (chosen) => {
     const { streamingDevices: list, pairs: current } = latest.current;
-    const chosen = new Set(userControls(list).filter(isChosen).map((d) => d.id));
-    on ? chosen.add(id) : chosen.delete(id);
     return commitControls(applyControlSelection(list, chosen, current));
+  };
+  // Check or uncheck one control device.
+  const setControlChosen = (id, on) => {
+    const chosen = new Set(latest.current.streamingDevices.filter(isChosen).map((d) => d.id));
+    on ? chosen.add(id) : chosen.delete(id);
+    return selectControls(chosen);
   };
 
   const handleToggleControl = (id, on) => {
@@ -330,9 +333,7 @@ export default function useDevices({
 
   // "Select all" in Choose control devices: one update for the whole list.
   const handleSetAllControls = (on) => {
-    const { streamingDevices: list, pairs: current } = latest.current;
-    const chosen = new Set(on ? userControls(list).map((d) => d.id) : []);
-    const affected = commitControls(applyControlSelection(list, chosen, current));
+    const affected = selectControls(new Set(on ? latest.current.streamingDevices.map((d) => d.id) : []));
     if (affected.length) toast(noControlMessage(affected));
   };
 
@@ -368,10 +369,9 @@ export default function useDevices({
     if (merged.deviceList.length !== before.length || merged.deviceList.some((d, i) => d !== before[i])) {
       onUpdateStreamingDevices(merged.deviceList);
     }
-    const reach = await checkReachability(userControls(merged.deviceList));
+    const reach = await checkReachability(merged.deviceList, merged.foundIds);
     const found = new Set(merged.foundIds);
     Object.entries(reach).forEach(([id, ok]) => ok && found.add(id));
-    merged.foundIds.forEach((id) => setOnline((o) => ({ ...o, [id]: true })));
     if (merged.addedCount) toast(`Found ${merged.addedCount} new device${merged.addedCount > 1 ? "s" : ""}.`);
     return { found, error };
   };
@@ -394,7 +394,6 @@ export default function useDevices({
     // data
     pairs,
     streamingDevices,
-    streamSources,
     rceAccounts,
     singleWindowMode,
     entries,

@@ -9,6 +9,9 @@
  *--------------------------------------------------------------------------------------------*/
 // Pure state helpers for the Video and Control tabs: no React, no IPC, so they are unit tested directly.
 //
+// The catalog here never holds stream sources' built-in controls (`managedBy`): App drops them
+// on the way in with userControls(), and main keeps them whatever list it's sent back.
+//
 // Settings compatibility: "chosen" is stored as an optional `chosen: false` on stream sources and
 // control devices (absent = chosen) plus `settings.video.hiddenCaptureIds` for capture cards, so
 // settings from older builds show everything, as they did before.
@@ -37,13 +40,24 @@ export const controlTypeOf = (device) =>
   CONTROL_TYPES.find((t) => t.proto === protoOf(device)) ||
   CONTROL_TYPES[0];
 
-// Stream sources' built-in controls live in the same catalog but are never shown as devices.
+// Stream sources' built-in controls share main's catalog but are never shown as devices, so App
+// drops them once when the catalog arrives (main re-adds them to any list it's sent).
 export const userControls = (deviceList = []) => deviceList.filter((d) => !d.managedBy);
+
+// Address shown for a device: "<ip>", or "<ip>:<port>" for an RDK box.
+export const controlAddress = (device) => (device.port ? `${device.ipAddress}:${device.port}` : device.ipAddress);
+
+// The devices of `list` grouped by type, in CONTROL_TYPES order, empty types left out:
+// [{ type, devices }].
+export const controlsByType = (list) =>
+  CONTROL_TYPES.map((type) => ({ type, devices: list.filter((d) => controlTypeOf(d).key === type.key) })).filter(
+    (group) => group.devices.length > 0,
+  );
 
 // The same protocol at the same address is the same device, whether it was scanned or typed in
 // (an RDK box also needs its port, since that is part of its id). The protocol is part of the key
 // because an address can change hands: a Roku found at an IP a Fire TV used to have is a new device.
-export const addressKey = (device) => {
+const addressKey = (device) => {
   const proto = protoOf(device);
   const ip = String(device?.ipAddress || "").trim().toLowerCase();
   return `${proto}:${proto === "rdk" ? `${ip}:${Number(device.port) || RDK_DEFAULT_PORT}` : ip}`;
@@ -54,7 +68,7 @@ export const controlName = (device) => device?.alias || `${controlTypeOf(device)
 const IPV4 = /^(25[0-5]|2[0-4]\d|[01]?\d?\d)(\.(25[0-5]|2[0-4]\d|[01]?\d?\d)){3}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAC = /^([0-9a-f]{2}[:-]){5}[0-9a-f]{2}$/i;
-const isValidPort = (value) => {
+export const isValidPort = (value) => {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 && n <= 65535;
 };
@@ -76,7 +90,7 @@ export function addManualDevice(deviceList, { typeKey, address, name = "", port,
   if (type.proto === "rdk" && !isValidPort(rdkPort)) return { error: "The port has to be 1–65535." };
 
   const candidate = { id: `${addr}|${type.proto}`, ipAddress: addr, ...(rdkPort ? { port: rdkPort } : {}) };
-  const duplicate = userControls(deviceList).find((d) => addressKey(d) === addressKey(candidate));
+  const duplicate = deviceList.find((d) => addressKey(d) === addressKey(candidate));
   if (duplicate) return { duplicate };
 
   const device = {
@@ -106,7 +120,7 @@ export const isSimulatorName = (name) => String(name || "").trim().toLowerCase()
 // that was never renamed follows the name it reports. BrightScript Simulators are skipped, and
 // entries an earlier scan saved for one are dropped. Returns { deviceList, foundIds, addedCount }.
 export function mergeScanResults(deviceList, found = []) {
-  let list = deviceList.filter((d) => d.managedBy || !isSimulatorName(d.deviceName));
+  let list = deviceList.filter((d) => !isSimulatorName(d.deviceName));
   const foundIds = new Set();
   let addedCount = 0;
   for (const hit of found) {
@@ -114,7 +128,7 @@ export function mergeScanResults(deviceList, found = []) {
     if (!ip || isSimulatorName(hit.name)) continue;
     // Roku discovery only finds Rokus, so only an ECP entry at that address can be the same device.
     const key = addressKey({ id: `${ip}|ecp`, ipAddress: ip });
-    const idx = list.findIndex((d) => !d.managedBy && addressKey(d) === key);
+    const idx = list.findIndex((d) => addressKey(d) === key);
     if (idx >= 0) {
       const existing = list[idx];
       if (hit.name && existing.deviceName !== hit.name) {
@@ -155,14 +169,20 @@ export function removeControlDevice(deviceList, id, pairs) {
 // Make `chosenIds` the chosen control devices; pairs linked to a device that is no longer chosen
 // are reset to no control.
 export function applyControlSelection(deviceList, chosenIds, pairs) {
-  const next = deviceList.map((d) => (d.managedBy ? d : setChosen(d, chosenIds.has(d.id))));
-  const unchosen = next.filter((d) => !d.managedBy && !isChosen(d)).map((d) => d.id);
+  const next = deviceList.map((d) => setChosen(d, chosenIds.has(d.id)));
+  const unchosen = next.filter((d) => !isChosen(d)).map((d) => d.id);
   return { deviceList: next, ...resetPairingsFor(pairs, unchosen) };
 }
 
 // ----- video sources -----------------------------------------------------------------------
 
-export const STREAM_KIND = { sim: "simulator", rce: "rce", webrtc: "webrtc" };
+const STREAM_KIND = { sim: "simulator", rce: "rce", webrtc: "webrtc" };
+
+export const isLocalHost = (host) => ["localhost", "127.0.0.1"].includes(String(host || "").toLowerCase());
+// One key per simulator address (localhost and 127.0.0.1 are one host). Same rule as main's
+// simulatorKey in public/stream-utils.js, which drops any duplicate that gets through.
+export const simulatorKey = ({ host, port }) =>
+  `${isLocalHost(host) ? "localhost" : String(host || "").toLowerCase()}:${Number(port) || 8090}`;
 
 // A Cloud Emulator device no longer on its account's listing is kept with this status (so its
 // window settings survive) until the user removes it. Same value as RCE_MISSING in

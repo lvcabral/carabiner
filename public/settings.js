@@ -10,7 +10,8 @@
 const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
-const { isStreamDeviceId, streamDeviceId } = require("./stream-utils");
+const { isStreamDeviceId, streamDeviceId, publicSource } = require("./stream-utils");
+const { publicAccount } = require("./rce-accounts");
 
 // Resolved on use (not at import), so the pure helpers below can be unit tested without Electron.
 const settingsFilePath = () => path.join(app.getPath("userData"), "settings.json");
@@ -28,8 +29,13 @@ function saveSettings(settings) {
   fs.writeFileSync(settingsFilePath(), JSON.stringify(settings, null, 2));
 }
 
+// Unique-enough id with a readable prefix ("pair-…", "rce-…", "acct-…").
+function newId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
 function newPairId() {
-  return `pair-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return newId("pair");
 }
 
 // Build a pair object, filling any missing fields with sensible defaults so the
@@ -181,10 +187,8 @@ function loadSettings() {
 function redactSettings(settings) {
   const snap = JSON.parse(JSON.stringify(settings));
   if (snap.mcp?.token) snap.mcp.token = "***";
-  if (Array.isArray(snap.streams?.sources)) {
-    snap.streams.sources = snap.streams.sources.map(({ token, ...src }) => ({ ...src, hasToken: !!token }));
-  }
-  if (Array.isArray(snap.rce?.accounts)) snap.rce.accounts = snap.rce.accounts.map(({ token, ...account }) => account);
+  if (Array.isArray(snap.streams?.sources)) snap.streams.sources = snap.streams.sources.map(publicSource);
+  if (Array.isArray(snap.rce?.accounts)) snap.rce.accounts = snap.rce.accounts.map(publicAccount);
   if (Array.isArray(snap.control?.deviceList)) {
     snap.control.deviceList = snap.control.deviceList.map((d) => (d.token ? { ...d, token: "***" } : d));
   }
@@ -192,6 +196,7 @@ function redactSettings(settings) {
 }
 
 module.exports = {
+  newId,
   redactSettings,
   saveSettings,
   loadSettings,

@@ -9,11 +9,18 @@
  *--------------------------------------------------------------------------------------------*/
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
-import Spinner from "react-bootstrap/Spinner";
-import { Dot, PencilIcon, RefreshIcon, SourceIcon, TrashIcon } from "./devices/ui";
-import { CONTROL_TYPES, controlName, controlTypeOf, controlValueOf, hostOf, rceStatusText } from "./devices/devicesModel";
+import { Dot, RefreshButton, RowActions, SourceIcon } from "./devices/ui";
+import { hasLockedControl } from "./pairLabel";
+import {
+  controlAddress,
+  controlName,
+  controlsByType,
+  controlValueOf,
+  hostOf,
+  isLocalHost,
+  rceStatusText,
+} from "./devices/devicesModel";
 
-const isLocalHost = (host) => ["localhost", "127.0.0.1"].includes(host);
 
 // Why a Cloud Emulator / Simulator source needs no separate control device.
 const streamControlNote = (entry) =>
@@ -71,7 +78,7 @@ function VideoSection({ devices }) {
 
 
   const controlCell = (entry) => {
-    if (entry.kind === "rce" || entry.kind === "simulator") {
+    if (entry.source && hasLockedControl(entry.source.type)) {
       return (
         <span className="text-muted" title={streamControlNote(entry)}>
           Included with the stream
@@ -87,18 +94,15 @@ function VideoSection({ devices }) {
         <option value="viewer" disabled>
           Switch in viewer (coming soon)
         </option>
-        {CONTROL_TYPES.map((t) => {
-          const list = chosenControls.filter((d) => controlTypeOf(d).key === t.key);
-          return list.length ? (
-            <optgroup key={t.key} label={t.label}>
-              {list.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {controlName(d)} ({d.port ? `${d.ipAddress}:${d.port}` : d.ipAddress})
-                </option>
-              ))}
-            </optgroup>
-          ) : null;
-        })}
+        {controlsByType(chosenControls).map(({ type, devices }) => (
+          <optgroup key={type.key} label={type.label}>
+            {devices.map((d) => (
+              <option key={d.id} value={d.id}>
+                {controlName(d)} ({controlAddress(d)})
+              </option>
+            ))}
+          </optgroup>
+        ))}
         <optgroup label="More">
           <option value="__detect" disabled>
             Find which device this is… (coming soon)
@@ -128,16 +132,11 @@ function VideoSection({ devices }) {
             style={{ fontSize: "0.78rem" }}
             title="Show each active source in its own window. When off, turning one on turns the others off."
           />
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-label="Refresh device status"
+          <RefreshButton
             title="Refresh Cloud Emulator devices, status and reachability"
-          >
-            {refreshing ? <Spinner animation="border" size="sm" /> : <RefreshIcon />}
-          </button>
+            refreshing={refreshing}
+            onClick={handleRefresh}
+          />
           <Button size="sm" variant="primary" onClick={() => setShowVideo(true)}>
             Choose video
           </Button>
@@ -166,16 +165,15 @@ function VideoSection({ devices }) {
                   onChange={(e) => handleActive(entry, e.target.checked)}
                   className="mb-0"
                 />
-                <div className="device-actions">
-                  {entry.kind !== "capture" && (
-                    <button type="button" className="icon-btn" aria-label={`Rename ${entry.name}`} title="Rename" onClick={() => setRename({ kind: "stream", id: entry.id, name: entry.name, defaultName: entry.source?.deviceName || "" })}>
-                      <PencilIcon />
-                    </button>
-                  )}
-                  <button type="button" className="icon-btn danger" aria-label={`Delete ${entry.name}`} title="Delete" onClick={() => handleDeleteVideo(entry)}>
-                    <TrashIcon />
-                  </button>
-                </div>
+                <RowActions
+                  name={entry.name}
+                  onRename={
+                    entry.kind !== "capture"
+                      ? () => setRename({ kind: "stream", id: entry.id, name: entry.name, defaultName: entry.source?.deviceName || "" })
+                      : undefined
+                  }
+                  onDelete={() => handleDeleteVideo(entry)}
+                />
               </div>
             );
           })}

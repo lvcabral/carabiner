@@ -12,26 +12,21 @@ import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Spinner from "react-bootstrap/Spinner";
-import { Dot, ExternalLink, PencilIcon, RefreshIcon, SourceIcon, TrashIcon, currentTheme } from "./ui";
-import { isMissingRce, rceStatusText } from "./devicesModel";
+import {
+  ConfirmBar,
+  Dot,
+  ExternalLink,
+  IconButton,
+  PencilIcon,
+  RefreshButton,
+  SourceIcon,
+  TrashIcon,
+  currentTheme,
+} from "./ui";
+import { isLocalHost, isMissingRce, rceStatusText } from "./devicesModel";
 
 const RCE_DOCS_URL = "https://developer.roku.com/dev/docs/rce";
 const SIMULATOR_RELEASES_URL = "https://github.com/lvcabral/brs-desktop/releases";
-
-// Inline "are you sure" bar, used inside the dialog (Bootstrap 5.1 can't stack a second modal).
-function ConfirmBar({ message, onConfirm, onCancel }) {
-  return (
-    <div className="pick-inline align-items-center" role="alert">
-      <span className="flex-grow-1">{message}</span>
-      <Button size="sm" variant="danger" onClick={onConfirm} autoFocus>
-        Remove
-      </Button>
-      <Button size="sm" variant="link" onClick={onCancel}>
-        Cancel
-      </Button>
-    </div>
-  );
-}
 
 // Inline rename for a Cloud Emulator account (the dialog can't open a second modal either).
 // Enter saves, Escape cancels without closing the dialog. onSave resolves to { ok, message? }.
@@ -95,9 +90,9 @@ function PickRow({ entry, checked, onToggle, detail, live, onRemove, confirming,
         </label>
         {live !== undefined && <Dot live={live} />}
         {onRemove && (
-          <button type="button" className="icon-btn danger ms-1" aria-label={`Remove ${entry.name}`} title="Remove" onClick={() => onRemove(entry)}>
+          <IconButton label={`Remove ${entry.name}`} title="Remove" danger className="ms-1" onClick={() => onRemove(entry)}>
             <TrashIcon />
-          </button>
+          </IconButton>
         )}
       </div>
       {confirming && (
@@ -253,7 +248,7 @@ function ChooseVideoDialog({
   const streams = entries.filter((e) => e.kind === "webrtc");
 
   const simulatorDetail = (e) =>
-    ["localhost", "127.0.0.1"].includes(e.source.host) ? "On this computer" : `${e.source.host}:${e.source.port}`;
+    isLocalHost(e.source.host) ? "On this computer" : `${e.source.host}:${e.source.port}`;
 
   const handleAddAccount = async () => {
     if (loadingAcct) return; // Enter pressed again while adding
@@ -360,42 +355,35 @@ function ChooseVideoDialog({
               metaTitle={`Roku Cloud Emulator account${account.tail ? `, token ending ${account.tail}` : ""}`}
               actions={
                 <>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    disabled={refreshing === account.id}
-                    onClick={() => handleRefresh(account)}
-                    aria-label={`Refresh ${account.label}`}
+                  <RefreshButton
+                    label={`Refresh ${account.label}`}
                     title="Refresh devices and status"
-                  >
-                    {refreshing === account.id ? <Spinner animation="border" size="sm" /> : <RefreshIcon />}
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
+                    refreshing={refreshing === account.id}
+                    onClick={() => handleRefresh(account)}
+                  />
+                  <IconButton
+                    label={`Rename ${account.label}`}
+                    title="Rename"
                     onClick={() => {
                       if (collapsed.has(account.id)) toggleGroup(account.id);
                       setConfirmId("");
                       setRenamingId(account.id);
                     }}
-                    aria-label={`Rename ${account.label}`}
-                    title="Rename"
                   >
                     <PencilIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn danger"
+                  </IconButton>
+                  <IconButton
+                    label={`Remove ${account.label}`}
+                    title="Remove account"
+                    danger
                     onClick={() => {
                       if (collapsed.has(account.id)) toggleGroup(account.id);
                       setRenamingId("");
                       setConfirmId(account.id);
                     }}
-                    aria-label={`Remove ${account.label}`}
-                    title="Remove account"
                   >
                     <TrashIcon />
-                  </button>
+                  </IconButton>
                 </>
               }
             >

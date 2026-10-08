@@ -8,6 +8,8 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { useCallback, useEffect, useRef, useState } from "react";
+import Button from "react-bootstrap/Button";
+import Spinner from "react-bootstrap/Spinner";
 
 export function TrashIcon() {
   return (
@@ -30,6 +32,62 @@ export function RefreshIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
     </svg>
+  );
+}
+
+// Small icon-only button (refresh / rename / remove) used on the tabs and in the dialogs.
+// `label` is its accessible name; `title` its tooltip.
+export function IconButton({ label, title, onClick, danger = false, disabled = false, className = "", children }) {
+  return (
+    <button
+      type="button"
+      className={`icon-btn${danger ? " danger" : ""}${className ? ` ${className}` : ""}`}
+      aria-label={label}
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function RefreshButton({ label = "Refresh device status", title, refreshing, onClick }) {
+  return (
+    <IconButton label={label} title={title} onClick={onClick} disabled={refreshing}>
+      {refreshing ? <Spinner animation="border" size="sm" /> : <RefreshIcon />}
+    </IconButton>
+  );
+}
+
+// Rename (when `onRename` is given) and Delete buttons at the end of a Video / Control row.
+export function RowActions({ name, onRename, onDelete }) {
+  return (
+    <div className="device-actions">
+      {onRename && (
+        <IconButton label={`Rename ${name}`} title="Rename" onClick={onRename}>
+          <PencilIcon />
+        </IconButton>
+      )}
+      <IconButton label={`Delete ${name}`} title="Delete" danger onClick={onDelete}>
+        <TrashIcon />
+      </IconButton>
+    </div>
+  );
+}
+
+// Inline "are you sure" bar, used inside the dialogs (Bootstrap 5.1 can't stack a second modal).
+export function ConfirmBar({ message, onConfirm, onCancel }) {
+  return (
+    <div className="pick-inline align-items-center" role="alert">
+      <span className="flex-grow-1">{message}</span>
+      <Button size="sm" variant="danger" onClick={onConfirm} autoFocus>
+        Remove
+      </Button>
+      <Button size="sm" variant="link" onClick={onCancel}>
+        Cancel
+      </Button>
+    </div>
   );
 }
 
