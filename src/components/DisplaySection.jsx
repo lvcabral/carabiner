@@ -17,7 +17,6 @@ import Alert from "react-bootstrap/Alert";
 import SelectBorderWidth from "./select/BorderWidth";
 import SelectBorderStyle from "./select/BorderStyle";
 import SelectResolution, { resolutionOptions } from "./select/Resolution";
-import { notifyCaptureChange } from "./GeneralSection";
 
 const { electronAPI } = window;
 
@@ -50,6 +49,30 @@ const getPredefinedSizes = (maxWidth, maxHeight) => {
       return `${width}x${height}`;
     });
 };
+
+// Start/refresh the capture stream for a specific pair's Display window (when its capture
+// resolution changes).
+function notifyCaptureChange({
+  pairId,
+  deviceId,
+  captureWidth,
+  captureHeight,
+  showDisplayWindow = false,
+}) {
+  const constraints = {
+    video: {
+      deviceId: { exact: deviceId },
+      width: captureWidth || 1280,
+      height: captureHeight || 720,
+    },
+    showDisplayWindow,
+  };
+  electronAPI.sendSync("shared-window-channel", {
+    type: "set-video-stream",
+    payload: constraints,
+    pairId,
+  });
+}
 
 function DisplaySection({
   pairs = [],
@@ -158,7 +181,7 @@ function DisplaySection({
         const predefinedSizes = getPredefinedSizes(size.width, size.height);
         setDisplaySize(predefinedSizes.includes(windowSize) ? windowSize : "custom");
       } else if (message.type === "set-capture-devices") {
-        // The General tab enumerates capture devices and broadcasts them; use the list
+        // The Video tab (useDevices) enumerates capture devices and broadcasts them; use the list
         // here to label the "Editing Window" selector with friendly device names.
         let devices = [];
         if (Array.isArray(message.payload)) devices = message.payload;

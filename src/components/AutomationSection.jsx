@@ -288,7 +288,7 @@ function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [
           style={{ fontSize: "0.8rem" }}
         >
           {visiblePairs.length === 0 ? (
-            <option value="">No window enabled — enable a device in the General tab</option>
+            <option value="">No window enabled — make a video source active on the Video tab</option>
           ) : (
             visiblePairs.map((pair) => (
               <option key={pair.id} value={pair.id}>
@@ -299,7 +299,7 @@ function AutomationSection({ pairs = [], activePairId = "", streamingDevices = [
         </Form.Control>
         {visiblePairs.length > 0 && !hasControl && (
           <div className="text-warning mt-1" style={{ fontSize: "0.75rem" }}>
-            No control device linked to this window — link one in the General tab to record or run
+            No control device linked to this window — link one on the Video tab to record or run
             scripts.
           </div>
         )}

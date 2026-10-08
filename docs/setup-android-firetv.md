@@ -57,10 +57,10 @@ adb devices   # should list your device as "connected"
 
 ## 4. Configure Carabiner
 
-1. Open the **Control** tab in Carabiner settings.
+1. Open the **General** tab in Carabiner settings.
 2. Click **…** next to **ADB Tool Path** and select your `adb` binary.
-3. Enter the device's IP address and choose **Fire TV** or **Google TV**.
-4. Click **+** to add the device.
+3. On the **Control** tab, click **Choose devices** → **Add by hand**, choose **Fire TV** or **Google TV** and enter the device's IP address.
+4. Click **Add** to add the device.
 
 ---
 

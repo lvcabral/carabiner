@@ -7,36 +7,50 @@
  *
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
 import logo from "./carabiner-icon.png";
 
 import Tabs from "react-bootstrap/Tabs";
 import Tab from "react-bootstrap/Tab";
 
+import VideoSection from "./components/VideoSection";
+import ControlSection from "./components/ControlSection";
+import DevicesDialogs from "./components/devices/DevicesDialogs";
+import useDevices from "./components/devices/useDevices";
+import { userControls } from "./components/devices/devicesModel";
 import GeneralSection from "./components/GeneralSection";
 import DisplaySection from "./components/DisplaySection";
-import ControlSection from "./components/ControlSection";
 import OverlaySection from "./components/OverlaySection";
 import FilesSection from "./components/FilesSection";
 import AboutSection from "./components/AboutSection";
 import AutomationSection from "./components/AutomationSection";
 import MCPSection from "./components/MCPSection";
-import StreamsSection from "./components/StreamsSection";
 
 const { electronAPI } = window;
 
 function App() {
   const [streamingDevices, setStreamingDevices] = useState([]);
   const [streamSources, setStreamSources] = useState([]);
+  const [rceAccounts, setRceAccounts] = useState([]);
   const [pairs, setPairs] = useState([]);
   const [activePairId, setActivePairId] = useState("");
-  const onDeletedDeviceRef = useRef(null);
+  const [singleWindowMode, setSingleWindowMode] = useState(true);
 
   useEffect(() => {
+    // "Settings…" in the menus opens the first tab (General).
+    electronAPI.onMessageReceived("open-display-tab", () => document.getElementById("settings-tabs-tab-display")?.click());
+    electronAPI.onMessageReceived("rce-accounts-updated", (event, accounts) => {
+      if (Array.isArray(accounts)) setRceAccounts(accounts);
+    });
+    electronAPI.onMessageReceived("single-window-mode-changed", (event, single) => {
+      setSingleWindowMode(!!single);
+    });
+    // The settings UI only works with the user's control devices; stream sources' built-in
+    // controls stay in main (which keeps them whatever list it's sent).
     electronAPI.onMessageReceived("update-control-device", (event, data) => {
       if (data?.deviceList) {
-        setStreamingDevices(data.deviceList);
+        setStreamingDevices(userControls(data.deviceList));
       }
     });
     electronAPI.onMessageReceived("stream-sources-updated", (event, sources) => {
@@ -60,10 +74,16 @@ function App() {
     // Load initial settings from main process
     electronAPI.invoke("load-settings").then((settings) => {
       if (settings.control && settings.control.deviceList) {
-        handleUpdateStreamingDevices(settings.control.deviceList);
+        handleUpdateStreamingDevices(userControls(settings.control.deviceList));
       }
       if (Array.isArray(settings.streams?.sources)) {
         setStreamSources(settings.streams.sources);
+      }
+      if (Array.isArray(settings.rce?.accounts)) {
+        setRceAccounts(settings.rce.accounts);
+      }
+      if (settings.display?.singleWindowMode !== undefined) {
+        setSingleWindowMode(settings.display.singleWindowMode);
       }
       if (Array.isArray(settings.pairs)) {
         setPairs(settings.pairs);
@@ -103,10 +123,10 @@ function App() {
     });
   };
 
-  const handleDeletedDevice = (deviceId) => {
-    if (onDeletedDeviceRef.current) {
-      onDeletedDeviceRef.current(deviceId);
-    }
+  // Main collapses to the active window and rebuilds menus, then echoes pairs-updated.
+  const handleSingleWindowModeChange = (single) => {
+    setSingleWindowMode(single);
+    electronAPI.send("set-single-window-mode", single);
   };
 
   // Persist the full pairs array to the main process, which reconciles the live
@@ -115,6 +135,19 @@ function App() {
     setPairs(newPairs);
     electronAPI.send("set-pairs", newPairs);
   };
+
+  // Shared by the Video and Control tabs and their dialogs (one instance, see useDevices).
+  const devices = useDevices({
+    pairs,
+    onPairsChange: handlePairsChange,
+    streamingDevices,
+    onUpdateStreamingDevices: handleUpdateStreamingDevices,
+    streamSources,
+    onUpdateStreamSources: handleUpdateStreamSources,
+    rceAccounts,
+    singleWindowMode,
+    onSingleWindowModeChange: handleSingleWindowModeChange,
+  });
 
   return (
     <div className="p-3 custom-container">
@@ -126,13 +159,17 @@ function App() {
         <Tabs defaultActiveKey="display" id="settings-tabs" className="custom-tabs">
           <Tab eventKey="display" title="General">
             <div className="tab-content-container">
-              <GeneralSection
-                streamingDevices={streamingDevices}
-                onDeletedDeviceRef={onDeletedDeviceRef}
-                pairs={pairs}
-                onPairsChange={handlePairsChange}
-                streamSources={streamSources}
-              />
+              <GeneralSection />
+            </div>
+          </Tab>
+          <Tab eventKey="video" title="Video">
+            <div className="tab-content-container">
+              <VideoSection devices={devices} />
+            </div>
+          </Tab>
+          <Tab eventKey="control" title="Control">
+            <div className="tab-content-container">
+              <ControlSection devices={devices} />
             </div>
           </Tab>
           <Tab eventKey="border" title="Display">
@@ -143,20 +180,6 @@ function App() {
                 onPairsChange={handlePairsChange}
                 streamingDevices={streamingDevices}
                 streamSources={streamSources}
-              />
-            </div>
-          </Tab>
-          <Tab eventKey="streams" title="Streams">
-            <div className="tab-content-container">
-              <StreamsSection sources={streamSources} onUpdateSources={handleUpdateStreamSources} />
-            </div>
-          </Tab>
-          <Tab eventKey="control" title="Control">
-            <div className="tab-content-container">
-              <ControlSection
-                streamingDevices={streamingDevices}
-                onUpdateStreamingDevices={handleUpdateStreamingDevices}
-                onDeletedDevice={handleDeletedDevice}
               />
             </div>
           </Tab>
@@ -197,6 +220,7 @@ function App() {
             </div>
           </Tab>
         </Tabs>
+        <DevicesDialogs devices={devices} />
       </div>
     </div>
   );

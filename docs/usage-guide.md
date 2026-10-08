@@ -6,22 +6,22 @@ This guide will help you get started with Carabiner and make the most of its fea
 
 After installing Carabiner, launch the application to access the settings window. Configure your preferences in the various tabs, then minimize or close the settings window to start using the floating display window(s). Carabiner runs as a **single instance** — launching it again brings the running instance forward (the active window, or the settings window when none is enabled).
 
-Carabiner supports **multiple video sources at once**: each capture card or WebRTC stream you enable opens its own floating Display window, linked to its own streaming device. If no capture device is enabled (or none is connected), the settings window always opens at launch so you can configure one.
+Carabiner can show **one video source or several at once**: each capture card or WebRTC stream you make active gets a floating Display window, linked to its own streaming device (one window at a time by default; see [Link Control and Activate](#3-link-control-and-activate)). If no video source is active (or none is connected), the settings window always opens at launch so you can configure one.
 
 ## Device Setup
 
-### 1. Add Streaming Devices First
+Devices are set up on two tabs: **Video** (what you watch) and **Control** (what you send remote presses to). Each tab has a checklist dialog — **Choose video** and **Choose devices** — where Carabiner shows what it found and you check what you want. Changes apply right away; close the dialog with **Done**.
 
-1. Navigate to the **Control** tab
-2. Select the device **Type** from the dropdown — the fields below adapt to the type you pick:
-   - **Roku (ECP)**, **Fire TV (ADB)**, **Google TV (ADB)**, **Apple TV (atvremote)**, or **Xumo (RDK)** *(experimental)*
-3. Enter the device details:
-   - **IP Address / Device ID**: IP for Roku, Fire TV, Google TV, and Xumo; UUID or MAC address for Apple TV
-   - **Alias**: A friendly name for the device
-   - For **Roku (ECP)** you can click the **🔍 search** button next to the IP field to discover devices automatically
-   - For **Xumo (RDK)** also set the **RDK JSON-RPC** port (default `9998`) and an optional auth **token**; use the **Test** button to verify the connection
-4. Click **+** to register the device
-5. To change a device's name later, select it in the *Streaming Device List*, click **✎** (Rename) and enter the new alias; **⌫** deletes it
+### 1. Choose Control Devices
+
+1. On the **Control** tab, click **Choose devices**. Each time it opens, Carabiner scans your network for Roku devices and checks which known devices are reachable (green dot). BrightScript Simulators also answer the scan but are left out: their control comes with their video (see [Choose Video](#2-choose-video)).
+2. Check the devices you want. **Select all** checks or unchecks them all; **Scan again** repeats the scan.
+3. For a device a scan can't find (Fire TV, Google TV, Apple TV, Xumo, or a Roku on another network), click **Add by hand**, pick the **type**, enter its address and an optional name, and click **Add**:
+   - **Roku**, **Fire TV**, **Google TV** and **Xumo** use an IP address; **Apple TV** also accepts a UUID or MAC address.
+   - **Fire TV / Google TV** need the `adb` tool path, and **Apple TV** the `atvremote` path, set on the **General** tab first (each path has a link to its setup guide).
+   - For **Xumo (RDK)** *(experimental)* also set the JSON-RPC **port** (default `9998`) and an optional **token**; **Test** checks the connection.
+   - The setup notes for the selected type are shown below the form.
+4. Checked devices appear on the **Control** tab, grouped by type. The ↻ button checks which of them are reachable. Use **✎** to rename one (leave the name empty to go back to the name the device reports) and the trash icon to remove it from the list (it stays in *Choose devices*, unchecked). To delete a device for good — for example a mistyped address — use the trash icon next to it in *Choose devices* (it asks first).
 
 > [!NOTE]
 > **Roku users — enable ECP first:** Carabiner communicates with Roku devices via the External Control Protocol (ECP). Before adding a Roku device, make sure ECP is enabled:
@@ -31,37 +31,35 @@ Carabiner supports **multiple video sources at once**: each capture card or WebR
 > 3. Select **Control by mobile apps**.
 > 4. Set to **Enabled** or **Permissive**.
 
-### 2. Add WebRTC Streams *(optional)*
+### 2. Choose Video
 
-Instead of (or besides) a capture card, a window can show a **WebRTC stream**. Open the **Streams** tab, pick the **Stream Source Type**, and click **+** to register it:
+Click **Choose video** on the **Video** tab. Its groups can be collapsed with the chevron next to each name:
 
-- **[Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce)** — enter your Cloud Emulator **access token** (a personal access token from the Roku Cloud Emulator portal), click **Load devices** and pick the device to watch. The device must be running; if it is still starting, Carabiner waits for it. *Advanced* lets you override the management API URL. The token is encrypted with your operating system's keychain and is never exposed to the app's windows.
-- **BrightScript Simulator** — enable the *remote screen* (WebRTC) in [BrightScript Simulator](https://github.com/lvcabral/brs-desktop), then enter its **Host/IP** and **Port** (default `8090`). No authentication is needed. Use **Test** to verify it is reachable.
+- **This computer** — capture cards and cameras Carabiner detects. Check the ones you want to use.
+- **[Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) accounts** — click **Add Cloud Emulator account**, paste a personal access token from the Roku Cloud Emulator portal, give it an optional label, and click **Add account**. All of the account's devices are listed (unchecked) with their running status; check the ones you want. You can add several accounts; each shows as its own group with buttons to refresh (↻) its devices and status, rename (✎) it, and remove it (trash icon — this removes its devices and deletes its token). A device that is no longer on its account shows as *no longer on this account*: it keeps its window settings in case it comes back, can't be made active, and has a trash icon to remove it. *Advanced* lets you override the management API URL. Tokens are encrypted with your operating system's keychain and are never exposed to the app's windows; only their last 4 characters are shown.
+- **BrightScript Simulators** — a [BrightScript Simulator](https://github.com/lvcabral/brs-desktop) running on this computer with its *remote screen* (WebRTC) enabled shows up automatically (unchecked). For one on another computer, enter its **host**, **port** (default `8090`) and an optional name; **Test** checks it's reachable and **Add** adds it. A simulator that's already in the list (`localhost` and `127.0.0.1` count as the same computer) isn't added again.
+- **Stream URLs** — any **WebRTC (WHEP)** stream: enter its `http(s)` URL and an optional name, then click **Add**.
 
-To rename or remove a stream later, select it in the *Stream Source List* and use **✎** (Rename) or **⌫** (Delete); renaming a stream also renames its built-in control.
+Simulators and stream URLs you added can be removed with the trash icon next to them. Hover any icon button to see what it does.
 
-Registered streams then show in the **General** tab grid (with a cloud icon) alongside your capture cards, and are enabled the same way (their control is linked automatically). A stream window shows a *Connecting to stream...* animation while it loads and reconnects automatically if the stream drops.
+Checked sources appear on the **Video** tab, each with an icon for its kind (camera, cloud, or computer screen), its status, a **Control** picker, and an **Active** switch. Cloud Emulator status, simulator detection and device reachability are refreshed each time you open the settings window (at most once a minute); the ↻ button refreshes them right away. A stream window shows a *Connecting to stream...* animation while it loads and reconnects automatically if the stream drops.
 
 > [!NOTE]
-> **macOS Keychain password prompt:** Carabiner stores the Roku Cloud Emulator access token encrypted with your operating system's secure storage (on macOS, the *Carabiner Safe Storage* item in your Keychain). macOS may therefore ask for your **login (Keychain) password** to let Carabiner read or save that item — this typically happens the first time after installing or upgrading to a new version, because macOS asks again for each new build of the app. Enter your password and choose **Always Allow** so you aren't asked again. If you click *Deny*, the token can't be read or saved and the Cloud Emulator stream won't connect; re-enter the token in the **Streams** tab and allow access. On Windows the token is protected with your user account (no prompt). On Linux a keyring service (GNOME Keyring or KWallet) must be running and unlocked, otherwise Carabiner asks for your permission before storing the token unencrypted (if you decline, the stream isn't saved). BrightScript Simulator sources have no credentials and are not affected.
+> **macOS Keychain password prompt:** Carabiner stores the Roku Cloud Emulator access token encrypted with your operating system's secure storage (on macOS, the *Carabiner Safe Storage* item in your Keychain). macOS may therefore ask for your **login (Keychain) password** to let Carabiner read or save that item — this typically happens the first time after installing or upgrading to a new version, because macOS asks again for each new build of the app. Enter your password and choose **Always Allow** so you aren't asked again. If you click *Deny*, the token can't be read or saved and the Cloud Emulator stream won't connect; remove and re-add the account in **Choose video** and allow access. On Windows the token is protected with your user account (no prompt). On Linux a keyring service (GNOME Keyring or KWallet) must be running and unlocked, otherwise Carabiner asks for your permission before storing the token unencrypted (if you decline, the account isn't saved). BrightScript Simulator sources have no credentials and are not affected.
 
 > [!TIP]
-> **Built-in control:** every stream comes with its own control device, created automatically when you add the stream — there is nothing to add in the **Control** tab and nothing to link. In the **General** tab the stream's *Control Device* shows **Built-in control (automatic)** and is locked (it can't be changed, and the *Linked Device* menu item is disabled for stream windows); keys, text, screenshots and automation scripts work right away. For a **Cloud Emulator** the keys are sent to the emulated device's ECP through the Cloud Emulator's authenticated instance API (the same way the [roku-deploy](https://github.com/rokucommunity/roku-deploy) tooling does) using the same access token as the stream, so no developer-mode ECP setup is needed on the emulated device; for the **BrightScript Simulator** they are sent to its ECP port (make sure ECP is enabled in the simulator). The built-in control is removed together with the stream.
+> **Control comes with Cloud Emulator and Simulator streams:** Carabiner sends key presses to them over the same connection as their video, so there is nothing to link — their *Control* shows **Included with the stream**, they aren't listed on the Control tab, and the *Linked Device* menu item is disabled for their windows. Keys, text, screenshots and automation scripts work right away. For a **Cloud Emulator** the keys are sent to the emulated device's ECP through the Cloud Emulator's authenticated instance API (the same way the [roku-deploy](https://github.com/rokucommunity/roku-deploy) tooling does) using the same access token as the stream, so no developer-mode ECP setup is needed on the emulated device; for the **BrightScript Simulator** they are sent to its ECP port (make sure ECP is enabled in the simulator). A **Stream URL** has no remote of its own: by default it sends ECP keys to the stream's host (**Same host as stream** — an IP address or a host name like `mediamtx.local`), or you can link any control device.
 
-### 3. Choose a Window Mode
+### 3. Link Control and Activate
 
-At the top of the **General** tab, pick how Carabiner shows your capture devices:
+For each capture card or Stream URL on the **Video** tab, pick a device in its **Control** picker (the devices chosen on the Control tab, grouped by type; **Choose more devices…** opens the *Choose devices* dialog). Then turn on its **Active** switch to open its floating Display window.
 
-- **Single Window** (default) — one floating Display window at a time. Selecting another capture device simply switches that window to it. Best for testing one device at a time.
-- **Multiple Windows** — each enabled capture device gets its own floating window, so you can watch and control several devices side by side.
+**Allow multiple active** (at the top of the Video tab) sets the window mode:
 
-### 4. Enable & Link Capture Devices and Streams
+- **Off** (default, Single Window) — one floating Display window at a time. Activating another source switches that window to it. Best for testing one device at a time.
+- **On** (Multiple Windows) — each active source gets its own floating window, so you can watch and control several devices side by side. (Using the same capture card for two windows isn't supported; some cards only allow a single stream.)
 
-1. The **General** tab lists every capture card detected on your computer — and every WebRTC stream you added (with a cloud icon) — in a grid.
-2. For each capture card or stream you want to use:
-   - Pick a **Control Device** from the dropdown to link a streaming device to that capture card.
-   - In **Single Window** mode, check **Active** to make that card the one shown (checking another switches to it). In **Multiple Windows** mode, check **Enabled** to open that card's floating Display window.
-3. In Multiple Windows mode, repeat for additional capture cards to run several devices side by side — each gets its own window. (Using the same capture card for two windows isn't supported; some cards only allow a single stream.)
+The trash icon on a Video row removes the source from the list (it stays in *Choose video*, unchecked).
 
 Per-window appearance (border, transparency, capture resolution, display size, always-on-top, audio) is configured in the **Display** tab using its **Editing Window** selector, which follows the window you last focused. You can also switch/enable windows from the menu bar / macOS **View** menu (see [Managing Windows](#managing-windows)).
 
@@ -81,19 +79,19 @@ See the complete [keyboard control mappings](./key-mappings.md) for advanced con
 
 ### Managing Windows
 
-You manage windows from the **menu bar / system tray** menu, the macOS **View** menu, and the right-click context menu. What appears depends on the window mode (set in the General tab):
+You manage windows from the **menu bar / system tray** menu, the macOS **View** menu, and the right-click context menu. What appears depends on the window mode (**Allow multiple active** on the Video tab); only sources checked on the Video tab and control devices checked on the Control tab are listed:
 
-- **Single Window mode** — the capture devices and WebRTC streams are listed **directly on the menu** for quick switching: pick one to switch the single window to it (and its linked control). Streams appear as `<name> (RCE)` or `<name> (Simulator)`; capture cards as `<card> → <linked control>`.
-- **Multiple Windows mode** — a **Display Windows** submenu with, per capture device:
-  - **Enabled** — open or close that capture device's window (same as the General tab checkbox).
+- **Single Window mode** — the capture devices and WebRTC streams are listed **directly on the menu** for quick switching: pick one to switch the single window to it (and its linked control). Streams appear as `<name> (RCE)`, `<name> (Simulator)` or `<name> (WebRTC)`; capture cards as `<card> → <linked control>`.
+- **Multiple Windows mode** — a **Display Windows** submenu with, per video source:
+  - **Enabled** — open or close that source's window (same as its **Active** switch on the Video tab).
   - **Visible** — show or hide an enabled window without closing it. This is how you bring back a window you previously hid (via the global shortcut or the Close Window command).
 
 Other tips:
 
 - The **global shortcut** (set in the General tab) shows/hides **all** display windows together.
 - In **Multiple Windows** mode, the **active window** (the one menu/recording/script actions target) is whichever Display window you last focused. A disabled **"Active Window: …"** item at the top of the app/tray menus shows which window that is; window-specific actions are disabled when no window is enabled. This indicator is hidden in **Single Window** mode, where there is only one window.
-- The menus include a **Linked Device** submenu to relink the active window's control device on the fly. Its title shows the currently linked control device; it is disabled for stream windows, which always use their built-in control.
-- On macOS, the **Window** menu lists each Display window by its capture card + linked control name (streams by `<name> (RCE|Simulator)`).
+- The menus include a **Linked Device** submenu to relink the active window's control device on the fly. Its title shows the currently linked control device (or *Same host: …* for a Stream URL sending keys to its own host; picking a device there switches it to that device); it is disabled for Cloud Emulator and Simulator windows, whose control comes with the stream.
+- On macOS, the **Window** menu lists each Display window by its capture card + linked control name (streams by `<name> (RCE|Simulator|WebRTC)`).
 - Each window can optionally be a **Regular Window** (title bar, native border, resizable) — see [Display Customization](#display-customization).
 
 #### Automatic capture pausing & reconnection
@@ -256,9 +254,9 @@ These settings are **per window** — pick the window to edit with the **Editing
 
 For Android-based devices (Fire TV, Google TV), configure the ADB path in settings:
 
-1. Open the **Control** tab
-2. Set the path to your **ADB** executable under *ADB Tool Path*
-3. Ensure ADB / Wi-Fi debugging is enabled on your device
+1. On the **General** tab, set the path to your **ADB** executable under *ADB Tool Path*
+2. Ensure ADB / Wi-Fi debugging is enabled on your device
+3. On the **Control** tab, click **Choose devices** → **Add by hand**, pick **Fire TV** or **Google TV**, enter the IP address and click **Add**
 4. Accept the authorization prompt on the device when connecting for the first time
 
 See the [Android / Fire TV setup guide](./setup-android-firetv.md) for detailed instructions.
@@ -268,9 +266,9 @@ See the [Android / Fire TV setup guide](./setup-android-firetv.md) for detailed 
 For Apple TV devices, install **pyatv** and pair once before adding the device:
 
 1. Install `atvremote` via pipx — see the [Apple TV setup guide](./setup-apple-tv.md)
-2. Open the **Control** tab and set the **atvremote Tool Path**
-3. Enter the Apple TV's **Device ID** (UUID or MAC address) and select **Apple TV**
-4. Click **+** to add the device
+2. On the **General** tab, set the **atvremote Tool Path**
+3. On the **Control** tab, click **Choose devices** → **Add by hand** and pick **Apple TV**
+4. Enter the Apple TV's **Device ID** (UUID, MAC address or IP) and click **Add**
 
 See the [Apple TV setup guide](./setup-apple-tv.md) for detailed instructions on installing `pyatv` and pairing your Apple TV.
 
@@ -278,10 +276,10 @@ See the [Apple TV setup guide](./setup-apple-tv.md) for detailed instructions on
 
 Xumo Stream Box and other RDK-based devices are controlled directly over the RDK Services JSON-RPC API (`org.rdk.RDKShell`) — no extra tool binary is required:
 
-1. Open the **Control** tab and choose **Xumo (RDK)** as the device type
-2. Enter the device's **IP address** and the **RDK JSON-RPC** port (default `9998`)
+1. On the **Control** tab, click **Choose devices** → **Add by hand** and choose **Xumo** as the device type
+2. Enter the device's **IP address** and the JSON-RPC **port** (default `9998`)
 3. If the device requires authentication, enter the Bearer **token**
-4. Click **Test** to verify the endpoint is reachable, then **+** to add the device
+4. Click **Test** to verify the endpoint is reachable, then **Add** to add the device
 
 > [!NOTE]
 > RDK support is **experimental**. The device must have the `org.rdk.RDKShell` plugin enabled and its JSON-RPC endpoint reachable from your computer. Text input is sent as individual injected keystrokes.

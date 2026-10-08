@@ -9,6 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 const path = require("path");
 const os = require("os");
+const net = require("net");
 const log = require("electron-log");
 const {
   app,
@@ -25,7 +26,7 @@ const {
 } = require("electron");
 const fs = require("fs");
 const AutoLaunch = require("auto-launch");
-const { saveSettings, loadSettings, makePair, newPairId } = require("./settings");
+const { saveSettings, loadSettings, makePair, newPairId, newId, redactSettings } = require("./settings");
 const { connectADB, disconnectADB, isADBConnected, sendADBKey, sendADBText } = require("./adb");
 const { connectATV, disconnectATV, isATVConnected, sendATVKey, sendATVText } = require("./appletv");
 const {
@@ -60,7 +61,29 @@ const {
 } = require("./menu");
 const { checkForUpdates } = require("./updater");
 const streamSignaling = require("./stream-signaling");
-const { isStreamDeviceId, streamDeviceId, streamLabel } = require("./stream-utils");
+const {
+  SIM_DEFAULT_PORT,
+  isStreamDeviceId,
+  streamDeviceId,
+  streamLabel,
+  hasLockedControl,
+  urlHost,
+  simulatorKey,
+  dropDuplicateSimulators,
+  publicSource,
+} = require("./stream-utils");
+const {
+  tokenTail,
+  publicAccount,
+  defaultAccountLabel,
+  findAccountByToken,
+  normalizeRceAccounts,
+  applyAccountDevices,
+  applyAccountListings,
+  mergeWindowSources,
+  renameAccount,
+  removeAccount,
+} = require("./rce-accounts");
 const { startMcpServer, stopMcpServer, isRunning: isMcpRunning, getPort: getMcpPort } = require("./mcp-server");
 const packageInfo = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 
@@ -147,17 +170,49 @@ function unsealToken(token) {
     return "";
   }
 }
-const publicSource = ({ token, ...rest }) => ({ ...rest, hasToken: !!token });
+const getRceAccounts = () => settings?.rce?.accounts || [];
+const publicAccounts = () => getRceAccounts().map(publicAccount);
+
+// Encrypt a token for storage. Without secure storage, storing it as plain text needs the user's
+// explicit consent (asked once, then remembered). Returns the value to store, or null if declined.
+function sealTokenWithConsent(token) {
+  const enc = trySealToken(token);
+  if (enc) return enc;
+  if (!settings.streams?.allowPlainTextTokens) {
+    const choice = dialog.showMessageBoxSync(mainWindow || undefined, {
+      type: "warning",
+      title: "Secure storage unavailable",
+      message: "The access token can't be stored securely.",
+      detail:
+        "Secure storage (the system keychain / keyring) is not available on this computer, so the " +
+        "Cloud Emulator access token cannot be encrypted. Do you want to store it unencrypted in " +
+        "Carabiner's settings file? Anyone who can read your user files would be able to use it. " +
+        "You can revoke the token at any time in the Roku Cloud Emulator portal.",
+      buttons: ["Don't Save", "Save Unencrypted"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    });
+    if (choice !== 1) return null;
+    settings.streams = { ...(settings.streams || {}), allowPlainTextTokens: true };
+  }
+  return token;
+}
 // Source with its token decrypted, for main-process use only.
 const withSecret = (source) => (source ? { ...source, token: unsealToken(source.token) } : source);
 
-// Every stream source brings its own control device (ECP): keys for a Cloud Emulator go through
-// its authenticated Device API and a Simulator's through its ECP port, both sent from main. The
-// device lives in the control catalog flagged `managedBy: <sourceId>` so it appears in the
-// pickers, but is created/updated/removed together with its stream source instead of by hand.
+// Every stream source brings its own control device (ECP), sent from main: keys for a Cloud
+// Emulator go through its authenticated Device API, a Simulator's to its ECP port, and a WebRTC
+// stream URL's to port 8060 on the URL's host ("Same host as stream"; a hostname works too). The
+// device lives in the control catalog flagged `managedBy: <sourceId>`, but is created/updated/
+// removed together with its stream source instead of by hand, and never listed as a device.
 const STREAM_CONTROL_PREFIX = "streamctl:";
 const streamControlId = (src) => `${STREAM_CONTROL_PREFIX}${src.id}|ecp`;
 function managedControlFor(src) {
+  if (src.type === "webrtc") {
+    const host = urlHost(src.url);
+    return { id: streamControlId(src), ipAddress: `${host}:8060`, alias: `Same host: ${host}`, type: "Roku", linked: "", managedBy: src.id };
+  }
   return {
     id: streamControlId(src),
     ipAddress: src.type === "rce" ? `Cloud Emulator #${src.deviceId}` : `${src.host}:${src.ecpPort || 8060}`,
@@ -168,9 +223,10 @@ function managedControlFor(src) {
   };
 }
 // Reconcile the managed control devices with the stream-source catalog. Returns whether anything
-// changed. Pairs bound to a removed control are unbound; stream pairs are always linked to their
-// source's control.
-function syncManagedControls() {
+// changed. Pairs bound to a removed control are unbound; Simulator and Cloud Emulator pairs are
+// always linked to their source's control (a WebRTC stream URL's pair may link any device).
+// `notify: false` only fixes the pairs' links (reconcilePairs connects and tells the windows itself).
+function syncManagedControls({ notify = true } = {}) {
   if (!settings.control) settings.control = { deviceList: [] };
   const sources = getStreamSources();
   const wanted = new Map(sources.map((src) => [streamControlId(src), src]));
@@ -186,21 +242,18 @@ function syncManagedControls() {
     managed.push(managedControlFor(src));
   }
   settings.control.deviceList = [...list, ...managed];
+  const relink = (p, controlDeviceId) => {
+    p.controlDeviceId = controlDeviceId;
+    if (!notify) return;
+    if (controlDeviceId) connectPairControl(p.id);
+    getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: controlDeviceId });
+  };
   for (const p of settings.pairs || []) {
-    if (removedIds.includes(p.controlDeviceId)) {
-      p.controlDeviceId = "";
-      getWindow(p.id)?.webContents?.send("shared-window-channel", { type: "set-control-selected", payload: "" });
-    }
-    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId);
-    // A stream's control is built in and can't be changed, so keep its pair locked to it.
-    if (src && p.controlDeviceId !== streamControlId(src)) {
-      p.controlDeviceId = streamControlId(src);
-      connectPairControl(p.id);
-      getWindow(p.id)?.webContents?.send("shared-window-channel", {
-        type: "set-control-selected",
-        payload: p.controlDeviceId,
-      });
-    }
+    if (removedIds.includes(p.controlDeviceId)) relink(p, "");
+    // A Simulator / Cloud Emulator control is built in and can't be changed, so keep its pair
+    // locked to it.
+    const src = sources.find((x) => streamDeviceId(x) === p.captureDeviceId && hasLockedControl(x.type));
+    if (src && p.controlDeviceId !== streamControlId(src)) relink(p, streamControlId(src));
   }
   return before !== JSON.stringify(settings.control.deviceList) || removedIds.length > 0;
 }
@@ -208,6 +261,7 @@ function syncManagedControls() {
 function broadcastControlList() {
   mainWindow?.webContents?.send("update-control-device", { deviceList: settings.control.deviceList });
   mainWindow?.webContents?.send("stream-sources-updated", getStreamSources().map(publicSource));
+  mainWindow?.webContents?.send("rce-accounts-updated", publicAccounts());
   for (const win of pairWindows.values()) {
     win?.webContents?.send("shared-window-channel", {
       type: "set-control-list",
@@ -217,14 +271,39 @@ function broadcastControlList() {
   mainWindow?.webContents?.send("pairs-updated", settings.pairs);
 }
 
+// Replace the stream-source catalog: close and drop the pairs of removed sources, re-sync the
+// sources' built-in controls, save, then tell every window.
+function commitStreamSources(sources) {
+  sources = dropDuplicateSimulators(sources);
+  settings.streams = { ...(settings.streams || {}), sources };
+  const remaining = new Set(sources.map(streamDeviceId));
+  const removed = (settings.pairs || []).filter(
+    (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
+  );
+  removed.forEach((p) => closePair(p.id));
+  settings.pairs = (settings.pairs || []).filter((p) => !removed.includes(p));
+  if (removed.length && !getPair(activePairId)) {
+    activePairId = settings.pairs[0]?.id || "";
+    settings.activePairId = activePairId;
+  }
+  syncManagedControls();
+  saveSettings(settings);
+  broadcastControlList();
+  rebuildMenus();
+}
+
+// Video sources chosen on the Video tab (unchecked ones are hidden from menus and MCP too).
 function getAllSources() {
-  const streams = getStreamSources().map((s) => ({
-    deviceId: streamDeviceId(s),
-    label: s.name,
-    kind: "stream",
-    streamType: s.type,
-  }));
-  return [...(captureDevices || []), ...streams];
+  const hidden = new Set(settings?.video?.hiddenCaptureIds || []);
+  const streams = getStreamSources()
+    .filter((s) => s.chosen !== false)
+    .map((s) => ({
+      deviceId: streamDeviceId(s),
+      label: s.name,
+      kind: "stream",
+      streamType: s.type,
+    }));
+  return [...(captureDevices || []).filter((d) => !hidden.has(d.deviceId)), ...streams];
 }
 const recordingPairs = new Set(); // pairIds whose Display window is currently recording video
 let isScriptRecording = false;
@@ -451,9 +530,9 @@ function createMainWindow() {
   const win = createWindow(
     "mainWindow",
     {
-      height: isMacOS ? 620 : 645,
+      height: isMacOS ? 650 : 675,
       width: 820,
-      minHeight: isMacOS ? 620 : 645,
+      minHeight: isMacOS ? 650 : 675,
       minWidth: 820,
       maximizable: false,
       resizable: false,
@@ -983,6 +1062,9 @@ function reconcilePairs(newPairs) {
   // Detect control-device changes before we overwrite settings.pairs.
   const prevById = new Map((settings.pairs || []).map((p) => [p.id, p]));
   settings.pairs = next;
+  // A Simulator / Cloud Emulator pair created by any path (Video tab, tray, MCP) is linked to its
+  // built-in control before its window opens (the loop below connects it and tells the window).
+  syncManagedControls({ notify: false });
   if (!nextIds.has(activePairId)) {
     activePairId = next[0]?.id || "";
     settings.activePairId = activePairId;
@@ -1088,6 +1170,11 @@ app.whenReady().then(async () => {
 
   mainWindow = createMainWindow();
   startDevReload();
+  // Group Cloud Emulator sources saved by an earlier version into accounts (needs safeStorage,
+  // so it runs once the app is ready rather than in loadSettings).
+  if (normalizeRceAccounts(settings, { unseal: unsealToken, newId: () => newId("acct") })) {
+    saveSettings(settings);
+  }
   syncManagedControls(); // create the controls of stream sources saved by an earlier version
   // Single-window mode (default) keeps only one window; collapse any stray extra-visible
   // pairs before opening so we never open more than one on launch.
@@ -1342,64 +1429,12 @@ app.whenReady().then(async () => {
       if (listChanged) rebuildMenus();
       if (clearedAny) mainWindow?.webContents?.send("pairs-updated", settings.pairs);
     } else if (arg.type && arg.type === "set-stream-sources") {
-      // The stream-source catalog is global. Drop pairs bound to a deleted source.
-      const existing = new Map(getStreamSources().map((src) => [src.id, src]));
-      // Encrypt any newly entered token. If secure storage isn't available, storing it as plain
-      // text needs the user's explicit consent (remembered once given).
-      const sealed = new Map();
-      let needsPlainText = false;
-      let payload = arg.payload;
-      for (const src of payload) {
-        if (!src.token) continue;
-        const enc = trySealToken(src.token);
-        if (enc) sealed.set(src.id, enc);
-        else needsPlainText = true;
-      }
-      if (needsPlainText && !settings.streams?.allowPlainTextTokens) {
-        const choice = dialog.showMessageBoxSync(mainWindow || undefined, {
-          type: "warning",
-          title: "Secure storage unavailable",
-          message: "The access token can't be stored securely.",
-          detail:
-            "Secure storage (the system keychain / keyring) is not available on this computer, so the " +
-            "Cloud Emulator access token cannot be encrypted. Do you want to store it unencrypted in " +
-            "Carabiner's settings file? Anyone who can read your user files would be able to use it. " +
-            "You can revoke the token at any time in the Roku Cloud Emulator portal.",
-          buttons: ["Don't Save", "Save Unencrypted"],
-          defaultId: 0,
-          cancelId: 0,
-          noLink: true,
-        });
-        if (choice !== 1) {
-          // Declined: discard the change and tell the settings window to revert to what is saved.
-          // (Downstream then just re-applies the saved catalog, which is a no-op.)
-          payload = getStreamSources().map(publicSource);
-          mainWindow?.webContents?.send("stream-sources-rejected");
-        } else {
-          settings.streams = { ...(settings.streams || {}), allowPlainTextTokens: true };
-        }
-      }
-      const sources = payload.map(({ hasToken, ...src }) => ({
-        ...src,
-        token: src.token
-          ? sealed.get(src.id) || src.token
-          : existing.get(src.id)?.token || "",
-      }));
-      settings.streams = { ...(settings.streams || {}), sources };
-      const remaining = new Set(payload.map(streamDeviceId));
-      const removed = (settings.pairs || []).filter(
-        (p) => isStreamDeviceId(p.captureDeviceId) && !remaining.has(p.captureDeviceId)
-      );
-      removed.forEach((p) => closePair(p.id));
-      settings.pairs = (settings.pairs || []).filter((p) => !removed.includes(p));
-      if (removed.length) {
-        if (!getPair(activePairId)) activePairId = settings.pairs[0]?.id || "";
-        settings.activePairId = activePairId;
-      }
-      // Create/refresh/remove the control device that belongs to each stream source.
-      syncManagedControls();
-      broadcastControlList();
-      rebuildMenus();
+      // The stream-source catalog is global; pairs bound to a deleted source are dropped. Tokens
+      // never come from the window (Cloud Emulator tokens are added via rce-add-account), and
+      // Cloud Emulator sources stay owned by their account (see mergeWindowSources).
+      const sources = mergeWindowSources(getStreamSources(), arg.payload);
+      // A resend of what's stored needs no save, broadcast or menu rebuild.
+      if (JSON.stringify(sources) !== JSON.stringify(getStreamSources())) commitStreamSources(sources);
     } else if (arg.type && arg.type === "set-control-selected") {
       if (pair) {
         const prev = pair.controlDeviceId;
@@ -1490,21 +1525,9 @@ app.whenReady().then(async () => {
 
   // WebRTC streams: catalog lookup + signaling relay (see stream-signaling.js).
   ipcMain.handle("get-stream-sources", async () => getStreamSources().map(publicSource));
-  // Forms send a token only when the user typed one; otherwise reuse the stored one by id.
-  const resolveFormSource = (source) => {
-    const stored = getStreamSources().find((src) => src.id === source?.id);
-    return { ...source, token: source?.token || unsealToken(stored?.token) };
-  };
-  ipcMain.handle("test-stream-source", async (_e, source) =>
-    streamSignaling.testSource(resolveFormSource(source))
-  );
-  ipcMain.handle("list-rce-devices", async (_e, source) => {
-    try {
-      return { ok: true, devices: await streamSignaling.listRceDevices(resolveFormSource(source)) };
-    } catch (error) {
-      return { ok: false, message: error.message };
-    }
-  });
+  // Reachability of a source typed into a form (the Simulator's Test/Add). Stored tokens are never
+  // looked up for it: Cloud Emulator accounts are checked by rce-add-account / rce-refresh-accounts.
+  ipcMain.handle("test-stream-source", async (_e, source) => streamSignaling.testSource({ ...source }));
   ipcMain.handle("stream-start", async (event, deviceId) => {
     const source = findStreamSource(deviceId);
     const sender = event.sender;
@@ -1552,6 +1575,134 @@ app.whenReady().then(async () => {
   ipcMain.on("stream-stop", (event) => {
     const pairId = senderToPair.get(event.sender.id);
     if (pairId) streamSignaling.stopSession(pairId);
+  });
+
+  // ----- Video tab: Cloud Emulator accounts --------------------------------------------------
+
+  // Tokens being added right now, so a double submit can't create the account twice.
+  const addingTokens = new Set();
+  ipcMain.handle("rce-add-account", async (_e, { token, label, apiUrl } = {}) => {
+    const plain = String(token || "").trim();
+    if (!plain) return { ok: false, message: "Paste a personal access token." };
+    if (addingTokens.has(plain) || findAccountByToken(getRceAccounts(), plain, unsealToken)) {
+      return { ok: false, message: "That token is already added." };
+    }
+    addingTokens.add(plain);
+    try {
+      return await addAccount(plain, label, apiUrl);
+    } finally {
+      addingTokens.delete(plain);
+    }
+  });
+  const addAccount = async (plain, label, apiUrl) => {
+    let devices;
+    try {
+      devices = await streamSignaling.listRceDevices({ token: plain, apiUrl: apiUrl || "" });
+    } catch (error) {
+      return { ok: false, message: error.message };
+    }
+    const stored = sealTokenWithConsent(plain);
+    if (stored === null) return { ok: false, message: "Not saved: the token can't be stored securely on this computer." };
+    const account = {
+      id: newId("acct"),
+      label: String(label || "").trim() || defaultAccountLabel(getRceAccounts().length),
+      token: stored,
+      tail: tokenTail(plain),
+      ...(apiUrl ? { apiUrl: String(apiUrl).trim() } : {}),
+    };
+    settings.rce = { ...(settings.rce || {}), accounts: [...getRceAccounts(), account] };
+    const { sources, addedCount } = applyAccountDevices(getStreamSources(), account, devices, () => newId("rce"));
+    commitStreamSources(sources);
+    return { ok: true, account: publicAccount(account), deviceCount: addedCount };
+  };
+
+  // Refresh one account (accountId) or all of them. Accounts that fail are reported, not fatal.
+  // Runs when the settings window is shown (at most once a minute), so it only saves/broadcasts
+  // when something changed.
+  // The accounts are listed in parallel (a slow or unreachable one doesn't hold up the others),
+  // then merged into the catalog as it is once they're back (see applyAccountListings: an account
+  // removed meanwhile is skipped, so its devices aren't brought back).
+  ipcMain.handle("rce-refresh-accounts", async (_e, accountId) => {
+    const targets = getRceAccounts().filter((a) => !accountId || a.id === accountId);
+    const listings = await Promise.allSettled(
+      targets.map((a) => streamSignaling.listRceDevices({ token: unsealToken(a.token), apiUrl: a.apiUrl || "" }))
+    );
+    const before = getStreamSources();
+    const { sources, errors } = applyAccountListings(before, getRceAccounts(), targets, listings, () => newId("rce"));
+    if (JSON.stringify(sources) !== JSON.stringify(before)) commitStreamSources(sources);
+    return { ok: Object.keys(errors).length === 0, errors };
+  });
+
+  ipcMain.handle("rce-rename-account", async (_e, { accountId, label } = {}) => {
+    const account = renameAccount(settings, accountId, label);
+    if (!account) return { ok: false, message: "Enter a name for the account." };
+    saveSettings(settings);
+    mainWindow?.webContents?.send("rce-accounts-updated", publicAccounts());
+    return { ok: true, account: publicAccount(account) };
+  });
+
+  ipcMain.handle("rce-remove-account", async (_e, accountId) => {
+    removeAccount(settings, accountId);
+    commitStreamSources(getStreamSources());
+    return { ok: true };
+  });
+
+  // ----- Video/Control tabs: discovery ---------------------------------------------------------
+  // A BrightScript Simulator on this computer shows up in Choose video without being typed in.
+  ipcMain.handle("detect-simulator", async () => {
+    const local = { type: "sim", host: "localhost", port: SIM_DEFAULT_PORT };
+    const probe = await streamSignaling.testSource(local);
+    // Any web server can answer /config with JSON; the simulator's remote screen reports its ECP.
+    const cfg = probe?.config;
+    const looksLikeSimulator = cfg && typeof cfg === "object" && ("ecpPort" in cfg || "ecpEnabled" in cfg);
+    if (!probe?.ok || !looksLikeSimulator) return { found: false };
+    if (!getStreamSources().some((s) => s.type === "sim" && simulatorKey(s) === simulatorKey(local))) {
+      commitStreamSources([
+        ...getStreamSources(),
+        {
+          ...local,
+          id: newId("sim"),
+          name: "BrightScript Simulator",
+          ...(probe.config?.ecpPort ? { ecpPort: Number(probe.config.ecpPort) } : {}),
+          chosen: false,
+        },
+      ]);
+    }
+    return { found: true };
+  });
+
+  // Reachability of control devices: { [id]: true | false | null } (null = can't tell, e.g. an
+  // Apple TV addressed by UUID). A TCP connect to the protocol's port is enough to say "online".
+  const CONTROL_PORTS = { ecp: 8060, adb: 5555 };
+  const canConnect = (host, port, timeout = 1500) =>
+    new Promise((resolve) => {
+      const socket = net.connect({ host, port });
+      const finish = (ok) => {
+        socket.destroy();
+        resolve(ok);
+      };
+      socket.setTimeout(timeout, () => finish(false));
+      socket.once("connect", () => finish(true));
+      socket.once("error", () => finish(false));
+    });
+  ipcMain.handle("check-control-devices", async (_e, devices = []) => {
+    const results = await Promise.all(
+      devices.map(async (d) => {
+        const [addr = "", proto = ""] = String(d.id || "").split("|");
+        const host = d.ipAddress || addr.split(":")[0];
+        const port = proto === "rdk" ? Number(d.port) || 9998 : CONTROL_PORTS[proto];
+        if (!port || !net.isIP(host)) return [d.id, null];
+        return [d.id, await canConnect(host, port)];
+      })
+    );
+    return Object.fromEntries(results);
+  });
+
+  // Capture devices unchecked in Choose video (streams carry their own `chosen` flag).
+  ipcMain.on("set-video-selection", (_e, { hiddenCaptureIds } = {}) => {
+    settings.video = { ...(settings.video || {}), hiddenCaptureIds: [...new Set(hiddenCaptureIds || [])] };
+    saveSettings(settings);
+    rebuildMenus();
   });
 
   ipcMain.on("save-launch-app-at-login", (event, launchAppAtLogin) => {
@@ -1833,6 +1984,7 @@ app.whenReady().then(async () => {
     return {
       ...settings,
       streams: { ...(settings.streams || {}), sources: getStreamSources().map(publicSource) },
+      rce: { ...(settings.rce || {}), accounts: publicAccounts() },
     };
   });
 
@@ -2091,12 +2243,7 @@ app.whenReady().then(async () => {
   const mcpCtx = {
     getSettings: () => settings,
     getAuthToken: () => settings.mcp?.token || "",
-    getSettingsSnapshot: () => {
-      const snap = JSON.parse(JSON.stringify(settings));
-      if (snap.streams?.sources) snap.streams.sources = snap.streams.sources.map(publicSource);
-      if (snap.mcp && snap.mcp.token) snap.mcp.token = "***";
-      return snap;
-    },
+    getSettingsSnapshot: () => redactSettings(settings),
     getAppInfo: () => ({
       name: packageInfo.name,
       version: packageInfo.version,
@@ -2133,9 +2280,10 @@ app.whenReady().then(async () => {
       } else if (type === "ecp") connected = !!ip;
       return { id, ip, type, connected, pairId };
     },
+    // Only devices checked on the Control tab (unchecked ones are hidden there and in the menus).
     listDevices: () => {
       const activeControl = getActivePair()?.controlDeviceId;
-      return (settings.control.deviceList || []).map((d) => ({
+      return (settings.control.deviceList || []).filter((d) => d.chosen !== false).map((d) => ({
         id: d.id,
         name: d.alias || "",
         deviceType: d.type || "",
@@ -2145,7 +2293,7 @@ app.whenReady().then(async () => {
       }));
     },
     selectDevice: (deviceId) => {
-      const device = (settings.control.deviceList || []).find((d) => d.id === deviceId);
+      const device = (settings.control.deviceList || []).find((d) => d.id === deviceId && d.chosen !== false);
       if (!device) throw new Error(`Unknown device id: ${deviceId}`);
       const bound = (settings.pairs || []).find((p) => p.controlDeviceId === deviceId);
       if (isSingleWindowMode()) {

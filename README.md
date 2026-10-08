@@ -30,14 +30,14 @@ Perfect for developers and QA engineers who need to test streaming applications 
 - **Multi-Device Support**: Control Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, and Comcast Xumo (experimental)
 - **Single or Multiple Windows**: Use one Display window and switch devices on the fly (default), or opt into multi-window mode to run several capture devices simultaneously — each capture card in its own floating window linked to its own streaming device
 - **Real-time Video Capture**: View your streaming device output directly on your computer
-- **WebRTC Streams**: Besides capture cards, show a remote WebRTC stream — a [BrightScript Simulator](https://github.com/lvcabral/brs-desktop) remote screen or a [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) device — in the same floating window, with the same control, screenshot, recording, overlay and automation features
+- **WebRTC Streams**: Besides capture cards, show a remote WebRTC stream — a [BrightScript Simulator](https://github.com/lvcabral/brs-desktop) remote screen, a [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) device (several accounts supported), or any WebRTC (WHEP) stream URL — in the same floating window, with the same control, screenshot, recording, overlay and automation features
 - **Keyboard Control**: Use your computer keyboard to navigate and control devices
 - **Text Pasting**: Paste clipboard content directly to streaming devices
 - **Video Recording**: Record streaming device sessions in MP4/WebM format — independently per window
 - **Screenshot Capture**: Save or copy screenshots with one click
 - **Automation Scripts**: Record key sequences with precise timing and replay them on demand
 - **MCP Server**: Let AI assistants control devices, run scripts, and capture screenshots via the Model Context Protocol for AI-driven QA automation
-- **Roku Network Discovery**: Find Roku devices on your local network automatically via SSDP — no need to look up IP addresses manually
+- **Roku Network Discovery**: Find Roku devices on your local network automatically via SSDP — no need to look up IP addresses manually — and see at a glance which control devices are reachable
 
 ### Additional Features
 
@@ -62,9 +62,9 @@ Perfect for developers and QA engineers who need to test streaming applications 
    ```
    See the [Installation Guide](./docs/installation.md) for all platforms and options.
 2. **Launch** Carabiner
-3. **Add** your streaming device(s) in the **Control** tab
-4. In the **General** tab, find your capture card in the list, **link** a control device to it, and check **Enabled** to open its window
-5. Repeat per capture card to run several devices at once — then start controlling!
+3. On the **Control** tab, click **Choose devices** and check your streaming device(s) (Rokus are found automatically; others can be added by hand)
+4. On the **Video** tab, click **Choose video** and check your capture card (or a Cloud Emulator device, Simulator or stream), **link** a control device to it, and turn on **Active** to open its window
+5. Check **Allow multiple active** to run several devices at once — then start controlling!
 
 For detailed setup and usage instructions, see our comprehensive guides:
 
@@ -95,7 +95,7 @@ We welcome contributions to make Carabiner better! Here's how you can help:
 - **[Electron Framework](https://www.electronjs.org/)**: Cross-platform desktop application framework
 - **[React](https://react.dev/)**: User interface library for the settings panel
 - **[Roku External Control Protocol (ECP)](https://developer.roku.com/docs/developer-program/dev-tools/external-control-api.md)**: Roku device communication
-- **[WebRTC](https://webrtc.org/)**: Remote video streams from the BrightScript Simulator (custom signaling) and [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) (Janus signaling)
+- **[WebRTC](https://webrtc.org/)**: Remote video streams from the BrightScript Simulator (custom signaling), [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) (Janus signaling) and any [WHEP](https://www.rfc-editor.org/rfc/rfc9725) stream URL
 - **[Android Debug Bridge (ADB)](https://developer.android.com/tools/adb)**: Android device communication
 - **[pyatv](https://pyatv.dev/)**: Apple TV device communication via Media Remote Protocol (MRP)
 - **[RDK Services](https://rdkcentral.github.io/rdkservices/)**: Xumo Stream Box / RDK device communication via the `org.rdk.RDKShell` JSON-RPC API

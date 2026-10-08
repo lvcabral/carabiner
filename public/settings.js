@@ -10,9 +10,11 @@
 const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
-const { isStreamDeviceId, streamDeviceId } = require("./stream-utils");
+const { isStreamDeviceId, streamDeviceId, publicSource } = require("./stream-utils");
+const { publicAccount } = require("./rce-accounts");
 
-const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
+// Resolved on use (not at import), so the pure helpers below can be unit tested without Electron.
+const settingsFilePath = () => path.join(app.getPath("userData"), "settings.json");
 
 // Default per-window appearance, used when seeding/migrating a pair.
 const DEFAULT_PAIR_BORDER = { width: "0.1px", style: "solid", color: "#662D91" };
@@ -23,11 +25,16 @@ const DEFAULT_WINDOW_HEIGHT = 461;
 const DEFAULT_PAIR_RESOLUTION = "804px|452px";
 
 function saveSettings(settings) {
-  fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+  fs.writeFileSync(settingsFilePath(), JSON.stringify(settings, null, 2));
+}
+
+// Unique-enough id with a readable prefix ("pair-…", "rce-…", "acct-…").
+function newId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
 function newPairId() {
-  return `pair-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return newId("pair");
 }
 
 // Build a pair object, filling any missing fields with sensible defaults so the
@@ -62,7 +69,7 @@ function makePair(partial = {}) {
 // Convert the legacy single-window settings (display.deviceId + control.deviceId +
 // displayWindow bounds + global border/transparency/resolution) into one pair.
 // Each pair maps to exactly one capture device (pair.id === captureDeviceId); the
-// General tab lists the available capture devices rather than free-form "pairs".
+// Video tab lists the available video sources rather than free-form "pairs".
 // Idempotent and legacy keys are left in place so a downgrade keeps working.
 function migrateSettings(settings) {
   if (Array.isArray(settings.pairs) && settings.pairs.length > 0) {
@@ -94,7 +101,7 @@ function migrateSettings(settings) {
   }
 
   // Only create a pair when there is a legacy capture device to carry over. On a
-  // truly fresh install pairs stays empty — the General tab is populated from the
+  // truly fresh install pairs stays empty — the Video tab is populated from the
   // enumerated capture devices instead.
   if (captureDeviceId) {
     const migratedPair = makePair({
@@ -148,20 +155,44 @@ function loadSettings() {
       token: "", // Optional Bearer token; empty means no authentication
     },
     streams: {
-      sources: [], // WebRTC stream sources: { id, type: "sim", name, host, port }
+      // WebRTC stream sources, type "sim" | "rce" | "webrtc". Optional `chosen: false` hides one
+      // from the Video tab (absent = shown, so older settings look as before).
+      sources: [],
+    },
+    rce: {
+      accounts: [], // Cloud Emulator accounts { id, label, token (sealed), tail, apiUrl? }
+    },
+    video: {
+      hiddenCaptureIds: [], // capture devices unchecked in Choose video (absent = shown)
     },
     pairs: [], // Per-window capture+control pairs (populated by migrateSettings)
     activePairId: "", // Pair targeted by MCP / tray actions by default
   };
   try {
-    const loaded = Object.assign(defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath)));
+    const loaded = Object.assign(defaultSettings, JSON.parse(fs.readFileSync(settingsFilePath())));
     return migrateSettings(loaded);
   } catch (error) {
     return migrateSettings(defaultSettings);
   }
 }
 
+// Settings as MCP clients see them (get_settings / carabiner://settings), with every secret
+// removed: the MCP auth token, stream-source and Cloud Emulator account tokens (sealed or not),
+// and Xumo (RDK) bearer tokens.
+function redactSettings(settings) {
+  const snap = JSON.parse(JSON.stringify(settings));
+  if (snap.mcp?.token) snap.mcp.token = "***";
+  if (Array.isArray(snap.streams?.sources)) snap.streams.sources = snap.streams.sources.map(publicSource);
+  if (Array.isArray(snap.rce?.accounts)) snap.rce.accounts = snap.rce.accounts.map(publicAccount);
+  if (Array.isArray(snap.control?.deviceList)) {
+    snap.control.deviceList = snap.control.deviceList.map((d) => (d.token ? { ...d, token: "***" } : d));
+  }
+  return snap;
+}
+
 module.exports = {
+  newId,
+  redactSettings,
   saveSettings,
   loadSettings,
   migrateSettings,

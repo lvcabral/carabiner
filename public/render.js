@@ -557,6 +557,23 @@ function handleStreamLost() {
   scheduleStreamRetry();
 }
 
+// Resolve once ICE gathering is complete (bounded, so a slow STUN lookup can't stall the stream).
+function waitForIceGathering(pc, timeoutMs = 3000) {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      pc.removeEventListener("icegatheringstatechange", onChange);
+      resolve();
+    }
+    function onChange() {
+      if (pc.iceGatheringState === "complete") finish();
+    }
+    pc.addEventListener("icegatheringstatechange", onChange);
+  });
+}
+
 // Resolve with the remote MediaStream once the peer connection delivers its tracks.
 async function acquireWebRtcStream(deviceId) {
   closeStreamPeer();
@@ -593,29 +610,55 @@ async function acquireWebRtcStream(deviceId) {
     };
     armTimeout();
 
+    // `trickle`: relay local ICE candidates as they are found (offerer-first sources). A WHEP
+    // viewer instead sends one complete offer, so it doesn't trickle.
+    const createPeer = (iceServers, trickle) => {
+      const pc = new RTCPeerConnection({ iceServers: iceServers || [] });
+      streamPc = pc;
+      // Collect every track into one stream of our own: WHEP servers don't always tie tracks to a
+      // stream, and audio may arrive before video. Resolve once there is video to show.
+      const remote = new MediaStream();
+      pc.ontrack = (e) => {
+        if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
+        if (remote.getVideoTracks().length) done(resolve, remote);
+      };
+      if (trickle) {
+        pc.onicecandidate = (e) => {
+          window.electronAPI.send(
+            "stream-signal-out",
+            e.candidate
+              ? { type: "candidate", candidate: e.candidate.toJSON() }
+              : { type: "candidates-complete" }
+          );
+        };
+      }
+      pc.onconnectionstatechange = () => {
+        if (pc !== streamPc) return;
+        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+          if (!settled) return fail("Stream connection failed");
+          handleStreamLost();
+        }
+      };
+      return pc;
+    };
+
     window.electronAPI.onMessageReceived("stream-signal", async (_, msg) => {
       try {
-        if (msg.type === "offer") {
-          const pc = new RTCPeerConnection({ iceServers: msg.iceServers || [] });
-          streamPc = pc;
-          pc.ontrack = (e) => {
-            if (e.streams[0]) done(resolve, e.streams[0]);
-          };
-          pc.onicecandidate = (e) => {
-            window.electronAPI.send(
-              "stream-signal-out",
-              e.candidate
-                ? { type: "candidate", candidate: e.candidate.toJSON() }
-                : { type: "candidates-complete" }
-            );
-          };
-          pc.onconnectionstatechange = () => {
-            if (pc !== streamPc) return;
-            if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-              if (!settled) return fail("Stream connection failed");
-              handleStreamLost();
-            }
-          };
+        if (msg.type === "request-offer") {
+          const pc = createPeer(msg.iceServers, false);
+          pc.addTransceiver("video", { direction: "recvonly" });
+          pc.addTransceiver("audio", { direction: "recvonly" });
+          await pc.setLocalDescription(await pc.createOffer());
+          await waitForIceGathering(pc);
+          if (pc !== streamPc) return;
+          window.electronAPI.send("stream-signal-out", {
+            type: "local-offer",
+            sdp: pc.localDescription.toJSON(),
+          });
+        } else if (msg.type === "answer") {
+          if (streamPc) await streamPc.setRemoteDescription(msg.sdp);
+        } else if (msg.type === "offer") {
+          const pc = createPeer(msg.iceServers, true);
           if (/m=application [1-9]\d*/.test(msg.sdp?.sdp || "")) pc.createDataChannel("JanusDataChannel");
           await pc.setRemoteDescription(msg.sdp);
           remoteSet = true;
@@ -1914,20 +1957,21 @@ let controlIp = "";
 let controlType = "ecp";
 
 async function handleControlSelected(data) {
-  if (typeof data === "string" && data.includes("|")) {
-    [controlIp, controlType] = data.split("|");
-    deviceLabel.textContent = await getCaptureDeviceLabel(
-      currentConstraints?.video?.deviceId?.exact
-    );
-  }
-}
-
-function handleControlList(data) {
-  const found = data.find((device) => device.id === `${controlIp}|${controlType}`);
-  if (!found) {
+  if (data === "") {
+    // Unlinked (e.g. its control device was deleted or unchecked on the Control tab).
     controlIp = "";
     controlType = "ecp";
+  } else if (typeof data === "string" && data.includes("|")) {
+    [controlIp, controlType] = data.split("|");
+  } else {
+    return;
   }
+  deviceLabel.textContent = await getCaptureDeviceLabel(currentConstraints?.video?.deviceId?.exact);
+}
+
+// The catalog only matters for labels here: main owns the pairing and sends set-control-selected ""
+// whenever this window's control leaves the catalog.
+function handleControlList(data) {
   controlList = data;
   // A rename of the control (or its stream) changes what the window's label should say.
   const shownDeviceId = currentConstraints?.video?.deviceId?.exact;

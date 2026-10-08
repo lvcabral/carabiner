@@ -74,7 +74,7 @@ field.
 
 ## Tool reference
 
-> **Window modes.** Carabiner runs in one of two modes (set in the General tab):
+> **Window modes.** Carabiner runs in one of two modes (**Allow multiple active** on the Video tab):
 >
 > - **Single-window (default)** — one Display window at a time. Device/window tools act on
 >   that window. To drive a *different* configured device, call `select_device` first (or
@@ -94,7 +94,7 @@ field.
 ### Device control
 | Tool | Description |
 |------|-------------|
-| `list_devices` | All configured control devices with protocol and connection status |
+| `list_devices` | Control devices checked on the Control tab, plus each stream's built-in control (`streamctl:<sourceId>\|ecp`), with protocol and connection status |
 | `list_windows` | Open Display windows (pairs): `pairId`, capture label, control device id, visibility, and which is active. Use a window's `controlDeviceId` as `deviceId` to target it |
 | `select_device` | Target a device: in single-window mode switches the one window to it; in multi-window mode makes the window bound to it active (or relinks the active window's control). Id format `<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`, `<host:port>\|rdk` |
 | `send_key` | Send one keypress (see [Keys](#keys)); optional `deviceId` |
@@ -105,7 +105,7 @@ field.
 ### Capture & recording
 | Tool | Description |
 |------|-------------|
-| `list_capture_devices` | Available video sources: HDMI capture cards (`kind: "capture"`) and configured WebRTC streams (`kind: "stream"`, id `stream:<id>`) |
+| `list_capture_devices` | Video sources checked on the Video tab: HDMI capture cards (`kind: "capture"`) and WebRTC streams — Cloud Emulator, Simulator or stream URL (`kind: "stream"`, id `stream:<id>`) |
 | `select_capture_device` | Switch the active capture source (capture card or WebRTC stream) |
 | `take_screenshot` | Capture the current frame; returns a PNG image and (by default) saves it to the screenshots folder; optional `deviceId` |
 | `start_recording` | Begin recording (optional `filename_prefix`); optional `deviceId` |
@@ -126,7 +126,7 @@ field.
 | `show_display` / `hide_display` | Show or hide the floating display window; optional `deviceId` |
 | `toggle_fullscreen` | Toggle fullscreen; optional `deviceId` |
 | `toggle_on_top` | Toggle always-on-top; optional `deviceId` |
-| `get_settings` | Read-only settings snapshot (auth token redacted) |
+| `get_settings` | Read-only settings snapshot (auth and access tokens redacted) |
 | `get_app_info` | App version, OS, and MCP server status |
 
 ### Resources
@@ -134,7 +134,7 @@ field.
 |-----|-------------|
 | `carabiner://devices` | Device list + selected device |
 | `carabiner://scripts` | All saved scripts |
-| `carabiner://settings` | Settings snapshot (token redacted) |
+| `carabiner://settings` | Settings snapshot (auth and access tokens redacted) |
 | `carabiner://screenshot/latest` | Current frame as a PNG |
 
 ### Prompts
@@ -239,11 +239,14 @@ This re-runs the same QA task every 30 minutes without any external scheduler.
 ## Troubleshooting
 
 - **`take_screenshot` / recording errors with "No active video stream"** — select a capture device
-  first (the display window must be streaming). Use `select_capture_device` or pick one in the
-  General tab.
+  first (the display window must be streaming). Use `select_capture_device` or turn one on in the
+  Video tab.
+- **A device or capture source is "unknown"** — MCP only sees video sources and control devices that
+  are checked on the Video and Control tabs (the same ones the menus list). Check it in
+  *Choose video* (Video tab) / *Choose devices* (Control tab).
 - **`send_key` returns "No control device selected"** — call `select_device` first.
 - **"Single-window mode shows one window at a time…"** — you passed a `deviceId` for a device that
   isn't the currently shown window. Call `select_device` (or `show_display`) with that id to switch
-  the single window to it first, or enable Multiple Windows mode in the General tab.
+  the single window to it first, or check **Allow multiple active** on the Video tab.
 - **Port already in use** — change the port in the MCP Server card and reconnect your client.
 - **401 Unauthorized** — your client is missing the `Authorization: Bearer <token>` header.
