@@ -52,7 +52,13 @@ module.exports = {
     },
     {
       name: "@electron-forge/maker-rpm",
-      config: {},
+      config: {
+        icon: "./images/icon.png",
+        categories: ['Utility'],
+        // packagerConfig.name is "Carabiner", so the Linux executable is capitalized;
+        // electron-installer-debian defaults to package.json's lowercase name.
+        bin: "Carabiner",
+      },
     },
   ],
   publishers: [
