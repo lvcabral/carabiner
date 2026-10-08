@@ -9,14 +9,14 @@ Carabiner is available for macOS, Windows, and Linux. Download the latest instal
 ## System Requirements
 
 - **Operating System**: macOS 10.14+, Windows 10+, or Linux (Ubuntu 18.04+)
-- **Video Source**: Video capture device (USB capture card, webcam, etc.) and/or a WebRTC stream (BrightScript Simulator remote screen or [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) device)
+- **Video Source**: Video capture device (USB capture card, webcam, etc.) and/or a WebRTC stream (BrightScript Simulator remote screen, [Roku Cloud Emulator](https://developer.roku.com/dev/docs/rce) device, or any WebRTC (WHEP) stream URL)
 - **Streaming Devices**: Roku, Android-based devices (Fire TV, Google TV, Android TV), Apple TV, Xumo Stream Box (RDK, experimental)
 
 ## Setup Prerequisites
 
 ### For All Devices
 
-1. **Video Source**: Connect your capture card to the streaming device and your computer — or, for a WebRTC stream, make sure the stream is reachable (see [Add WebRTC Streams](./usage-guide.md#2-add-webrtc-streams-optional))
+1. **Video Source**: Connect your capture card to the streaming device and your computer — or, for a WebRTC stream, make sure the stream is reachable (see [Choose Video](./usage-guide.md#2-choose-video))
 2. **Camera/Microphone Access**: Grant permission when prompted on first launch
 
 ### For Roku Devices
@@ -99,7 +99,7 @@ brew upgrade --cask carabiner
 
 ## Cloud Emulator Token & Keychain Prompt
 
-If you use a Roku Cloud Emulator stream, Carabiner stores its access token in your operating system's secure storage. On **macOS** you may be asked for your login (Keychain) password — typically the first time after installing or upgrading — to allow access to the *Carabiner Safe Storage* item; choose **Always Allow** to avoid repeated prompts. On **Linux**, make sure a keyring service (GNOME Keyring or KWallet) is running and unlocked. See [Add WebRTC Streams](./usage-guide.md#2-add-webrtc-streams-optional) for details.
+If you use a Roku Cloud Emulator stream, Carabiner stores its access token in your operating system's secure storage. On **macOS** you may be asked for your login (Keychain) password — typically the first time after installing or upgrading — to allow access to the *Carabiner Safe Storage* item; choose **Always Allow** to avoid repeated prompts. On **Linux**, make sure a keyring service (GNOME Keyring or KWallet) is running and unlocked. See [Choose Video](./usage-guide.md#2-choose-video) for details.
 
 ## Important Security Notes
 

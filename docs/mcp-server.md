@@ -94,7 +94,7 @@ field.
 ### Device control
 | Tool | Description |
 |------|-------------|
-| `list_devices` | All configured control devices with protocol and connection status |
+| `list_devices` | Control devices checked on the Control tab, plus each stream's built-in control (`streamctl:<sourceId>\|ecp`), with protocol and connection status |
 | `list_windows` | Open Display windows (pairs): `pairId`, capture label, control device id, visibility, and which is active. Use a window's `controlDeviceId` as `deviceId` to target it |
 | `select_device` | Target a device: in single-window mode switches the one window to it; in multi-window mode makes the window bound to it active (or relinks the active window's control). Id format `<ip>\|ecp`, `<ip>\|adb`, `<uuid-or-mac>\|atv`, `<host:port>\|rdk` |
 | `send_key` | Send one keypress (see [Keys](#keys)); optional `deviceId` |
@@ -105,7 +105,7 @@ field.
 ### Capture & recording
 | Tool | Description |
 |------|-------------|
-| `list_capture_devices` | Available video sources: HDMI capture cards (`kind: "capture"`) and configured WebRTC streams (`kind: "stream"`, id `stream:<id>`) |
+| `list_capture_devices` | Video sources checked on the Video tab: HDMI capture cards (`kind: "capture"`) and WebRTC streams — Cloud Emulator, Simulator or stream URL (`kind: "stream"`, id `stream:<id>`) |
 | `select_capture_device` | Switch the active capture source (capture card or WebRTC stream) |
 | `take_screenshot` | Capture the current frame; returns a PNG image and (by default) saves it to the screenshots folder; optional `deviceId` |
 | `start_recording` | Begin recording (optional `filename_prefix`); optional `deviceId` |

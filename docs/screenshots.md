@@ -12,8 +12,8 @@ The main settings interface provides comprehensive configuration options across 
 
 **Features shown:**
 
-- **Tabbed Interface**: General, Display, Control, Automation, Overlay, Files, and About tabs
-- **Device Configuration**: Video capture device selection and streaming device management
+- **Tabbed Interface**: General, Video, Control, Display, Automation, MCP, Overlay, Files, and About tabs
+- **Device Configuration**: Video sources (capture cards and WebRTC streams) on the Video tab and control devices on the Control tab, each picked from a checklist
 - **Display Controls**: Resolution settings, transparency slider, and window behavior options
 - **Automation**: Record and manage control scripts with precise timing
 - **MCP Server**: Enable and configure the embedded Model Context Protocol server for AI-driven automation
