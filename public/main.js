@@ -545,7 +545,30 @@ function createMainWindow() {
   win.loadURL(`file://${path.join(__dirname, "../build/index.html")}`);
   win.removeMenu();
   win.setMenuBarVisibility(false);
+  keepSettingsAboveDisplays(win);
   return win;
+}
+
+// Display windows float ("floating" level 1) when Always on Top is on, so a large one can
+// cover the settings window entirely. While settings has focus, float it one level above
+// them; drop back to the normal level once a Display window or another app takes focus.
+// Plain blur isn't used to lower it on macOS: a sheet (e.g. a message box) attached to
+// settings blurs it, and lowering then would hide the sheet behind the Display window.
+function keepSettingsAboveDisplays(win) {
+  const lower = () => {
+    if (!win.isDestroyed() && win.isAlwaysOnTop()) win.setAlwaysOnTop(false);
+  };
+  win.on("focus", () => win.setAlwaysOnTop(true, "floating", 2));
+  win.on("hide", lower);
+  app.on("browser-window-focus", (event, focused) => {
+    if (focused !== win) lower();
+  });
+  if (isMacOS) {
+    app.on("did-resign-active", lower);
+  } else {
+    // Focus moved outside the app (no focused window once the blur settles).
+    win.on("blur", () => setImmediate(() => !BrowserWindow.getFocusedWindow() && lower()));
+  }
 }
 
 // `npm run dev` live reload: scripts/dev.js messages us over its IPC channel once a src/
