@@ -183,6 +183,16 @@ test("a simulator already in the list can't be added again, even as 127.0.0.1", 
   }
 });
 
+test("the Video tab's refresh button explains itself in a tooltip on hover", async () => {
+  renderTab("Video");
+  await within(panel("Video")).findByText("usb video");
+  const refresh = within(panel("Video")).getByRole("button", { name: "Refresh device status" });
+  userEvent.hover(refresh);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("Refresh Cloud Emulator devices, status and reachability");
+  userEvent.unhover(refresh);
+  await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
+});
+
 test("Choose more devices… on a Video row opens Choose control devices", async () => {
   renderTab("Video");
   const select = await within(panel("Video")).findByLabelText("Control for usb video");

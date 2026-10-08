@@ -9,7 +9,9 @@
  *--------------------------------------------------------------------------------------------*/
 import { useCallback, useEffect, useRef, useState } from "react";
 import Button from "react-bootstrap/Button";
+import OverlayTrigger from "react-bootstrap/OverlayTrigger";
 import Spinner from "react-bootstrap/Spinner";
+import Tooltip from "react-bootstrap/Tooltip";
 
 export function TrashIcon() {
   return (
@@ -35,20 +37,29 @@ export function RefreshIcon() {
   );
 }
 
+let tooltipCount = 0;
+
 // Small icon-only button (refresh / rename / remove) used on the tabs and in the dialogs.
-// `label` is its accessible name; `title` its tooltip.
+// `label` is its accessible name; `title` its tooltip. The tooltip is a Bootstrap one rather than
+// the native `title`, which Electron on macOS only shows after a delay and while the app is active.
 export function IconButton({ label, title, onClick, danger = false, disabled = false, className = "", children }) {
-  return (
+  const [tooltipId] = useState(() => `icon-btn-tip-${++tooltipCount}`);
+  const button = (
     <button
       type="button"
       className={`icon-btn${danger ? " danger" : ""}${className ? ` ${className}` : ""}`}
       aria-label={label}
-      title={title}
       onClick={onClick}
       disabled={disabled}
     >
       {children}
     </button>
+  );
+  if (!title) return button;
+  return (
+    <OverlayTrigger placement="bottom" delay={{ show: 250, hide: 0 }} overlay={<Tooltip id={tooltipId}>{title}</Tooltip>}>
+      {button}
+    </OverlayTrigger>
   );
 }
 
