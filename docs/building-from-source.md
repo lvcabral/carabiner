@@ -57,7 +57,7 @@ The first command builds the React frontend, and the second starts the Electron 
 - **`npm run make:win`**: Create a Windows x64 installer
 - **`npm run make:linux`**: Create a Linux x64 installer
 - **`npm run make:linux:arm64`**: Create a Linux ARM64 installer (`.deb`)
-- **`npm run publish`**: Build and publish a draft release to GitHub
+- **`npm run publish`**: Build and publish a release to GitHub
 
 ## Creating Installers
 
@@ -80,7 +80,7 @@ npm run make:mac:universal  # universal (Intel + Apple Silicon)
 
 `make:mac:universal` produces a single DMG that runs natively on both Intel and Apple Silicon Macs.
 
-> **macOS notarization** requires the `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` environment variables to be set before running the `make:mac:*` scripts or `publish`.
+> **macOS notarization** requires the `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` environment variables to be set before running the `make:mac:*` scripts or `publish`. They can be kept in a local `.env` file (git-ignored, loaded by `forge.config.js`); it is never packaged.
 
 ### Windows and Linux
 
@@ -91,6 +91,18 @@ npm run make:linux:arm64  # Linux ARM64 installer (.deb)
 ```
 
 > Cross-platform builds generally require building on (or with the toolchain for) the target OS.
+
+### What Goes Into the Package
+
+`forge.config.js` packages only an allowlist of paths (`PACKAGE_ALLOWLIST`): `package.json`, `public/`, `build/`, the two tray icons in `images/`, and the production dependencies in `node_modules/` (dot-entries such as `.bin`, `.cache` and `.vite` are left out). Everything else in the project root — `.env`, `.claude/`, `.mcp.json`, `src/`, `docs/`, `scripts/`, `forge.config.js` — stays out of `app.asar`.
+
+If you add a file the app reads at runtime outside `public/` or `build/`, add it to `PACKAGE_ALLOWLIST`, or it will be missing from the packaged app. As a second safeguard, a `packageAfterCopy` hook fails the build if the copied app contains a `.env*`, `.mcp.json` or `settings.local.json` file, a certificate/key file (`.pem`, `.p12`, `.p8`, `.key`, `.cer`, provisioning profiles), or a dot-folder at its root.
+
+To check what a build contains:
+
+```console
+npx asar list out/Carabiner-darwin-arm64/Carabiner.app/Contents/Resources/app.asar | grep -v "^/node_modules/"
+```
 
 ## Project Structure
 

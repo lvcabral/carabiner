@@ -38,7 +38,9 @@ npm run make:linux:arm64   # Linux ARM64 installer (.deb only)
 npm run publish            # build + electron-forge publish to GitHub Releases
 ```
 
-**macOS notarization** requires env vars: `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
+**macOS notarization** requires env vars: `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` (may live in a local, git-ignored `.env` loaded by `forge.config.js`).
+
+**Packaging is allowlist-based.** `forge.config.js` packages only `PACKAGE_ALLOWLIST`: `package.json`, `public/`, `build/`, `images/menuicon.png` + `images/icon.ico` (tray icons) and production `node_modules/` (minus dot-entries like `.bin`/`.vite`). A new runtime file outside `public/`/`build/` must be added to the allowlist. A `packageAfterCopy` hook fails the build if a `.env*`, `.mcp.json`, `settings.local.json`, key/certificate file or root dot-folder ends up in the app (v3.0.0 shipped `.env` inside `app.asar`).
 
 ## Architecture
 
