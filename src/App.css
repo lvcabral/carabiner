@@ -113,8 +113,15 @@ body {
   color: #fff !important;
 }
 
+/* Bootstrap 5.1 doesn't know data-bs-theme, so nothing sets color-scheme; without it Chromium
+   draws native controls (scrollbars) light even in dark mode. The modals carry the attribute too. */
+[data-bs-theme="light"] {
+  color-scheme: light;
+}
+
 /* Dark Mode Styles */
 [data-bs-theme="dark"] {
+  color-scheme: dark;
   background-color: #212529 !important;
   color: #fff !important;
 }
