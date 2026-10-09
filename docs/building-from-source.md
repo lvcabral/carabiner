@@ -53,7 +53,7 @@ The first command builds the React frontend, and the second starts the Electron 
 - **`npm run package`**: Package the app without building an installer (output: `out/`)
 - **`npm run make`**: Create an installer for the current platform (output: `out/make/`)
 - **`npm run make:mac:arm64`**: Create a macOS DMG for Apple Silicon (arm64)
-- **`npm run make:mac:universal`**: Create a universal macOS DMG (Intel + Apple Silicon)
+- **`npm run make:mac:x64`**: Create a macOS DMG for Intel (x64)
 - **`npm run make:win`**: Create a Windows x64 installer
 - **`npm run make:linux`**: Create a Linux x64 installer
 - **`npm run make:linux:arm64`**: Create a Linux ARM64 installer (`.deb`)
@@ -74,11 +74,11 @@ The installer will be created in the `./out/make` directory.
 ### macOS
 
 ```console
-npm run make:mac:arm64      # Apple Silicon only
-npm run make:mac:universal  # universal (Intel + Apple Silicon)
+npm run make:mac:arm64  # Apple Silicon
+npm run make:mac:x64    # Intel
 ```
 
-`make:mac:universal` produces a single DMG that runs natively on both Intel and Apple Silicon Macs.
+Each script produces a DMG and a ZIP for one architecture (`Carabiner-<version>-arm64.dmg`, `Carabiner-<version>-x64.dmg`). A release should include both, since the [Homebrew cask](https://github.com/lvcabral/homebrew-carabiner) installs the arm64 DMG on Apple Silicon and the x64 DMG on Intel.
 
 > **macOS notarization** requires the `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` environment variables to be set before running the `make:mac:*` scripts or `publish`. They can be kept in a local `.env` file (git-ignored, loaded by `forge.config.js`); it is never packaged.
 
