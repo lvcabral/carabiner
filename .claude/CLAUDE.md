@@ -31,7 +31,7 @@ npm test            # Run React component tests (vitest run)
 npm run package            # Package the app (electron-forge package, no installer)
 npm run make               # Create installer for the current platform
 npm run make:mac:arm64     # macOS DMG, Apple Silicon (arm64)
-npm run make:mac:universal # macOS DMG, universal (Intel + Apple Silicon)
+npm run make:mac:x64       # macOS DMG, Intel (x64)
 npm run make:win           # Windows x64 installer
 npm run make:linux         # Linux x64 installer
 npm run make:linux:arm64   # Linux ARM64 installer (.deb only)
