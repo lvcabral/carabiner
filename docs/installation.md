@@ -75,7 +75,7 @@ brew upgrade --cask carabiner
 
 #### Manual install
 
-1. Download the `.dmg` file from the releases page
+1. Download the `.dmg` file for your Mac from the releases page: `Carabiner-<version>-arm64.dmg` for Apple Silicon (M-series), or `Carabiner-<version>-x64.dmg` for Intel
 2. Open the downloaded file
 3. Drag Carabiner to your Applications folder
 4. Launch Carabiner from Applications
