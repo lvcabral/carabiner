@@ -257,6 +257,15 @@ function syncManagedControls({ notify = true } = {}) {
   }
   return before !== JSON.stringify(settings.control.deviceList) || removedIds.length > 0;
 }
+// Link a Simulator / Cloud Emulator pair to its source's built-in control, if it isn't already.
+// Returns whether the pair changed. Used when a window opens, as pairs created on the fly (menu,
+// tray, MCP switching to a source) start with no control.
+function linkLockedControl(pair) {
+  const src = getStreamSources().find((x) => streamDeviceId(x) === pair?.captureDeviceId && hasLockedControl(x.type));
+  if (!src || pair.controlDeviceId === streamControlId(src)) return false;
+  pair.controlDeviceId = streamControlId(src);
+  return true;
+}
 // Tell the settings window and every Display window about the (possibly changed) control catalog.
 function broadcastControlList() {
   mainWindow?.webContents?.send("update-control-device", { deviceList: settings.control.deviceList });
@@ -898,6 +907,8 @@ function createDisplayWindow(pair) {
 // Open (create + connect + show) the Display window for a pair if not already open.
 function openPair(pair) {
   if (!pair || getWindow(pair.id)) return getWindow(pair.id);
+  // Before the window loads its pair config, so it starts with the stream's control linked.
+  if (linkLockedControl(pair)) saveSettings(settings);
   const win = createDisplayWindow(pair);
   setAlwaysOnTop(pair.alwaysOnTop !== false, win);
   connectPairControl(pair.id);
