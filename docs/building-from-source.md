@@ -92,6 +92,16 @@ npm run make:linux:arm64  # Linux ARM64 installer (.deb)
 
 > Cross-platform builds generally require building on (or with the toolchain for) the target OS.
 
+### Releasing with GitHub Actions
+
+`.github/workflows/release.yml` builds every installer on GitHub-hosted runners (macOS arm64 + x64 signed and notarized, Windows x64, Linux x64 `.deb`/`.rpm` and arm64 `.deb`) and attaches them to a **draft** release with generated notes and the Homebrew install section. To release:
+
+1. Bump `version` in `package.json` and merge it to `main`.
+2. Tag and push: `git tag v<version> && git push origin v<version>` (the tag must match `package.json`), or run the **Release** workflow from the Actions tab.
+3. When the workflow finishes, edit the draft's title/notes and publish it, then update the [Homebrew cask](https://github.com/lvcabral/homebrew-carabiner).
+
+The macOS jobs need these repository secrets: `MACOS_CERTIFICATE` (base64 of the *Developer ID Application* certificate exported as `.p12`, e.g. `base64 -i cert.p12 | pbcopy`), `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`.
+
 ### What Goes Into the Package
 
 `forge.config.js` packages only an allowlist of paths (`PACKAGE_ALLOWLIST`): `package.json`, `public/`, `build/`, the two tray icons in `images/`, and the production dependencies in `node_modules/` (dot-entries such as `.bin`, `.cache` and `.vite` are left out). Everything else in the project root — `.env`, `.claude/`, `.mcp.json`, `src/`, `docs/`, `scripts/`, `forge.config.js` — stays out of `app.asar`.

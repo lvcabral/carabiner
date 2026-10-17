@@ -1,0 +1,248 @@
+# Builds the installers on every platform and attaches them to a GitHub release.
+#
+# Triggered by pushing a version tag (`git tag v3.0.3 && git push origin v3.0.3`), or
+# manually from the Actions tab (tags the selected commit with v<package.json version>).
+# The release is created as a draft once every build has succeeded, so the auto-updater
+# (which reads the latest published release) never sees a release with missing files.
+# Edit the title/notes and click "Publish release" when ready.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   MACOS_CERTIFICATE           base64 of the "Developer ID Application" .p12 export
+#   MACOS_CERTIFICATE_PASSWORD  password of that .p12
+#   APPLE_ID                    Apple ID used for notarization
+#   APPLE_PASSWORD              app-specific password of that Apple ID
+#   APPLE_TEAM_ID               Apple Developer team id
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: "Create the release as a draft"
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$TAG" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" = "false" ]; then
+            echo "::error::Release $TAG is already published; bump the version in package.json"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    needs: [version, test]
+    runs-on: macos-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: [arm64, x64]
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "::error::The MACOS_CERTIFICATE secret is not set"
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+      - run: npm run build
+      - name: Make (signed + notarized)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run make:mac:${{ matrix.arch }}
+      - name: Collect installers
+        run: |
+          mkdir dist
+          cp "out/make/dmg/${{ matrix.arch }}/Carabiner-$VERSION-${{ matrix.arch }}.dmg" dist/
+          cp "out/make/zip/darwin/${{ matrix.arch }}/Carabiner-darwin-${{ matrix.arch }}-$VERSION.zip" \
+             "dist/Carabiner-$VERSION-${{ matrix.arch }}.zip"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    needs: [version, test]
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run make:win
+      - name: Collect installers
+        run: |
+          mkdir dist
+          cp "out/make/squirrel.windows/x64/Carabiner-$VERSION Setup.exe" "dist/Carabiner-$VERSION.Setup.exe"
+          cp "out/make/squirrel.windows/x64/carabiner-$VERSION-full.nupkg" dist/
+      - uses: actions/upload-artifact@v5
+        with:
+          name: windows-x64
+          path: dist/*
+          if-no-files-found: error
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: [version, test]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+            script: make:linux
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            script: make:linux:arm64
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg rpm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run ${{ matrix.script }}
+      - name: Collect installers
+        run: |
+          mkdir dist
+          cp out/make/deb/${{ matrix.arch }}/*.deb dist/
+          if [ "${{ matrix.arch }}" = "x64" ]; then cp out/make/rpm/x64/*.rpm dist/; fi
+      - uses: actions/upload-artifact@v5
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Create release
+    needs: [version, macos, windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.version.outputs.tag }}
+      DRAFT: ${{ github.event_name == 'push' || inputs.draft }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Write release notes
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" --jq .body > notes.md
+          cat >> notes.md <<'EOF'
+
+          ## Installation
+
+          Install using one of the artifacts below, or in MacOS via HomeBrew:
+
+          ```console
+          brew tap lvcabral/carabiner
+          brew install --cask carabiner
+          ```
+
+          To upgrade to a newer version later:
+
+          ```console
+          brew update
+          brew upgrade --cask carabiner
+          ```
+          EOF
+      - name: Create or update the release
+        run: |
+          ls -l dist
+          if IS_DRAFT=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$IS_DRAFT" != "true" ]; then
+              echo "::error::Release $TAG is already published; bump the version in package.json"
+              exit 1
+            fi
+            # A re-run: refresh the files of the draft release, keep its notes.
+            gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            FLAGS=""
+            if [ "$DRAFT" = "true" ]; then FLAGS="--draft"; fi
+            gh release create "$TAG" dist/* $FLAGS \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$TAG" \
+              --notes-file notes.md
+          fi
